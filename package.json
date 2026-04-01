@@ -1,0 +1,25 @@
+{
+  "name": "bakpak",
+  "version": "1.0.0",
+  "description": "A Depop-like thrifting marketplace app",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd backend && npm run dev",
+    "client": "cd frontend && npm start",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+  },
+  "keywords": [
+    "thrift",
+    "marketplace",
+    "depop"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "cloudinary": "^2.8.0"
+  }
+}

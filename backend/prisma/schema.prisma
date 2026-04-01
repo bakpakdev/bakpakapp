@@ -1,0 +1,255 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  username      String    @unique
+  password      String
+  firstName     String?
+  lastName      String?
+  bio           String?
+  avatar        String?
+  shopName      String?
+  dateOfBirth   DateTime?
+  country       String?
+  isVerified    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  products      Product[]
+  orders        Order[]   @relation("Buyer")
+  sales         Order[]   @relation("Seller")
+  followers     Follow[]  @relation("Following")
+  following     Follow[]  @relation("Follower")
+  likes         Like[]
+  savedItems    SavedItem[]
+  messages      Message[] @relation("Sender")
+  conversations ConversationParticipant[]
+  reviews       Review[]  @relation("Reviewed")
+  givenReviews  Review[]  @relation("Reviewer")
+  productViews  ProductView[]
+  cartItems     CartItem[]
+
+  @@map("users")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  price       Float
+  condition   String   // new, like-new, good, fair
+  size        String?
+  brand       String?
+  category    String   // clothing, shoes, accessories, etc.
+  tags        Json?    // Array of tags stored as JSON
+  isSold      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images      Image[]
+  likes       Like[]
+  savedItems  SavedItem[]
+  orderItems  OrderItem[]
+  views       ProductView[]
+  cartItems   CartItem[]
+
+  @@index([userId])
+  @@index([category])
+  @@index([isSold])
+  @@map("products")
+}
+
+model Image {
+  id        String   @id @default(cuid())
+  url       String
+  publicId String?  // Cloudinary public ID
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("images")
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  total         Float
+  status        String      @default("pending") // pending, processing, shipped, delivered, cancelled
+  shippingAddress String
+  paymentIntentId String?   // Stripe payment intent ID
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  buyerId       String
+  buyer         User        @relation("Buyer", fields: [buyerId], references: [id])
+  sellerId      String
+  seller        User        @relation("Seller", fields: [sellerId], references: [id])
+  items         OrderItem[]
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  quantity  Int     @default(1)
+  price     Float   // Price at time of purchase
+
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  followerId  String
+  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+  @@map("likes")
+}
+
+model SavedItem {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+  @@map("saved_items")
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  senderId  String
+  sender    User     @relation("Sender", fields: [senderId], references: [id])
+  conversationId String
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@map("messages")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  reviewerId String
+  reviewer    User    @relation("Reviewer", fields: [reviewerId], references: [id])
+  reviewedId  String
+  reviewed    User    @relation("Reviewed", fields: [reviewedId], references: [id])
+
+  @@unique([reviewerId, reviewedId])
+  @@index([reviewedId])
+  @@map("reviews")
+}
+
+model ProductView {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([productId])
+  @@index([createdAt])
+  @@map("product_views")
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+  @@map("cart_items")
+}
+

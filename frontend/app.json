@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "bakpak",
+    "slug": "bakpak",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "bakpak",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bakpak.app"
+    },
+    "android": {
+      "package": "com.bakpak.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bakpak"
+      }
+    }
+  }
+}
+

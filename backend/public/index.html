@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>bakpak API Server</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .status {
+            background: #f0f0f0;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .status-item:last-child {
+            border-bottom: none;
+        }
+        .status-label {
+            font-weight: 600;
+            color: #333;
+        }
+        .status-value {
+            color: #666;
+        }
+        .status-value.success {
+            color: #10b981;
+            font-weight: 600;
+        }
+        .endpoints {
+            margin-top: 30px;
+        }
+        .endpoints h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+        .endpoint {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .endpoint-method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+        .method-get {
+            background: #10b981;
+            color: white;
+        }
+        .method-post {
+            background: #3b82f6;
+            color: white;
+        }
+        .endpoint-path {
+            font-family: 'Courier New', monospace;
+            color: #333;
+        }
+        .test-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 20px;
+            width: 100%;
+            transition: background 0.3s;
+        }
+        .test-button:hover {
+            background: #5568d3;
+        }
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            display: none;
+        }
+        .response.show {
+            display: block;
+        }
+        .response pre {
+            color: #333;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛍️ bakpak API Server</h1>
+        <p class="subtitle">Backend API is running successfully!</p>
+        
+        <div class="status">
+            <div class="status-item">
+                <span class="status-label">Server Status:</span>
+                <span class="status-value success" id="serverStatus">Checking...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">API Base URL:</span>
+                <span class="status-value" id="apiUrl">http://localhost:5000/api</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Health Check:</span>
+                <span class="status-value" id="healthStatus">Checking...</span>
+            </div>
+        </div>
+
+        <div class="endpoints">
+            <h2>Available Endpoints</h2>
+            <div class="endpoint">
+                <span class="endpoint-method method-get">GET</span>
+                <span class="endpoint-path">/api/health</span>
+            </div>
+            <div class="endpoint">
+                <span class="endpoint-method method-get">GET</span>
+                <span class="endpoint-path">/api/products</span>
+            </div>
+            <div class="endpoint">
+                <span class="endpoint-method method-post">POST</span>
+                <span class="endpoint-path">/api/auth/register</span>
+            </div>
+            <div class="endpoint">
+                <span class="endpoint-method method-post">POST</span>
+                <span class="endpoint-path">/api/auth/login</span>
+            </div>
+        </div>
+
+        <button class="test-button" onclick="testHealth()">Test Health Endpoint</button>
+        
+        <div class="response" id="response">
+            <pre id="responseText"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Check server status on load
+        window.addEventListener('load', () => {
+            checkHealth();
+        });
+
+        async function checkHealth() {
+            try {
+                const response = await fetch('http://localhost:5000/api/health');
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('serverStatus').textContent = '✅ Running';
+                    document.getElementById('healthStatus').textContent = '✅ Connected';
+                } else {
+                    document.getElementById('serverStatus').textContent = '❌ Error';
+                    document.getElementById('healthStatus').textContent = '❌ Failed';
+                }
+            } catch (error) {
+                document.getElementById('serverStatus').textContent = '❌ Not Running';
+                document.getElementById('healthStatus').textContent = '❌ Cannot Connect';
+                console.error('Server not running:', error);
+            }
+        }
+
+        async function testHealth() {
+            const responseDiv = document.getElementById('response');
+            const responseText = document.getElementById('responseText');
+            
+            try {
+                const response = await fetch('http://localhost:5000/api/health');
+                const data = await response.json();
+                
+                responseText.textContent = JSON.stringify(data, null, 2);
+                responseDiv.classList.add('show');
+            } catch (error) {
+                responseText.textContent = `Error: ${error.message}\n\nMake sure the server is running on http://localhost:5000`;
+                responseDiv.classList.add('show');
+            }
+        }
+    </script>
+</body>
+</html>
+
