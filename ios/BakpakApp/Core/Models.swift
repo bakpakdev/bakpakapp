@@ -4,6 +4,23 @@ struct APIMessage: Codable {
     let message: String?
 }
 
+struct SearchSuggestion: Codable, Identifiable, Hashable {
+    var id: String { "\(type)-\(text.lowercased())" }
+    let text: String
+    let type: String
+    let score: Double
+}
+
+struct SearchSuggestResponse: Codable {
+    let query: String?
+    let school: String?
+    let suggestions: [SearchSuggestion]
+}
+
+struct SearchEventAck: Codable {
+    let ok: Bool?
+}
+
 struct AuthResponse: Codable {
     let token: String
     let user: User
@@ -21,6 +38,20 @@ struct User: Codable, Identifiable, Hashable {
     let dateOfBirth: String?
     let country: String?
     let isVerified: Bool?
+}
+
+struct MarketplaceCategory: Codable, Identifiable, Hashable {
+    let id: String
+    let name: String
+    let slug: String
+    let sortOrder: Int?
+    let parentId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, slug
+        case sortOrder = "sort_order"
+        case parentId = "parent_id"
+    }
 }
 
 struct ProductImage: Codable, Identifiable, Hashable {
@@ -46,12 +77,14 @@ struct Product: Codable, Identifiable, Hashable {
     let tags: [String]?
     let isSold: Bool?
     let createdAt: String?
+    let school: String?
+    let meetupLocation: String?
     let images: [ProductImage]?
     let user: User?
     let count: ProductCounts?
 
     enum CodingKeys: String, CodingKey {
-        case id, title, description, price, condition, size, brand, category, tags, isSold, createdAt, images, user
+        case id, title, description, price, condition, size, brand, category, tags, isSold, createdAt, school, meetupLocation, images, user
         case count = "_count"
     }
 }
@@ -61,6 +94,18 @@ struct Conversation: Codable, Identifiable, Hashable {
     let participants: [User]
     let messages: [Message]?
     let updatedAt: String?
+    let productId: String?
+}
+
+struct MessagedListing: Identifiable, Hashable {
+    let id: String
+    let conversationId: String
+    let otherUserId: String?
+    let title: String
+    let price: Double
+    let imageURL: String?
+    let sellerName: String
+    let isSold: Bool
 }
 
 struct Message: Codable, Identifiable, Hashable {
