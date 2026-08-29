@@ -39,9 +39,12 @@ struct RootView: View {
                 case .likedItems: LikedItemsView()
                 case .savedItems: SavedItemsView()
                 case .messagedItems: MessagedItemsView()
+                case .notificationCenter: NotificationCenterView()
                 case .myListings: MyListingsView()
                 case .editListing(let id): EditListingView(productId: id)
                 case .accountSettings: AccountSettingsView()
+                case .accountDetails: AccountDetailsView()
+                case .meetupPay(let item): MeetupPayFlowView(item: item)
                 }
             }
         }

@@ -19,6 +19,11 @@ final class AppState: ObservableObject {
             UserDefaults.standard.set(appearance.rawValue, forKey: Self.appearanceKey)
         }
     }
+    /// Unread inbound messages in buying vs selling inbox tabs.
+    @Published var inboxUnreadBuying: Int = 0
+    @Published var inboxUnreadSelling: Int = 0
+
+    var inboxUnreadTotal: Int { inboxUnreadBuying + inboxUnreadSelling }
 
     private static let appearanceKey = "popup.appearance"
     /// Keep last tab only for short background absences.
@@ -58,6 +63,17 @@ final class AppState: ObservableObject {
         }
     }
 
+    func resetAccountSessionCaches() {
+        inboxUnreadBuying = 0
+        inboxUnreadSelling = 0
+        path.removeAll()
+        modal = nil
+        profileFocusTab = nil
+        pendingProfileProductId = nil
+        profileReloadToken += 1
+        homeEntryToken += 1
+    }
+
     func noteBackgrounded() {
         backgroundedAt = Date()
     }
@@ -70,6 +86,38 @@ final class AppState: ObservableObject {
             resetToHome(reload: true)
         }
         // Shorter absences keep the last tab / navigation stack.
+    }
+
+    func applyInboxUnread(from conversations: [Conversation], meId: String?) {
+        let me = (meId ?? "").lowercased()
+        var buying = 0
+        var selling = 0
+        for c in conversations {
+            guard c.unreadCount > 0 else { continue }
+            // Count people (conversations), not individual messages.
+            let sellerId = c.product?.user?.id.lowercased()
+            if let sellerId, !me.isEmpty, sellerId == me {
+                selling += 1
+            } else {
+                buying += 1
+            }
+        }
+        inboxUnreadBuying = buying
+        inboxUnreadSelling = selling
+    }
+
+    func refreshInboxUnread() async {
+        guard authVM.isAuthenticated else {
+            inboxUnreadBuying = 0
+            inboxUnreadSelling = 0
+            return
+        }
+        do {
+            let conversations = try await MessageService().conversations()
+            applyInboxUnread(from: conversations, meId: authVM.user?.id)
+        } catch {
+            // Keep last known badge counts.
+        }
     }
 }
 
@@ -100,9 +148,12 @@ enum Route: Hashable, Identifiable {
     case likedItems
     case savedItems
     case messagedItems
+    case notificationCenter
     case myListings
     case editListing(String)
     case accountSettings
+    case accountDetails
+    case meetupPay(MeetupChecklistItem)
 
     var id: String {
         switch self {
@@ -118,9 +169,12 @@ enum Route: Hashable, Identifiable {
         case .likedItems: return "liked-items"
         case .savedItems: return "saved-items"
         case .messagedItems: return "messaged-items"
+        case .notificationCenter: return "notification-center"
         case .myListings: return "my-listings"
         case .editListing(let id): return "edit-listing-\(id)"
         case .accountSettings: return "account-settings"
+        case .accountDetails: return "account-details"
+        case .meetupPay(let item): return "meetup-pay-\(item.id)"
         }
     }
 }

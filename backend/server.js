@@ -21,6 +21,14 @@ const io = new Server(server, {
   }
 });
 
+// Square webhooks must receive raw body (register before express.json()).
+const { squareWebhookHandler } = require('./routes/square');
+app.post(
+  '/api/payments/square/webhook',
+  express.raw({ type: 'application/json' }),
+  squareWebhookHandler
+);
+
 // Middleware
 app.use(cors({
   origin: function (origin, callback) {
@@ -36,8 +44,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static('public')); // Serve static files
 
 // Routes
@@ -50,10 +58,13 @@ app.use('/api/search', require('./routes/search'));
 app.use('/api/discover', require('./routes/discover'));
 app.use('/api/cart', require('./routes/cart'));
 app.use('/api/social', require('./routes/social'));
+app.use('/api/payments', require('./routes/payments'));
+app.use('/api/payments/square', require('./routes/square'));
+app.use('/api/identify-clothing', require('./routes/identify'));
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'bakpak API is running' });
+  res.json({ status: 'OK', message: 'popup API is running' });
 });
 
 // Serve index page at root
@@ -82,7 +93,8 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
+// Default 5001: on macOS, port 5000 is often AirPlay Receiver (HTTP → 403), which breaks Expo/iOS Simulator talking to "the API".
+const PORT = process.env.PORT || 5001;
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

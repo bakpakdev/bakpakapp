@@ -23,11 +23,19 @@ struct ProductDetailView: View {
     @State private var sellerWaitingRequestId: String?
     @State private var showSellerPaymentSheet = false
     @State private var isPaymentBusy = false
-    @State private var tapClientSecret: String?
-    @State private var tapLocationId: String?
+    @State private var lastMeetupPayment: CreateMeetupPaymentResponse?
+    @State private var showOfferSheet = false
+    @State private var selectedOfferPercent: Int? = 15
+    @State private var customOfferText = ""
+    @State private var isSendingOffer = false
+    @State private var isLiked = false
+    @State private var isSaved = false
 
     private let productService = ProductService()
+    private let socialService = SocialService()
     private let paymentService = MeetupPaymentService.shared
+    private let messageService = MessageService()
+    private let offerPercents = [10, 15, 20, 25]
 
     private var isOwner: Bool {
         guard let mine = authVM.user?.id.lowercased(),
@@ -58,15 +66,19 @@ struct ProductDetailView: View {
             }
             .modifier(ProductDetailAlerts(actionError: $actionError, comingSoonMessage: $comingSoonMessage, paymentPresenter: paymentPresenter))
             .sheet(isPresented: $showSellerPaymentSheet) { sellerPaymentWaitingSheet }
+            .sheet(isPresented: $showOfferSheet) {
+                if let product {
+                    sendOfferPopup(product)
+                }
+            }
             .background(PaymentSheetHost(presenter: paymentPresenter))
             .onChange(of: paymentPresenter.didComplete) { completed in
                 guard completed else { return }
                 paymentPresenter.didComplete = false
                 Task {
-                    if let requestId = activePayment?.paymentRequestId {
-                        try? await paymentService.confirm(requestId: requestId)
-                    }
+                    MeetupChecklistStore.completePaid(productId: productId)
                     await load()
+                    await refreshActivePayment()
                 }
             }
             .task(id: productId) { await pollActivePayment() }
@@ -121,6 +133,10 @@ struct ProductDetailView: View {
                     collectPaymentButton(product)
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
+
+                    alternatePaymentAppsRow
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10)
                 }
 
                 manageList([
@@ -170,7 +186,7 @@ struct ProductDetailView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(product.title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(Theme.syne(16, weight: .semibold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .lineLimit(2)
                 Text("$\(formattedPrice(product.price))")
@@ -178,7 +194,7 @@ struct ProductDetailView: View {
                     .foregroundStyle(campusTheme.primary)
                 if product.isSold == true {
                     Text("Sold")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(Theme.syne(11, weight: .bold))
                         .foregroundStyle(campusTheme.textMuted)
                 }
             }
@@ -189,19 +205,12 @@ struct ProductDetailView: View {
     private var statsRow: some View {
         HStack(alignment: .top, spacing: 0) {
             statCell(icon: "percent", value: "\(stats.offers)", label: "Offers")
-            statCell(icon: "bag", value: "\(stats.bags)", label: "Bags")
-            statCell(icon: "heart", value: "\(stats.likes)", label: "Like")
+            statCell(icon: "heart", value: "\(stats.likes)", label: "Likes")
             statCell(
                 icon: "eye",
                 value: stats.views.map(String.init) ?? "–",
                 label: "Views",
                 boostHint: stats.views == nil
-            )
-            statCell(
-                icon: "hand.tap",
-                value: stats.clicks.map(String.init) ?? "–",
-                label: "Clicks",
-                boostHint: true
             )
         }
     }
@@ -212,17 +221,17 @@ struct ProductDetailView: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
             Text(value)
-                .font(.system(size: 18, weight: .bold))
+                .font(Theme.syne(18, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text(label)
-                .font(.system(size: 11, weight: .medium))
+                .font(Theme.syne(11, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
             if boostHint {
                 Button {
                     comingSoonMessage = "Boosting isn’t available yet."
                 } label: {
                     Text("Boost to see")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(Theme.syne(9, weight: .semibold))
                         .foregroundStyle(campusTheme.textMuted)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
@@ -259,12 +268,12 @@ struct ProductDetailView: View {
                 Button(action: row.action) {
                     HStack(spacing: 10) {
                         Text(row.title)
-                            .font(.system(size: 16, weight: .regular))
+                            .font(Theme.syne(16, weight: .regular))
                             .foregroundStyle(row.destructive ? Color(hex: "#FF6B6B") : campusTheme.textPrimary)
                         Spacer(minLength: 8)
                         if let badge = row.badge {
                             Text(badge)
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(Theme.syne(11, weight: .semibold))
                                 .foregroundStyle(row.badgeTone == .accent ? campusTheme.primary : campusTheme.textMuted)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
@@ -311,10 +320,6 @@ struct ProductDetailView: View {
                                 .foregroundStyle(campusTheme.textPrimary)
                         }
                         metaChips(product)
-                        if let meetup = product.meetupLocation?.trimmingCharacters(in: .whitespacesAndNewlines),
-                           !meetup.isEmpty {
-                            meetupRow(meetup)
-                        }
                         descriptionBlock(product)
                         sellerCard(product)
                     }
@@ -328,40 +333,53 @@ struct ProductDetailView: View {
     }
 
     private var imageHero: some View {
-        ZStack(alignment: .bottom) {
-            Group {
-                if imageURLs.isEmpty {
-                    campusTheme.elevatedSurface
-                } else {
-                    TabView(selection: $imageIndex) {
-                        ForEach(Array(imageURLs.enumerated()), id: \.offset) { idx, url in
-                            AsyncImage(url: URL(string: url)) { phase in
-                                switch phase {
-                                case .success(let image):
-                                    image.resizable().scaledToFill()
-                                default:
-                                    campusTheme.elevatedSurface
+        ZStack(alignment: .topTrailing) {
+            ZStack(alignment: .bottom) {
+                Group {
+                    if imageURLs.isEmpty {
+                        campusTheme.elevatedSurface
+                    } else {
+                        TabView(selection: $imageIndex) {
+                            ForEach(Array(imageURLs.enumerated()), id: \.offset) { idx, url in
+                                AsyncImage(url: URL(string: url)) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image.resizable().scaledToFill()
+                                    default:
+                                        campusTheme.elevatedSurface
+                                    }
                                 }
+                                .tag(idx)
                             }
-                            .tag(idx)
+                        }
+                        .tabViewStyle(.page(indexDisplayMode: .never))
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .aspectRatio(1, contentMode: .fit)
+                .clipped()
+
+                if imageURLs.count > 1 {
+                    HStack(spacing: 6) {
+                        ForEach(0..<imageURLs.count, id: \.self) { idx in
+                            Capsule()
+                                .fill(idx == imageIndex ? Color.white : Color.white.opacity(0.4))
+                                .frame(width: idx == imageIndex ? 16 : 6, height: 6)
                         }
                     }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .padding(.bottom, 12)
                 }
             }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(1, contentMode: .fit)
-            .clipped()
 
-            if imageURLs.count > 1 {
-                HStack(spacing: 6) {
-                    ForEach(0..<imageURLs.count, id: \.self) { idx in
-                        Capsule()
-                            .fill(idx == imageIndex ? Color.white : Color.white.opacity(0.4))
-                            .frame(width: idx == imageIndex ? 16 : 6, height: 6)
-                    }
-                }
-                .padding(.bottom, 12)
+            if !isOwner {
+                ListingReactionButtons(
+                    isLiked: isLiked,
+                    isSaved: isSaved,
+                    compact: false,
+                    onLike: { Task { await toggleLike() } },
+                    onSave: { Task { await toggleSave() } }
+                )
+                .padding(14)
             }
         }
     }
@@ -386,20 +404,6 @@ struct ProductDetailView: View {
                 }
             }
         }
-    }
-
-    private func meetupRow(_ meetup: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "mappin.and.ellipse")
-                .foregroundStyle(campusTheme.primary)
-            Text("Meet at \(meetup)")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(campusTheme.textPrimary)
-            Spacer()
-        }
-        .padding(14)
-        .background(campusTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private func descriptionBlock(_ product: Product) -> some View {
@@ -467,24 +471,53 @@ struct ProductDetailView: View {
     @ViewBuilder
     private func buyerBottomBar(_ product: Product) -> some View {
         VStack(spacing: 0) {
-            Button {
-                Motion.haptic(.medium)
-                guard let userId = product.user?.id else { return }
-                appState.path.append(.conversation("", userId, product.id))
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text("Message seller")
-                        .font(.system(size: 15, weight: .bold))
+            HStack(spacing: 10) {
+                Button {
+                    Motion.haptic(.medium)
+                    guard let userId = product.user?.id else { return }
+                    appState.path.append(.conversation("", userId, product.id))
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bubble.left.and.bubble.right.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Message seller")
+                            .font(.system(size: 14, weight: .bold))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(campusTheme.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(campusTheme.primary)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+
+                Button {
+                    Motion.haptic(.light)
+                    selectedOfferPercent = 15
+                    customOfferText = ""
+                    showOfferSheet = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "tag.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Send offer")
+                            .font(.system(size: 14, weight: .bold))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(campusTheme.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(campusTheme.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(campusTheme.primary.opacity(0.35), lineWidth: 1.5)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                .disabled(product.isSold == true)
             }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
             .padding(.horizontal, 16)
             .padding(.bottom, activePayment?.canPay == true ? 8 : 10)
 
@@ -527,6 +560,196 @@ struct ProductDetailView: View {
         )
     }
 
+    private func sendOfferPopup(_ product: Product) -> some View {
+        let listed = product.price
+        let customAmount = Double(customOfferText.replacingOccurrences(of: ",", with: ""))
+        let percentAmount: Double? = selectedOfferPercent.map { listed * (1.0 - Double($0) / 100.0) }
+        let offerAmount = customAmount ?? percentAmount
+        let canSend = (offerAmount ?? 0) > 0 && (offerAmount ?? 0) <= listed + 0.001
+
+        return VStack(spacing: 0) {
+            Capsule()
+                .fill(campusTheme.border)
+                .frame(width: 40, height: 4)
+                .padding(.top, 10)
+                .padding(.bottom, 14)
+
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .top, spacing: 12) {
+                    AsyncImage(url: URL(string: product.images?.first(where: { $0.isPrimary == true })?.url
+                                        ?? product.images?.first?.url
+                                        ?? "")) { img in
+                        img.resizable().scaledToFill()
+                    } placeholder: {
+                        campusTheme.elevatedSurface
+                    }
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Send an offer")
+                            .font(Theme.syne(18, weight: .bold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                        Text(product.title)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(campusTheme.textMuted)
+                            .lineLimit(1)
+                        Text("Listed at $\(Int(listed))")
+                            .font(Theme.syne(14, weight: .bold))
+                            .foregroundStyle(campusTheme.primary)
+                    }
+                    Spacer(minLength: 0)
+                    Button {
+                        showOfferSheet = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(campusTheme.textMuted)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Text("Quick offers")
+                    .font(Theme.syne(13, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    ForEach(offerPercents, id: \.self) { percent in
+                        let amount = listed * (1.0 - Double(percent) / 100.0)
+                        let selected = selectedOfferPercent == percent && customOfferText.isEmpty
+                        Button {
+                            Motion.haptic(.light)
+                            selectedOfferPercent = percent
+                            customOfferText = ""
+                        } label: {
+                            VStack(spacing: 4) {
+                                Text("\(percent)% off")
+                                    .font(Theme.syne(14, weight: .bold))
+                                Text("$\(amount, specifier: "%.0f")")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .opacity(0.85)
+                            }
+                            .foregroundStyle(selected ? Color.white : campusTheme.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(selected ? campusTheme.primary : campusTheme.elevatedSurface)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(selected ? Color.clear : campusTheme.border, lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                    }
+                }
+
+                Text("Or enter a custom amount")
+                    .font(Theme.syne(13, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+
+                HStack(spacing: 8) {
+                    Text("$")
+                        .font(Theme.syne(22, weight: .bold))
+                        .foregroundStyle(campusTheme.primary)
+                    TextField("Custom offer", text: $customOfferText)
+                        .keyboardType(.decimalPad)
+                        .font(Theme.syne(22, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .onChange(of: customOfferText) { newValue in
+                            if !newValue.isEmpty {
+                                selectedOfferPercent = nil
+                            } else if selectedOfferPercent == nil {
+                                selectedOfferPercent = 15
+                            }
+                        }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(campusTheme.elevatedSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(
+                            customOfferText.isEmpty ? campusTheme.border : campusTheme.primary.opacity(0.35),
+                            lineWidth: 1
+                        )
+                )
+
+                if let offerAmount, offerAmount > 0 {
+                    let savings = max(0, listed - offerAmount)
+                    HStack {
+                        Text("Your offer")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(campusTheme.textMuted)
+                        Spacer()
+                        Text("$\(offerAmount, specifier: "%.2f")")
+                            .font(Theme.syne(18, weight: .bold))
+                            .foregroundStyle(campusTheme.primary)
+                        if savings > 0.5 {
+                            Text("· $\(savings, specifier: "%.0f") off")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(campusTheme.textMuted)
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+
+                Button {
+                    guard let offerAmount, let userId = product.user?.id else { return }
+                    Task { await sendOffer(amount: offerAmount, sellerId: userId, product: product) }
+                } label: {
+                    HStack(spacing: 8) {
+                        if isSendingOffer {
+                            ProgressView().tint(.white)
+                        } else {
+                            Image(systemName: "paperplane.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("Send offer")
+                                .font(.system(size: 15, weight: .bold))
+                        }
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(canSend && !isSendingOffer ? campusTheme.primary : campusTheme.primary.opacity(0.4))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                .disabled(!canSend || isSendingOffer)
+                .padding(.top, 4)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 24)
+        }
+        .background(campusTheme.surface)
+        .presentationDetents([.height(520)])
+        .presentationDragIndicator(.hidden)
+        .environment(\.campusTheme, campusTheme)
+    }
+
+    private func sendOffer(amount: Double, sellerId: String, product: Product) async {
+        isSendingOffer = true
+        defer { isSendingOffer = false }
+        do {
+            let formatted: String = {
+                if amount.rounded() == amount {
+                    return String(format: "%.0f", amount)
+                }
+                return String(format: "%.2f", amount)
+            }()
+            let convo = try await messageService.openOrCreate(otherUserId: sellerId, productId: product.id)
+            _ = try await messageService.send(
+                conversationId: convo.id,
+                content: "💰 Offer: $\(formatted)"
+            )
+            showOfferSheet = false
+            Motion.haptic(.medium)
+            appState.path.append(.conversation(convo.id, sellerId, product.id))
+        } catch {
+            actionError = error.localizedDescription
+        }
+    }
+
     // MARK: - Meetup payments
 
     private func collectPaymentButton(_ product: Product) -> some View {
@@ -556,6 +779,71 @@ struct ProductDetailView: View {
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
         .disabled(isPaymentBusy || product.isSold == true)
+    }
+
+    private var alternatePaymentAppsRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Or pay with")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(campusTheme.textMuted)
+                .padding(.leading, 2)
+
+            HStack(spacing: 8) {
+                paymentAppButton(
+                    title: "Venmo",
+                    logo: "venmo_logo",
+                    tint: Color(hex: "#008CFF"),
+                    appSchemes: ["venmo://"],
+                    webFallback: ExternalPaymentApps.venmoAppStore
+                )
+                paymentAppButton(
+                    title: "Cash App",
+                    logo: "cashapp_logo",
+                    tint: Color(hex: "#00D632"),
+                    appSchemes: ["cashapp://", "squarecash://"],
+                    webFallback: ExternalPaymentApps.cashAppAppStore
+                )
+                paymentAppButton(
+                    title: "PayPal",
+                    logo: "paypal_logo",
+                    tint: Color(hex: "#0070BA"),
+                    appSchemes: ["paypal://"],
+                    webFallback: ExternalPaymentApps.paypalWeb
+                )
+            }
+        }
+    }
+
+    private func paymentAppButton(
+        title: String,
+        logo: String,
+        tint: Color,
+        appSchemes: [String],
+        webFallback: String
+    ) -> some View {
+        Button {
+            openExternalPaymentApp(schemes: appSchemes, webFallback: webFallback)
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(tint)
+                Image(logo)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 26, height: 26)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 42)
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+        .accessibilityLabel(title)
+    }
+
+    private func openExternalPaymentApp(schemes: [String], webFallback: String) {
+        Motion.haptic(.light)
+        ExternalPaymentApps.open(schemes: schemes, fallbackURL: webFallback)
     }
 
     private var sellerPaymentWaitingSheet: some View {
@@ -635,8 +923,12 @@ struct ProductDetailView: View {
                 if phase == .succeeded {
                     Task {
                         if let requestId = sellerWaitingRequestId {
-                            try? await paymentService.confirm(requestId: requestId)
+                            try? await paymentService.confirm(
+                                requestId: requestId,
+                                squarePaymentId: tapToPay.lastSquarePaymentId
+                            )
                         }
+                        MeetupChecklistStore.completePaid(productId: productId)
                         await load()
                     }
                 }
@@ -674,7 +966,7 @@ struct ProductDetailView: View {
     }
 
     private func refreshActivePayment() async {
-        guard StripeConfig.isConfigured || !StripeConfig.apiBaseURL.isEmpty else { return }
+        guard SquareConfig.isConfigured || !SquareConfig.apiBaseURL.isEmpty else { return }
         do {
             let active = try await paymentService.fetchActive(productId: productId)
             activePayment = active
@@ -695,17 +987,10 @@ struct ProductDetailView: View {
         do {
             let response = try await paymentService.createRequest(productId: productId)
             sellerWaitingRequestId = response.paymentRequest.id
-            tapClientSecret = response.clientSecret
-            tapLocationId = response.locationId
+            lastMeetupPayment = response
             showSellerPaymentSheet = true
             Motion.haptic(.medium)
-
-            if let secret = response.clientSecret, let locationId = response.locationId {
-                tapToPay.start(clientSecret: secret, locationId: locationId)
-            } else {
-                tapToPay.phase = .failed("Missing Tap to Pay payment details from server.")
-                tapToPay.statusMessage = "Try Collect payment again"
-            }
+            tapToPay.start(from: response)
             await refreshActivePayment()
         } catch {
             actionError = error.localizedDescription
@@ -713,11 +998,30 @@ struct ProductDetailView: View {
     }
 
     private func retryTapToPay() async {
-        guard let secret = tapClientSecret, let locationId = tapLocationId else {
-            await startSellerPayment()
+        if let lastMeetupPayment {
+            tapToPay.start(from: lastMeetupPayment)
             return
         }
-        tapToPay.start(clientSecret: secret, locationId: locationId)
+        await startSellerPayment()
+    }
+
+    private func startBuyerPayment() async {
+        isPaymentBusy = true
+        defer { isPaymentBusy = false }
+        do {
+            let requestId: String
+            if let existing = activePayment?.paymentRequestId, activePayment?.canPay == true {
+                requestId = existing
+            } else {
+                let created = try await paymentService.createRequest(productId: productId)
+                requestId = created.paymentRequest.id
+                await refreshActivePayment()
+            }
+            let checkout = try await paymentService.fetchCheckout(requestId: requestId)
+            paymentPresenter.prepareAndPresent(checkout: checkout)
+        } catch {
+            actionError = error.localizedDescription
+        }
     }
 
     private func cancelSellerPayment(requestId: String) async {
@@ -728,18 +1032,6 @@ struct ProductDetailView: View {
             sellerWaitingRequestId = nil
             showSellerPaymentSheet = false
             await refreshActivePayment()
-        } catch {
-            actionError = error.localizedDescription
-        }
-    }
-
-    private func startBuyerPayment() async {
-        guard let requestId = activePayment?.paymentRequestId else { return }
-        isPaymentBusy = true
-        defer { isPaymentBusy = false }
-        do {
-            let checkout = try await paymentService.fetchCheckout(requestId: requestId)
-            paymentPresenter.prepareAndPresent(checkout: checkout)
         } catch {
             actionError = error.localizedDescription
         }
@@ -772,8 +1064,76 @@ struct ProductDetailView: View {
         do {
             product = try await productService.product(id: productId)
             stats = await productService.listingStats(id: productId)
+            await loadReactions()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func loadReactions() async {
+        guard authVM.user != nil else { return }
+        // Wait until product is set so isOwner is accurate.
+        if isOwner {
+            await MainActor.run {
+                isLiked = false
+                isSaved = false
+            }
+            return
+        }
+        guard let client = await SupabaseManager.shared.clientWithValidSession(),
+              SupabaseConfig.isConfigured else {
+            // REST fallback: scan lists
+            async let likedTask = socialService.likedItems()
+            async let savedTask = socialService.savedItems()
+            do {
+                let (liked, saved) = try await (likedTask, savedTask)
+                let pid = productId.lowercased()
+                await MainActor.run {
+                    isLiked = liked.contains { $0.id.lowercased() == pid }
+                    isSaved = saved.contains { $0.id.lowercased() == pid }
+                }
+            } catch {}
+            return
+        }
+        do {
+            async let liked = SupabaseSocialService.isLiked(client: client, productId: productId)
+            async let saved = SupabaseSocialService.isSaved(client: client, productId: productId)
+            let (l, s) = try await (liked, saved)
+            await MainActor.run {
+                isLiked = l
+                isSaved = s
+            }
+        } catch {}
+    }
+
+    private func toggleLike() async {
+        let wasLiked = isLiked
+        await MainActor.run { isLiked = !wasLiked }
+        do {
+            if wasLiked {
+                try await socialService.unlike(productId: productId)
+            } else {
+                try await socialService.like(productId: productId)
+            }
+            stats = await productService.listingStats(id: productId)
+        } catch {
+            await MainActor.run { isLiked = wasLiked }
+            actionError = error.localizedDescription
+        }
+    }
+
+    private func toggleSave() async {
+        let wasSaved = isSaved
+        await MainActor.run { isSaved = !wasSaved }
+        do {
+            if wasSaved {
+                try await socialService.unsave(productId: productId)
+            } else {
+                try await socialService.save(productId: productId)
+            }
+        } catch {
+            await MainActor.run { isSaved = wasSaved }
+            actionError = error.localizedDescription
         }
     }
 
@@ -795,7 +1155,7 @@ struct ProductDetailView: View {
         defer { isBusy = false }
         let next = !(product.isSold == true)
         do {
-            // Manual sold = sold outside Stripe — no balance credit.
+            // Manual sold = sold outside Square — no balance credit.
             if next, let requestId = activePayment?.paymentRequestId ?? sellerWaitingRequestId {
                 tapToPay.cancel()
                 try? await paymentService.cancel(requestId: requestId)

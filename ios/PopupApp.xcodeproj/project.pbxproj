@@ -1,0 +1,615 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		DAE86350A55BC5E73E7271CF /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66D9FFD25B3D140635275E0 /* AppState.swift */; };
+		4B860738CD3EC607410C174B /* BakpakApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFAA6DD23B3B637CF0DB3505 /* BakpakApp.swift */; };
+		8310150B931ED1F0C4488B65 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65FB2BACE081D840BA09A7A /* ContentView.swift */; };
+		8D3B125EE6F044AAD1D9B07E /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12CC73616E80F0C84E88F9D /* APIClient.swift */; };
+		D50FBEF5F1B99F41C6E8D266 /* AccountScopedDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44C34EE2D8CEBBAC83C6E41C /* AccountScopedDefaults.swift */; };
+		5442C2A3784925E7A6E273CB /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF249FAAD97B99AE818FE9F /* AuthViewModel.swift */; };
+		9BF601A36BB304D5E684B7D6 /* ClothingIdentifyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0032275B26EC8F78ECA97037 /* ClothingIdentifyService.swift */; };
+		CA682DD7BAE67B5BAE933ACF /* ExternalPaymentApps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C98BF960D0845DDEB153DE6 /* ExternalPaymentApps.swift */; };
+		9DE8874A880C03ADD8B04542 /* InboxReadStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F486F7C2EADFAB9EF5098D3 /* InboxReadStore.swift */; };
+		497C9C545888C954DDBDC26E /* InstagramConnectService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C07CBEF540023CB4A4C6069 /* InstagramConnectService.swift */; };
+		207234CCA878F8FF820C7028 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7871CFD5DCB6299D557980A /* KeychainManager.swift */; };
+		941291BCC6EC07B95C1BE7F3 /* MeetupMessaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86FF3A9713325A1019C8DB50 /* MeetupMessaging.swift */; };
+		ADE00250D41817B09CB90158 /* MeetupPaymentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 759E1D4FFF2DA3082D55C3B4 /* MeetupPaymentService.swift */; };
+		0BBCD423D2A8256C02A96314 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95CC3DB173DD6DB85D2FCA8C /* Models.swift */; };
+		3519D738BF8C734A1D805400 /* PaymentSheetPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41BA75AE73FE74E0DFFABA0 /* PaymentSheetPresenter.swift */; };
+		03586D62860BCF0FF2C45821 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4BE39B8650EB00F6D92CD9F /* Services.swift */; };
+		ADBD256BC41AA8891BF99AA9 /* SquareConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4684CF0C17F90FE840AEA521 /* SquareConfig.swift */; };
+		4022A6C5DE03D21547E75779 /* SquareConnectService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049269B572D56CADF3F53A46 /* SquareConnectService.swift */; };
+		7016B3BA22720A1E12247FBB /* SupabaseCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC00785D1162823234947362 /* SupabaseCatalogService.swift */; };
+		79789AA28C1251B7AE1E8A31 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C80B9ABFBF006E69EABFD4 /* SupabaseConfig.swift */; };
+		FC3CE611989A3F1D9E2260C5 /* SupabaseDataServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3C20DE2871A8F3C7314C77 /* SupabaseDataServices.swift */; };
+		BDE2D647CD9EDAC8C1A05226 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACE16FF087EA94D8AEBD8C05 /* SupabaseManager.swift */; };
+		60ADD04B291055FFDAC9F47A /* SupabaseProductService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 444C44A238ABFEAACF2E57FB /* SupabaseProductService.swift */; };
+		37FAA77C057CA1FDE7FBF7C1 /* SupabaseSearchSuggestService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15C3536F203F19E39BE6224 /* SupabaseSearchSuggestService.swift */; };
+		EFA0B087FF2FEE26AE6E4835 /* TapToPayCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61F5716D8B519CD3E9FBA3CE /* TapToPayCollector.swift */; };
+		2D3444260046C5664B38D399 /* ViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61367FF9C52CD115DCC53F0D /* ViewModels.swift */; };
+		D58549C87E9CEA8A1E0AAFA1 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6B89003254FBAD68BEF8311 /* MainTabView.swift */; };
+		6A699EAC5C2E8018BFD61DA9 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8244B010A83CB27CA4046F76 /* Motion.swift */; };
+		F7B878E76D34C9320254616B /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5F9304ACEA643330481F86E /* RootView.swift */; };
+		A875372744A534A414CAF614 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C384FB88BAE66F0E88F1FDC7 /* Theme.swift */; };
+		9188D89EB0563EF22A25B4E8 /* AccountDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C28541EC008496C9BC3C5C /* AccountDetailsView.swift */; };
+		D57E892D811EC3C59CAF99D0 /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCEE7076AD15BC4CB89BD784 /* AccountSettingsView.swift */; };
+		5565D186E1EBDA05BDE95BA5 /* ApplePayButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62EFD531D69BBC1FDC02D399 /* ApplePayButton.swift */; };
+		318937BB5228E072AB470238 /* AuthUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 238B40B998343316EFB8F41F /* AuthUI.swift */; };
+		5086BD173BD0FE6AB1FA3A0D /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70F752666B5523FB1472CD8 /* LoginView.swift */; };
+		250A415576346E2D72039A7E /* OnboardingFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A82C74FF17606EDE7B033459 /* OnboardingFlowView.swift */; };
+		D61441567F6A87B7E9CEB67F /* RegisterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74ACCEE5BA97F40853AA3F61 /* RegisterView.swift */; };
+		15CC7FF14FE13DF6131B6518 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB2504012BFA809B7ECE25A /* WelcomeView.swift */; };
+		90A29E5730D45B37A96421BD /* CartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B46950DDFE96A1232D026567 /* CartView.swift */; };
+		08D11D3C8F6827D35EFFD186 /* CheckoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A534702596215D22316BC0A /* CheckoutView.swift */; };
+		A54F670E0AC6D20D8965760B /* ConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A27B8CDDCB25FF7F41085A18 /* ConversationView.swift */; };
+		58CEA08C577A5AC4FADBDA2F /* CreateListingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC25577CAE1C3122291DC437 /* CreateListingView.swift */; };
+		EB835DE5EDFD171F5274DEC4 /* EditListingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB9139AFA4409929976AA018 /* EditListingView.swift */; };
+		7BA4ACAB56E53F2018C2F3A6 /* EditProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C39EC2877FAFCED0D4C0CC49 /* EditProfileView.swift */; };
+		DC7FE3CC46FAF67495D270D6 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99282BCA763E30FC41F60BD4 /* HomeView.swift */; };
+		D04EE461B7897B9458E0A657 /* IdentifyClothingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC525C65D2EDCF01FC424D7 /* IdentifyClothingView.swift */; };
+		AB94A29EB43149AAE642270B /* LikedItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B4E4458F4005ABAF011A2DB /* LikedItemsView.swift */; };
+		46DB263707D84754C5B1C371 /* ListingPhotoCropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8AFB7BCFF8232B36176D03D /* ListingPhotoCropView.swift */; };
+		28D0E9882EA35B6153192F13 /* MeetupPayFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 454860ACBA32D8A3164D316E /* MeetupPayFlowView.swift */; };
+		1EEE75EB3BC05DB9CEECF24C /* MessagedItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C059AEF4B17C9CD369B410 /* MessagedItemsView.swift */; };
+		CE0EB7E6BEE8E2A475F684BE /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16FB1A945363E5D98063487E /* MessagesView.swift */; };
+		EFF3A6BCD5EAECEEAC4DD1B4 /* MyListingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8AEFA66A2956317DD471A4E /* MyListingsView.swift */; };
+		9FBCAF885EA1096CDE2721B8 /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA5E12519ADB19621F76D90 /* NotificationCenterView.swift */; };
+		CFB6A6ED83AE0CE467CDD477 /* OrdersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B28B50361E08BA51A21978EC /* OrdersView.swift */; };
+		7BBBBF817330E9A6F01C9DC4 /* ProductDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63614195DB1BD5B5274D52CE /* ProductDetailView.swift */; };
+		1B52D6AA7593B181499DEE3F /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5400FDF194DA90833307741D /* ProfileView.swift */; };
+		1CB60529BCFF99A91C5D1A3A /* SavedItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3C6794A002B71D2F9E287D /* SavedItemsView.swift */; };
+		97998821382301F8C95E070E /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B3588096631F1B3D27E86F7 /* SearchView.swift */; };
+		2B6DF528413E1B3ECEC33E83 /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E59CFF12224C901E90998E /* SharedViews.swift */; };
+		034DA744FD4AEC0AB727248A /* SplashScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 464A80971AD82EE9F23EB8CB /* SplashScreen.swift */; };
+		01604FB607E6E08AC5BFFB98 /* UserProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9818C9EF94BBB5A397C674D /* UserProfileView.swift */; };
+		9EB596B5BE011F33AC1B6E7D /* Syne-wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F190E5882D245D814C3F30D1 /* Syne-wght.ttf */; };
+		E48C1C9A1E18866F6B1CB31A /* popup_logo_white_mark.png in Resources */ = {isa = PBXBuildFile; fileRef = 29B1AA11593F5278D94EC52B /* popup_logo_white_mark.png */; };
+		2805BE21C152A448694F4FA5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3284D144C80F0189F808793F /* Assets.xcassets */; };
+		40EE98DC765EB129F328B9A3 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 292965126FD5E2A9E949BD61 /* Supabase */; };
+		28686CCEAA6EA1D1180531B1 /* SquareMobilePaymentsSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 3A5F17E19D1C77C05476FF41 /* SquareMobilePaymentsSDK */; };
+		FB383C195BEC1F24E3D00D93 /* MockReaderUI in Frameworks */ = {isa = PBXBuildFile; productRef = B490B8D12C5657E3728DAB15 /* MockReaderUI */; };
+		5DBE3F2EEC877AB5D9AC7ED6 /* SquareInAppPaymentsSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 2919A1E7605B8B44F065E368 /* SquareInAppPaymentsSDK */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		BE8AC42A1D228E22109D6876 /* PopupApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PopupApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		60DD85CFAC8565638F65B23F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		48C9D0F8928170CF8ABE5F53 /* PopupApp.Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PopupApp.Debug.entitlements; sourceTree = "<group>"; };
+		1570962869F528A09563347E /* PopupApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PopupApp.entitlements; sourceTree = "<group>"; };
+		A2D273722051DFBB3CC60E4E /* SupabaseProject.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = SupabaseProject.xcconfig; sourceTree = "<group>"; };
+		3284D144C80F0189F808793F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B66D9FFD25B3D140635275E0 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AppState.swift'; sourceTree = "<group>"; };
+		EFAA6DD23B3B637CF0DB3505 /* BakpakApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'BakpakApp.swift'; sourceTree = "<group>"; };
+		F65FB2BACE081D840BA09A7A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ContentView.swift'; sourceTree = "<group>"; };
+		A12CC73616E80F0C84E88F9D /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'APIClient.swift'; sourceTree = "<group>"; };
+		44C34EE2D8CEBBAC83C6E41C /* AccountScopedDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AccountScopedDefaults.swift'; sourceTree = "<group>"; };
+		EFF249FAAD97B99AE818FE9F /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AuthViewModel.swift'; sourceTree = "<group>"; };
+		0032275B26EC8F78ECA97037 /* ClothingIdentifyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ClothingIdentifyService.swift'; sourceTree = "<group>"; };
+		2C98BF960D0845DDEB153DE6 /* ExternalPaymentApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ExternalPaymentApps.swift'; sourceTree = "<group>"; };
+		3F486F7C2EADFAB9EF5098D3 /* InboxReadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'InboxReadStore.swift'; sourceTree = "<group>"; };
+		8C07CBEF540023CB4A4C6069 /* InstagramConnectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'InstagramConnectService.swift'; sourceTree = "<group>"; };
+		E7871CFD5DCB6299D557980A /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'KeychainManager.swift'; sourceTree = "<group>"; };
+		86FF3A9713325A1019C8DB50 /* MeetupMessaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupMessaging.swift'; sourceTree = "<group>"; };
+		759E1D4FFF2DA3082D55C3B4 /* MeetupPaymentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupPaymentService.swift'; sourceTree = "<group>"; };
+		95CC3DB173DD6DB85D2FCA8C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Models.swift'; sourceTree = "<group>"; };
+		E41BA75AE73FE74E0DFFABA0 /* PaymentSheetPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'PaymentSheetPresenter.swift'; sourceTree = "<group>"; };
+		F4BE39B8650EB00F6D92CD9F /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Services.swift'; sourceTree = "<group>"; };
+		4684CF0C17F90FE840AEA521 /* SquareConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SquareConfig.swift'; sourceTree = "<group>"; };
+		049269B572D56CADF3F53A46 /* SquareConnectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SquareConnectService.swift'; sourceTree = "<group>"; };
+		FC00785D1162823234947362 /* SupabaseCatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseCatalogService.swift'; sourceTree = "<group>"; };
+		F6C80B9ABFBF006E69EABFD4 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseConfig.swift'; sourceTree = "<group>"; };
+		6F3C20DE2871A8F3C7314C77 /* SupabaseDataServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseDataServices.swift'; sourceTree = "<group>"; };
+		ACE16FF087EA94D8AEBD8C05 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseManager.swift'; sourceTree = "<group>"; };
+		444C44A238ABFEAACF2E57FB /* SupabaseProductService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseProductService.swift'; sourceTree = "<group>"; };
+		A15C3536F203F19E39BE6224 /* SupabaseSearchSuggestService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseSearchSuggestService.swift'; sourceTree = "<group>"; };
+		61F5716D8B519CD3E9FBA3CE /* TapToPayCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'TapToPayCollector.swift'; sourceTree = "<group>"; };
+		61367FF9C52CD115DCC53F0D /* ViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ViewModels.swift'; sourceTree = "<group>"; };
+		F6B89003254FBAD68BEF8311 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MainTabView.swift'; sourceTree = "<group>"; };
+		8244B010A83CB27CA4046F76 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Motion.swift'; sourceTree = "<group>"; };
+		B5F9304ACEA643330481F86E /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'RootView.swift'; sourceTree = "<group>"; };
+		C384FB88BAE66F0E88F1FDC7 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Theme.swift'; sourceTree = "<group>"; };
+		14C28541EC008496C9BC3C5C /* AccountDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AccountDetailsView.swift'; sourceTree = "<group>"; };
+		BCEE7076AD15BC4CB89BD784 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AccountSettingsView.swift'; sourceTree = "<group>"; };
+		62EFD531D69BBC1FDC02D399 /* ApplePayButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ApplePayButton.swift'; sourceTree = "<group>"; };
+		238B40B998343316EFB8F41F /* AuthUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AuthUI.swift'; sourceTree = "<group>"; };
+		C70F752666B5523FB1472CD8 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'LoginView.swift'; sourceTree = "<group>"; };
+		A82C74FF17606EDE7B033459 /* OnboardingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'OnboardingFlowView.swift'; sourceTree = "<group>"; };
+		74ACCEE5BA97F40853AA3F61 /* RegisterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'RegisterView.swift'; sourceTree = "<group>"; };
+		EAB2504012BFA809B7ECE25A /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'WelcomeView.swift'; sourceTree = "<group>"; };
+		B46950DDFE96A1232D026567 /* CartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'CartView.swift'; sourceTree = "<group>"; };
+		0A534702596215D22316BC0A /* CheckoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'CheckoutView.swift'; sourceTree = "<group>"; };
+		A27B8CDDCB25FF7F41085A18 /* ConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ConversationView.swift'; sourceTree = "<group>"; };
+		EC25577CAE1C3122291DC437 /* CreateListingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'CreateListingView.swift'; sourceTree = "<group>"; };
+		EB9139AFA4409929976AA018 /* EditListingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'EditListingView.swift'; sourceTree = "<group>"; };
+		C39EC2877FAFCED0D4C0CC49 /* EditProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'EditProfileView.swift'; sourceTree = "<group>"; };
+		99282BCA763E30FC41F60BD4 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'HomeView.swift'; sourceTree = "<group>"; };
+		ECC525C65D2EDCF01FC424D7 /* IdentifyClothingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'IdentifyClothingView.swift'; sourceTree = "<group>"; };
+		4B4E4458F4005ABAF011A2DB /* LikedItemsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'LikedItemsView.swift'; sourceTree = "<group>"; };
+		C8AFB7BCFF8232B36176D03D /* ListingPhotoCropView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ListingPhotoCropView.swift'; sourceTree = "<group>"; };
+		454860ACBA32D8A3164D316E /* MeetupPayFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupPayFlowView.swift'; sourceTree = "<group>"; };
+		20C059AEF4B17C9CD369B410 /* MessagedItemsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MessagedItemsView.swift'; sourceTree = "<group>"; };
+		16FB1A945363E5D98063487E /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MessagesView.swift'; sourceTree = "<group>"; };
+		F8AEFA66A2956317DD471A4E /* MyListingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MyListingsView.swift'; sourceTree = "<group>"; };
+		AFA5E12519ADB19621F76D90 /* NotificationCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'NotificationCenterView.swift'; sourceTree = "<group>"; };
+		B28B50361E08BA51A21978EC /* OrdersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'OrdersView.swift'; sourceTree = "<group>"; };
+		63614195DB1BD5B5274D52CE /* ProductDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ProductDetailView.swift'; sourceTree = "<group>"; };
+		5400FDF194DA90833307741D /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ProfileView.swift'; sourceTree = "<group>"; };
+		3F3C6794A002B71D2F9E287D /* SavedItemsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SavedItemsView.swift'; sourceTree = "<group>"; };
+		8B3588096631F1B3D27E86F7 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SearchView.swift'; sourceTree = "<group>"; };
+		D4E59CFF12224C901E90998E /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SharedViews.swift'; sourceTree = "<group>"; };
+		464A80971AD82EE9F23EB8CB /* SplashScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SplashScreen.swift'; sourceTree = "<group>"; };
+		F9818C9EF94BBB5A397C674D /* UserProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'UserProfileView.swift'; sourceTree = "<group>"; };
+		F190E5882D245D814C3F30D1 /* Syne-wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = 'Syne-wght.ttf'; sourceTree = "<group>"; };
+		29B1AA11593F5278D94EC52B /* popup_logo_white_mark.png */ = {isa = PBXFileReference; lastKnownFileType = file; path = 'popup_logo_white_mark.png'; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		FC54A62FB41DD24DDA676A71 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				40EE98DC765EB129F328B9A3 /* Supabase in Frameworks */,
+				28686CCEAA6EA1D1180531B1 /* SquareMobilePaymentsSDK in Frameworks */,
+				FB383C195BEC1F24E3D00D93 /* MockReaderUI in Frameworks */,
+				5DBE3F2EEC877AB5D9AC7ED6 /* SquareInAppPaymentsSDK in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2641B36E94DC246F4FB03F65 = {
+			isa = PBXGroup;
+			children = (
+				FA05D033EC7B777256C7B67A /* Config */,
+				6BFAA3D7B0282C56805F6832 /* PopupApp */,
+				4DDDE9607ED7D5C92B96C109 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		FA05D033EC7B777256C7B67A /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				A2D273722051DFBB3CC60E4E /* SupabaseProject.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		4DDDE9607ED7D5C92B96C109 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BE8AC42A1D228E22109D6876 /* PopupApp.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		6BFAA3D7B0282C56805F6832 /* PopupApp */ = {
+			isa = PBXGroup;
+			children = (
+				60DD85CFAC8565638F65B23F /* Info.plist */,
+				48C9D0F8928170CF8ABE5F53 /* PopupApp.Debug.entitlements */,
+				1570962869F528A09563347E /* PopupApp.entitlements */,
+				3284D144C80F0189F808793F /* Assets.xcassets */,
+				B66D9FFD25B3D140635275E0 /* AppState.swift */,
+				EFAA6DD23B3B637CF0DB3505 /* BakpakApp.swift */,
+				F65FB2BACE081D840BA09A7A /* ContentView.swift */,
+				F6B89003254FBAD68BEF8311 /* MainTabView.swift */,
+				8244B010A83CB27CA4046F76 /* Motion.swift */,
+				B5F9304ACEA643330481F86E /* RootView.swift */,
+				C384FB88BAE66F0E88F1FDC7 /* Theme.swift */,
+				0F6C3972D754D3BD9E79F393 /* Core */,
+				9C5E978DE10653A5392BEE37 /* Views */,
+				5F8286281AD4DEB96E6ACEFF /* Resources */,
+			);
+			path = BakpakApp;
+			sourceTree = "<group>";
+		};
+		0F6C3972D754D3BD9E79F393 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				A12CC73616E80F0C84E88F9D /* APIClient.swift */,
+				44C34EE2D8CEBBAC83C6E41C /* AccountScopedDefaults.swift */,
+				EFF249FAAD97B99AE818FE9F /* AuthViewModel.swift */,
+				0032275B26EC8F78ECA97037 /* ClothingIdentifyService.swift */,
+				2C98BF960D0845DDEB153DE6 /* ExternalPaymentApps.swift */,
+				3F486F7C2EADFAB9EF5098D3 /* InboxReadStore.swift */,
+				8C07CBEF540023CB4A4C6069 /* InstagramConnectService.swift */,
+				E7871CFD5DCB6299D557980A /* KeychainManager.swift */,
+				86FF3A9713325A1019C8DB50 /* MeetupMessaging.swift */,
+				759E1D4FFF2DA3082D55C3B4 /* MeetupPaymentService.swift */,
+				95CC3DB173DD6DB85D2FCA8C /* Models.swift */,
+				E41BA75AE73FE74E0DFFABA0 /* PaymentSheetPresenter.swift */,
+				F4BE39B8650EB00F6D92CD9F /* Services.swift */,
+				4684CF0C17F90FE840AEA521 /* SquareConfig.swift */,
+				049269B572D56CADF3F53A46 /* SquareConnectService.swift */,
+				FC00785D1162823234947362 /* SupabaseCatalogService.swift */,
+				F6C80B9ABFBF006E69EABFD4 /* SupabaseConfig.swift */,
+				6F3C20DE2871A8F3C7314C77 /* SupabaseDataServices.swift */,
+				ACE16FF087EA94D8AEBD8C05 /* SupabaseManager.swift */,
+				444C44A238ABFEAACF2E57FB /* SupabaseProductService.swift */,
+				A15C3536F203F19E39BE6224 /* SupabaseSearchSuggestService.swift */,
+				61F5716D8B519CD3E9FBA3CE /* TapToPayCollector.swift */,
+				61367FF9C52CD115DCC53F0D /* ViewModels.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		9C5E978DE10653A5392BEE37 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				14C28541EC008496C9BC3C5C /* AccountDetailsView.swift */,
+				BCEE7076AD15BC4CB89BD784 /* AccountSettingsView.swift */,
+				62EFD531D69BBC1FDC02D399 /* ApplePayButton.swift */,
+				B46950DDFE96A1232D026567 /* CartView.swift */,
+				0A534702596215D22316BC0A /* CheckoutView.swift */,
+				A27B8CDDCB25FF7F41085A18 /* ConversationView.swift */,
+				EC25577CAE1C3122291DC437 /* CreateListingView.swift */,
+				EB9139AFA4409929976AA018 /* EditListingView.swift */,
+				C39EC2877FAFCED0D4C0CC49 /* EditProfileView.swift */,
+				99282BCA763E30FC41F60BD4 /* HomeView.swift */,
+				ECC525C65D2EDCF01FC424D7 /* IdentifyClothingView.swift */,
+				4B4E4458F4005ABAF011A2DB /* LikedItemsView.swift */,
+				C8AFB7BCFF8232B36176D03D /* ListingPhotoCropView.swift */,
+				454860ACBA32D8A3164D316E /* MeetupPayFlowView.swift */,
+				20C059AEF4B17C9CD369B410 /* MessagedItemsView.swift */,
+				16FB1A945363E5D98063487E /* MessagesView.swift */,
+				F8AEFA66A2956317DD471A4E /* MyListingsView.swift */,
+				AFA5E12519ADB19621F76D90 /* NotificationCenterView.swift */,
+				B28B50361E08BA51A21978EC /* OrdersView.swift */,
+				63614195DB1BD5B5274D52CE /* ProductDetailView.swift */,
+				5400FDF194DA90833307741D /* ProfileView.swift */,
+				3F3C6794A002B71D2F9E287D /* SavedItemsView.swift */,
+				8B3588096631F1B3D27E86F7 /* SearchView.swift */,
+				D4E59CFF12224C901E90998E /* SharedViews.swift */,
+				464A80971AD82EE9F23EB8CB /* SplashScreen.swift */,
+				F9818C9EF94BBB5A397C674D /* UserProfileView.swift */,
+				B39A9C45FA246CC0E4091C91 /* Auth */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		B39A9C45FA246CC0E4091C91 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				238B40B998343316EFB8F41F /* AuthUI.swift */,
+				C70F752666B5523FB1472CD8 /* LoginView.swift */,
+				A82C74FF17606EDE7B033459 /* OnboardingFlowView.swift */,
+				74ACCEE5BA97F40853AA3F61 /* RegisterView.swift */,
+				EAB2504012BFA809B7ECE25A /* WelcomeView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		5F8286281AD4DEB96E6ACEFF /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				0234977AF97C2A2AD5EEB522 /* Fonts */,
+				7870F02BE09EB678CB0F5390 /* Images */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		0234977AF97C2A2AD5EEB522 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				F190E5882D245D814C3F30D1 /* Syne-wght.ttf */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
+		7870F02BE09EB678CB0F5390 /* Images */ = {
+			isa = PBXGroup;
+			children = (
+				29B1AA11593F5278D94EC52B /* popup_logo_white_mark.png */,
+			);
+			path = Images;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		38C6E64C0DAB6B4BA445C94A /* PopupApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6DF82DDF7E3F72B21662C626 /* Build configuration list for PBXNativeTarget "PopupApp" */;
+			buildPhases = (
+				D93B3B4B100D17B2EA542107 /* Sources */,
+				925B1DEA3065FCAEB58EA1A3 /* Resources */,
+				FC54A62FB41DD24DDA676A71 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			packageProductDependencies = (
+				292965126FD5E2A9E949BD61 /* Supabase */,
+				3A5F17E19D1C77C05476FF41 /* SquareMobilePaymentsSDK */,
+				B490B8D12C5657E3728DAB15 /* MockReaderUI */,
+				2919A1E7605B8B44F065E368 /* SquareInAppPaymentsSDK */,
+			);
+			name = PopupApp;
+			productName = PopupApp;
+			productReference = BE8AC42A1D228E22109D6876 /* PopupApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B76AE14239C47E159CE70B63 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					38C6E64C0DAB6B4BA445C94A = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = EE0428B0D82D93350B83A325 /* Build configuration list for PBXProject "PopupApp" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 2641B36E94DC246F4FB03F65;
+			packageReferences = (
+				14E39AE986549EB5C559BE14 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				0A65B962E58BAE7EB5630565 /* XCRemoteSwiftPackageReference "mobile-payments-sdk-ios" */,
+				CE761B554965430C0E80B94F /* XCRemoteSwiftPackageReference "in-app-payments-ios" */,
+			);
+			productRefGroup = 4DDDE9607ED7D5C92B96C109 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				38C6E64C0DAB6B4BA445C94A /* PopupApp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D93B3B4B100D17B2EA542107 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DAE86350A55BC5E73E7271CF /* AppState.swift in Sources */,
+				4B860738CD3EC607410C174B /* BakpakApp.swift in Sources */,
+				8310150B931ED1F0C4488B65 /* ContentView.swift in Sources */,
+				8D3B125EE6F044AAD1D9B07E /* APIClient.swift in Sources */,
+				D50FBEF5F1B99F41C6E8D266 /* AccountScopedDefaults.swift in Sources */,
+				5442C2A3784925E7A6E273CB /* AuthViewModel.swift in Sources */,
+				9BF601A36BB304D5E684B7D6 /* ClothingIdentifyService.swift in Sources */,
+				CA682DD7BAE67B5BAE933ACF /* ExternalPaymentApps.swift in Sources */,
+				9DE8874A880C03ADD8B04542 /* InboxReadStore.swift in Sources */,
+				497C9C545888C954DDBDC26E /* InstagramConnectService.swift in Sources */,
+				207234CCA878F8FF820C7028 /* KeychainManager.swift in Sources */,
+				941291BCC6EC07B95C1BE7F3 /* MeetupMessaging.swift in Sources */,
+				ADE00250D41817B09CB90158 /* MeetupPaymentService.swift in Sources */,
+				0BBCD423D2A8256C02A96314 /* Models.swift in Sources */,
+				3519D738BF8C734A1D805400 /* PaymentSheetPresenter.swift in Sources */,
+				03586D62860BCF0FF2C45821 /* Services.swift in Sources */,
+				ADBD256BC41AA8891BF99AA9 /* SquareConfig.swift in Sources */,
+				4022A6C5DE03D21547E75779 /* SquareConnectService.swift in Sources */,
+				7016B3BA22720A1E12247FBB /* SupabaseCatalogService.swift in Sources */,
+				79789AA28C1251B7AE1E8A31 /* SupabaseConfig.swift in Sources */,
+				FC3CE611989A3F1D9E2260C5 /* SupabaseDataServices.swift in Sources */,
+				BDE2D647CD9EDAC8C1A05226 /* SupabaseManager.swift in Sources */,
+				60ADD04B291055FFDAC9F47A /* SupabaseProductService.swift in Sources */,
+				37FAA77C057CA1FDE7FBF7C1 /* SupabaseSearchSuggestService.swift in Sources */,
+				EFA0B087FF2FEE26AE6E4835 /* TapToPayCollector.swift in Sources */,
+				2D3444260046C5664B38D399 /* ViewModels.swift in Sources */,
+				D58549C87E9CEA8A1E0AAFA1 /* MainTabView.swift in Sources */,
+				6A699EAC5C2E8018BFD61DA9 /* Motion.swift in Sources */,
+				F7B878E76D34C9320254616B /* RootView.swift in Sources */,
+				A875372744A534A414CAF614 /* Theme.swift in Sources */,
+				9188D89EB0563EF22A25B4E8 /* AccountDetailsView.swift in Sources */,
+				D57E892D811EC3C59CAF99D0 /* AccountSettingsView.swift in Sources */,
+				5565D186E1EBDA05BDE95BA5 /* ApplePayButton.swift in Sources */,
+				318937BB5228E072AB470238 /* AuthUI.swift in Sources */,
+				5086BD173BD0FE6AB1FA3A0D /* LoginView.swift in Sources */,
+				250A415576346E2D72039A7E /* OnboardingFlowView.swift in Sources */,
+				D61441567F6A87B7E9CEB67F /* RegisterView.swift in Sources */,
+				15CC7FF14FE13DF6131B6518 /* WelcomeView.swift in Sources */,
+				90A29E5730D45B37A96421BD /* CartView.swift in Sources */,
+				08D11D3C8F6827D35EFFD186 /* CheckoutView.swift in Sources */,
+				A54F670E0AC6D20D8965760B /* ConversationView.swift in Sources */,
+				58CEA08C577A5AC4FADBDA2F /* CreateListingView.swift in Sources */,
+				EB835DE5EDFD171F5274DEC4 /* EditListingView.swift in Sources */,
+				7BA4ACAB56E53F2018C2F3A6 /* EditProfileView.swift in Sources */,
+				DC7FE3CC46FAF67495D270D6 /* HomeView.swift in Sources */,
+				D04EE461B7897B9458E0A657 /* IdentifyClothingView.swift in Sources */,
+				AB94A29EB43149AAE642270B /* LikedItemsView.swift in Sources */,
+				46DB263707D84754C5B1C371 /* ListingPhotoCropView.swift in Sources */,
+				28D0E9882EA35B6153192F13 /* MeetupPayFlowView.swift in Sources */,
+				1EEE75EB3BC05DB9CEECF24C /* MessagedItemsView.swift in Sources */,
+				CE0EB7E6BEE8E2A475F684BE /* MessagesView.swift in Sources */,
+				EFF3A6BCD5EAECEEAC4DD1B4 /* MyListingsView.swift in Sources */,
+				9FBCAF885EA1096CDE2721B8 /* NotificationCenterView.swift in Sources */,
+				CFB6A6ED83AE0CE467CDD477 /* OrdersView.swift in Sources */,
+				7BBBBF817330E9A6F01C9DC4 /* ProductDetailView.swift in Sources */,
+				1B52D6AA7593B181499DEE3F /* ProfileView.swift in Sources */,
+				1CB60529BCFF99A91C5D1A3A /* SavedItemsView.swift in Sources */,
+				97998821382301F8C95E070E /* SearchView.swift in Sources */,
+				2B6DF528413E1B3ECEC33E83 /* SharedViews.swift in Sources */,
+				034DA744FD4AEC0AB727248A /* SplashScreen.swift in Sources */,
+				01604FB607E6E08AC5BFFB98 /* UserProfileView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+		925B1DEA3065FCAEB58EA1A3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9EB596B5BE011F33AC1B6E7D /* Syne-wght.ttf in Resources */,
+				E48C1C9A1E18866F6B1CB31A /* popup_logo_white_mark.png in Resources */,
+				2805BE21C152A448694F4FA5 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		14E39AE986549EB5C559BE14 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+		0A65B962E58BAE7EB5630565 /* XCRemoteSwiftPackageReference "mobile-payments-sdk-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/square/mobile-payments-sdk-ios";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
+		CE761B554965430C0E80B94F /* XCRemoteSwiftPackageReference "in-app-payments-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/square/in-app-payments-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.6.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		292965126FD5E2A9E949BD61 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 14E39AE986549EB5C559BE14 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+		3A5F17E19D1C77C05476FF41 /* SquareMobilePaymentsSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0A65B962E58BAE7EB5630565 /* XCRemoteSwiftPackageReference "mobile-payments-sdk-ios" */;
+			productName = SquareMobilePaymentsSDK;
+		};
+		B490B8D12C5657E3728DAB15 /* MockReaderUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0A65B962E58BAE7EB5630565 /* XCRemoteSwiftPackageReference "mobile-payments-sdk-ios" */;
+			productName = MockReaderUI;
+		};
+		2919A1E7605B8B44F065E368 /* SquareInAppPaymentsSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CE761B554965430C0E80B94F /* XCRemoteSwiftPackageReference "in-app-payments-ios" */;
+			productName = SquareInAppPaymentsSDK;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+/* Begin XCBuildConfiguration section */
+		64EBE695B7C2E1809D4E2D38 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		9D46C5F836D539D5AD6A0F9D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+			};
+			name = Release;
+		};
+		2B950C4B4E2A9FD4E495BCE2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A2D273722051DFBB3CC60E4E /* SupabaseProject.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = BakpakApp/PopupApp.Debug.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BakpakApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.7;
+				ONLY_ACTIVE_ARCH = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.popup.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		6BFF965B40D9A401DE7F8DA1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A2D273722051DFBB3CC60E4E /* SupabaseProject.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = BakpakApp/PopupApp.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BakpakApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.7;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.popup.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		EE0428B0D82D93350B83A325 /* Build configuration list for PBXProject "PopupApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64EBE695B7C2E1809D4E2D38 /* Debug */,
+				9D46C5F836D539D5AD6A0F9D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6DF82DDF7E3F72B21662C626 /* Build configuration list for PBXNativeTarget "PopupApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2B950C4B4E2A9FD4E495BCE2 /* Debug */,
+				6BFF965B40D9A401DE7F8DA1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = B76AE14239C47E159CE70B63 /* Project object */;
+}
