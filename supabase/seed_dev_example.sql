@@ -1,0 +1,12 @@
+-- =============================================================================
+-- With Supabase Auth there is no safe way to seed a "user" row from SQL alone
+-- (profiles are created by the handle_new_user trigger when someone signs up).
+--
+-- After running schema.sql + storage.sql + policies.sql:
+--   1. Register in the iOS app (or Auth → Users in dashboard).
+--   2. Post a listing from the app (Create tab) — uploads go to Storage.
+--
+-- Optional: insert extra categories in SQL Editor:
+--   INSERT INTO public.categories (parent_id, name, slug, sort_order)
+--   VALUES (NULL, 'Jewelry', 'jewelry', 90) ON CONFLICT (slug) DO NOTHING;
+-- =============================================================================

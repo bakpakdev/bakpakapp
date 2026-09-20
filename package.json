@@ -1,13 +1,17 @@
 {
-  "name": "bakpak",
+  "name": "popup",
   "version": "1.0.0",
   "description": "A Depop-like thrifting marketplace app",
   "main": "index.js",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "cd backend && npm run dev",
-    "client": "cd frontend && npm start",
-    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+    "dev:mobile": "concurrently \"npm run server:alt\" \"npm run client:alt\"",
+    "server": "cd backend && PORT=5001 npm run dev",
+    "server:alt": "cd backend && PORT=5001 npm run dev",
+    "client": "cd frontend && EXPO_PUBLIC_API_PORT=5001 npm start",
+    "client:alt": "cd frontend && EXPO_PUBLIC_API_PORT=5001 npm start",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "supabase:bundle": "sh -c 'printf \"%s\\n\" \"-- SUPABASE SQL EDITOR: paste EVERYTHING below into Dashboard → SQL → New query.\" \"-- Do NOT paste a file path (e.g. supabase/install_all.sql) — only the SQL text from this file.\" \"-- First real SQL line should be CREATE TABLE or similar after these comments.\" \"\" > supabase/install_all.sql && cat supabase/schema.sql >> supabase/install_all.sql && echo \"\" >> supabase/install_all.sql && echo \"-- --- storage ---\" >> supabase/install_all.sql && cat supabase/storage.sql >> supabase/install_all.sql && echo \"\" >> supabase/install_all.sql && echo \"-- --- policies ---\" >> supabase/install_all.sql && cat supabase/policies.sql >> supabase/install_all.sql'"
   },
   "keywords": [
     "thrift",

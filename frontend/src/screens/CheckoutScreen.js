@@ -82,7 +82,7 @@ export default function CheckoutScreen() {
         }
       }
 
-      // In a real app, you'd integrate Stripe here
+      // Square checkout for this Expo screen is not implemented; native iOS uses Square.
       Alert.alert('Success', 'Order placed successfully!', [
         { text: 'OK', onPress: () => navigation.navigate('Orders') },
       ]);

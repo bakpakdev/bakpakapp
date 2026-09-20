@@ -44,7 +44,11 @@ struct RootView: View {
                 case .editListing(let id): EditListingView(productId: id)
                 case .accountSettings: AccountSettingsView()
                 case .accountDetails: AccountDetailsView()
+                case .sellerCashOutSetup: SellerCashOutSetupView()
                 case .meetupPay(let item): MeetupPayFlowView(item: item)
+                case .meetupDetail(let item): MeetupDetailView(item: item)
+                case .leaderboard: LeaderboardView()
+                case .badgeCollection: BadgeCollectionView()
                 }
             }
         }

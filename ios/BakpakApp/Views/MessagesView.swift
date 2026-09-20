@@ -82,21 +82,21 @@ private struct MessagesChatRow: View {
                         img.resizable().scaledToFill()
                     } placeholder: {
                         ZStack {
-                            campusTheme.elevatedSurface
+                            Color.white.opacity(0.08)
                             Text(String(chat.participant.name.prefix(1)).uppercased())
                                 .font(Theme.syne(14, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
+                                .foregroundStyle(campusTheme.textPrimary)
                         }
                     }
                     .frame(width: 44, height: 44)
                     .clipShape(Circle())
-                    .overlay(Circle().stroke(campusTheme.primary.opacity(0.12), lineWidth: 1))
+                    .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
 
                     if chat.participant.isOnline {
                         Circle()
                             .fill(campusTheme.primary)
                             .frame(width: 11, height: 11)
-                            .overlay(Circle().stroke(campusTheme.surface, lineWidth: 2))
+                            .overlay(Circle().stroke(campusTheme.background, lineWidth: 2))
                     }
                 }
 
@@ -114,13 +114,13 @@ private struct MessagesChatRow: View {
 
                     Text(chat.lastMessage.isEmpty ? "Start the conversation" : chat.lastMessage)
                         .font(Theme.syne(13, weight: chat.unreadCount > 0 ? .semibold : .regular))
-                        .foregroundStyle(chat.unreadCount > 0 ? campusTheme.textPrimary : campusTheme.textMuted)
+                        .foregroundStyle(campusTheme.textMuted)
                         .lineLimit(1)
                 }
 
                 if chat.unreadCount > 0 {
                     Circle()
-                        .fill(Color.red)
+                        .fill(campusTheme.primary)
                         .frame(width: 8, height: 8)
                 }
 
@@ -128,27 +128,29 @@ private struct MessagesChatRow: View {
                     AsyncImage(url: URL(string: chat.item.image)) { img in
                         img.resizable().scaledToFill()
                     } placeholder: {
-                        campusTheme.elevatedSurface
+                        Color.white.opacity(0.08)
                     }
                     .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(campusTheme.border, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
                     )
                 }
             }
             .padding(14)
             .background(
                 isSelected
-                    ? campusTheme.primary.opacity(0.08)
-                    : campusTheme.surface.opacity(0.92)
+                    ? campusTheme.primary.opacity(0.12)
+                    : Color.white.opacity(0.06)
             )
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(
-                        isSelected ? campusTheme.primary.opacity(0.22) : campusTheme.border,
+                        isSelected
+                            ? campusTheme.primary.opacity(0.35)
+                            : (campusTheme.isDark ? Color.white.opacity(0.22) : Color.black.opacity(0.14)),
                         lineWidth: 1
                     )
             )
@@ -196,11 +198,15 @@ private struct MessageBubbleView: View {
                     onCancelMeetup: { onCancelMeetup?() },
                     onRescheduleMeetup: { onRescheduleMeetup?() }
                 )
+            } else if OfferMessageCodec.isOffer(message.text) {
+                offerBubble(message.text, isMe: message.isMe)
+            } else if let listing = ListingRefMessageCodec.parse(message.text) {
+                listingRefBubble(listing, isMe: message.isMe)
             } else {
                 HStack {
                     if message.isMe { Spacer(minLength: 60) }
                     Text(message.text)
-                        .font(.system(size: 14))
+                        .font(Theme.syne(14))
                         .foregroundStyle(message.isMe ? Color.white : campusTheme.textPrimary)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
@@ -220,10 +226,10 @@ private struct MessageBubbleView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("CUSTOM OFFER")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(Theme.syne(10, weight: .bold))
                             .foregroundStyle(campusTheme.textMuted)
                         Text("$\(offerAmount, specifier: "%.2f")")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(Theme.syne(18, weight: .bold))
                             .foregroundStyle(campusTheme.textPrimary)
                     }
                     .padding(12)
@@ -237,7 +243,7 @@ private struct MessageBubbleView: View {
                             // Offer flow — hook when API supports offers
                         } label: {
                             Text("Accept Offer")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(Theme.syne(12, weight: .bold))
                                 .foregroundStyle(Color.white)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 6)
@@ -250,7 +256,7 @@ private struct MessageBubbleView: View {
                             // Decline offer
                         } label: {
                             Text("Decline")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(Theme.syne(12, weight: .bold))
                                 .foregroundStyle(campusTheme.textMuted)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 6)
@@ -276,7 +282,7 @@ private struct MessageBubbleView: View {
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(campusTheme.primary)
                     Text("OFFER ACCEPTED")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(Theme.syne(10, weight: .bold))
                         .foregroundStyle(campusTheme.primary)
                 }
                 .padding(.horizontal, 12)
@@ -289,7 +295,7 @@ private struct MessageBubbleView: View {
             if showTime {
                 HStack(spacing: 6) {
                     Text(message.timestamp)
-                        .font(.system(size: 10, weight: .medium))
+                        .font(Theme.syne(10, weight: .medium))
                         .foregroundStyle(campusTheme.textMuted)
                     if message.isMe {
                         Image(systemName: message.isRead ? "checkmark.message.fill" : "checkmark")
@@ -302,6 +308,90 @@ private struct MessageBubbleView: View {
         }
         .frame(maxWidth: .infinity, alignment: message.isMe ? .trailing : .leading)
         .padding(.bottom, 4)
+    }
+
+    private func offerBubble(_ text: String, isMe: Bool) -> some View {
+        let listing = OfferMessageCodec.listing(from: text)
+        return HStack {
+            if isMe { Spacer(minLength: 60) }
+            VStack(alignment: .leading, spacing: 10) {
+                if let listing {
+                    listingCardContent(listing)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Offer", systemImage: "tag.fill")
+                        .font(Theme.syne(10, weight: .bold))
+                        .foregroundStyle(campusTheme.primary)
+                    Text(OfferMessageCodec.displayAmount(text))
+                        .font(Theme.syne(16, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                }
+            }
+            .padding(14)
+            .padding(isMe ? .trailing : .leading, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                ChatBubbleTail(
+                    isFromMe: isMe,
+                    fill: campusTheme.primary.opacity(0.1),
+                    stroke: campusTheme.primary.opacity(0.22)
+                )
+            }
+            if !isMe { Spacer(minLength: 60) }
+        }
+    }
+
+    private func listingRefBubble(_ listing: ListingRefPayload, isMe: Bool) -> some View {
+        HStack {
+            if isMe { Spacer(minLength: 60) }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("About this listing")
+                    .font(Theme.syne(10, weight: .bold))
+                    .foregroundStyle(campusTheme.primary)
+                listingCardContent(listing)
+            }
+            .padding(14)
+            .padding(isMe ? .trailing : .leading, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                ChatBubbleTail(
+                    isFromMe: isMe,
+                    fill: campusTheme.elevatedSurface,
+                    stroke: campusTheme.border
+                )
+            }
+            if !isMe { Spacer(minLength: 60) }
+        }
+    }
+
+    private func listingCardContent(_ listing: ListingRefPayload) -> some View {
+        HStack(spacing: 10) {
+            AsyncImage(url: URL(string: listing.imageURL ?? "")) { img in
+                img.resizable().scaledToFill()
+            } placeholder: {
+                campusTheme.elevatedSurface
+            }
+            .frame(width: 44, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(listing.title)
+                    .font(Theme.syne(13, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                if listing.price > 0 {
+                    Text(
+                        listing.price.rounded() == listing.price
+                            ? String(format: "$%.0f", listing.price)
+                            : String(format: "$%.2f", listing.price)
+                    )
+                        .font(Theme.syne(13, weight: .bold))
+                        .foregroundStyle(campusTheme.primary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
     }
 }
 
@@ -370,7 +460,7 @@ struct MessagesView: View {
 
     var body: some View {
         ZStack {
-            campusTheme.wash.ignoresSafeArea()
+            campusTheme.background.ignoresSafeArea()
 
             Circle()
                 .fill(campusTheme.primary.opacity(0.16))
@@ -400,7 +490,9 @@ struct MessagesView: View {
             }
         }
         .preferredColorScheme(campusTheme.isDark ? .dark : .light)
-        .ignoresSafeArea(edges: .top)
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
+        .ignoresSafeArea(edges: selectedChatId != nil ? [.top, .bottom] : .top)
         .task {
             await vm.loadConversations()
             appState.applyInboxUnread(from: vm.conversations, meId: authVM.user?.id)
@@ -422,12 +514,14 @@ struct MessagesView: View {
             vm.resetForAccountChange()
             meetupChecklist = MeetupChecklistStore.load()
             selectedChatId = nil
+            appState.hidesTabBar = false
             Task {
                 await vm.loadConversations()
                 syncRemindersFromInboxPreviews()
             }
         }
         .onChange(of: selectedChatId) { newId in
+            appState.hidesTabBar = newId != nil
             if newId == nil {
                 Task {
                     await vm.loadConversations()
@@ -486,7 +580,12 @@ struct MessagesView: View {
         .onChange(of: vm.messages.count) { _ in
             syncChecklistFromLoadedMessages()
         }
-        .onDisappear { vm.stopLiveUpdates() }
+        .onChange(of: appState.path.count) { _ in
+            meetupChecklist = MeetupChecklistStore.load()
+        }
+        .onDisappear {
+            vm.stopLiveUpdates()
+        }
     }
 
     /// Phone: inbox stays underneath; chat slides in from the right and can swipe back out.
@@ -502,7 +601,7 @@ struct MessagesView: View {
                 if selectedChatId != nil {
                     chatAreaView
                         .frame(width: width, height: geo.size.height)
-                        .background(campusTheme.background)
+                        .background(campusTheme.background.ignoresSafeArea())
                         .offset(x: chatDismissOffset)
                         .shadow(color: Color.black.opacity(0.12), radius: 16, x: -6, y: 0)
                         .simultaneousGesture(chatSwipeBackGesture(width: width))
@@ -521,6 +620,8 @@ struct MessagesView: View {
     private func openChat(_ id: String) {
         guard !id.isEmpty else { return }
         Motion.haptic(.light)
+        appState.hidesTabBar = true
+        hideIncomingSystemTabBars()
         if isTablet {
             selectedChatId = id
             showChatMessages = true
@@ -551,6 +652,7 @@ struct MessagesView: View {
     private func closeChat() {
         Motion.haptic(.light)
         showChatMessages = false
+        appState.hidesTabBar = false
         let width = inboxWidth > 1 ? inboxWidth : UIScreen.main.bounds.width
         withAnimation(Motion.bounce) {
             chatDismissOffset = width
@@ -562,6 +664,28 @@ struct MessagesView: View {
                 selectedChatId = nil
                 chatDismissOffset = 0
             }
+        }
+    }
+
+    private func hideIncomingSystemTabBars() {
+        DispatchQueue.main.async {
+            for scene in UIApplication.shared.connectedScenes {
+                guard let windowScene = scene as? UIWindowScene else { continue }
+                for window in windowScene.windows {
+                    hideTabBars(in: window)
+                }
+            }
+        }
+    }
+
+    private func hideTabBars(in view: UIView) {
+        if let tabBar = view as? UITabBar {
+            tabBar.isHidden = true
+            tabBar.alpha = 0
+            tabBar.isUserInteractionEnabled = false
+        }
+        for sub in view.subviews {
+            hideTabBars(in: sub)
         }
     }
 
@@ -593,14 +717,20 @@ struct MessagesView: View {
 
     private var sidebarView: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Inbox")
-                    .font(Theme.syne(26, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .padding(.top, 50)
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Inbox")
+                        .font(Theme.syne(30, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                    Text("Buying and selling chats")
+                        .font(Theme.syne(13, weight: .regular))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
+                .padding(.top, 50)
 
                 HStack(spacing: 8) {
                     ForEach(["buying", "selling"], id: \.self) { tab in
+                        let isActive = activeTab == tab
                         let badge = tab == "buying" ? appState.inboxUnreadBuying : appState.inboxUnreadSelling
                         Button {
                             withAnimation(Motion.snappy) { activeTab = tab }
@@ -608,14 +738,14 @@ struct MessagesView: View {
                         } label: {
                             Text(tab == "buying" ? "Buying" : "Selling")
                                 .font(Theme.syne(13, weight: .semibold))
-                                .foregroundStyle(activeTab == tab ? Color.white : campusTheme.textPrimary)
+                                .foregroundStyle(isActive ? Color.white : campusTheme.textMuted)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
-                                .background(activeTab == tab ? campusTheme.primary : campusTheme.surface.opacity(0.7))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .background(isActive ? campusTheme.primary : Color.white.opacity(0.06))
+                                .clipShape(Capsule())
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(campusTheme.primary.opacity(activeTab == tab ? 0 : 0.16), lineWidth: 1)
+                                    Capsule()
+                                        .stroke(isActive ? Color.clear : Color.white.opacity(0.1), lineWidth: 1)
                                 )
                                 .overlay(alignment: .topTrailing) {
                                     if badge > 0 {
@@ -624,7 +754,7 @@ struct MessagesView: View {
                                             .foregroundStyle(.white)
                                             .padding(.horizontal, 5)
                                             .frame(minWidth: 16, minHeight: 16)
-                                            .background(Color.red)
+                                            .background(campusTheme.primary)
                                             .clipShape(Capsule())
                                             .offset(x: 6, y: -6)
                                     }
@@ -634,41 +764,23 @@ struct MessagesView: View {
                     }
                 }
 
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(campusTheme.textMuted)
                     TextField("Search thrift chats…", text: $searchTerm)
-                        .font(Theme.syne(14, weight: .regular))
+                        .font(Theme.syne(15, weight: .regular))
                         .foregroundStyle(campusTheme.textPrimary)
                         .tint(campusTheme.primary)
                 }
-                .padding(.horizontal, 14)
-                .frame(height: 40)
-                .background(campusTheme.primary.opacity(0.035))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(campusTheme.primary.opacity(0.18), lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.horizontal, 16)
+                .frame(height: 44)
+                .background(Color.white.opacity(0.06))
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 1))
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 14)
-            .background {
-                ZStack {
-                    Rectangle().fill(.ultraThinMaterial)
-                    LinearGradient(
-                        colors: [
-                            campusTheme.primary.opacity(0.14),
-                            campusTheme.secondary.opacity(0.08),
-                            campusTheme.surface.opacity(0.3),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                }
-                .ignoresSafeArea(edges: .top)
-            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
 
             if !meetupChecklist.isEmpty {
                 meetupRemindersBanner
@@ -682,7 +794,7 @@ struct MessagesView: View {
                 emptyInboxView
             } else {
                 ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 10) {
+                    LazyVStack(spacing: 12) {
                         ForEach(filteredChats) { chat in
                             MessagesChatRow(
                                 chat: chat,
@@ -693,8 +805,8 @@ struct MessagesView: View {
                             )
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
                     .padding(.bottom, 100)
                 }
             }
@@ -702,18 +814,18 @@ struct MessagesView: View {
     }
 
     private var emptyInboxView: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             Spacer()
-            Image(systemName: "bubble.left.and.bubble.right.fill")
-                .font(.system(size: 36, weight: .medium))
-                .foregroundStyle(campusTheme.primary.opacity(0.7))
+            Image(systemName: "bubble.left.and.bubble.right")
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
             Text(searchTerm.isEmpty ? "No thrift chats yet" : "No matching chats")
-                .font(Theme.syne(18, weight: .bold))
+                .font(Theme.syne(17, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text(searchTerm.isEmpty
                  ? "Message a seller about a find and it’ll show up here."
                  : "Try another name or listing.")
-                .font(.system(size: 14))
+                .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
@@ -725,12 +837,12 @@ struct MessagesView: View {
     private var meetupRemindersBanner: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("Meetup reminders", systemImage: "bell.fill")
+                Label("Meetup reminders", systemImage: "bell")
                     .font(Theme.syne(13, weight: .bold))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.textPrimary)
                 Spacer()
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 20)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
@@ -738,193 +850,90 @@ struct MessagesView: View {
                         meetupReminderCard(item)
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 20)
             }
         }
-        .padding(.vertical, 10)
-        .background(campusTheme.primary.opacity(0.05))
-    }
-
-    private func isCollectingPayment(_ item: MeetupChecklistItem) -> Bool {
-        if let isSeller = item.isSeller { return isSeller }
-        return chats.first(where: { $0.id == item.conversationId })?.isMyListing == true
+        .padding(.vertical, 12)
     }
 
     private func meetupReminderCard(_ item: MeetupChecklistItem) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
+        let fill = Color.white.opacity(campusTheme.isDark ? 0.07 : 0.55)
+        let stroke = campusTheme.isDark ? Color.white.opacity(0.1) : Color.black.opacity(0.1)
+        let itemTitle = item.productTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let safety = item.isPending
+            ? "Tap to accept or deny this meetup."
+            : "Don’t forget — meet in public and pay in-app."
+
+        return Button {
+            Motion.haptic(.light)
+            var routed = item
+            if routed.isSeller == nil {
+                routed.isSeller = chats.first(where: { $0.id == item.conversationId })?.isMyListing
+            }
+            appState.path.append(.meetupDetail(routed))
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center, spacing: 8) {
                     Text(item.spotName)
-                        .font(Theme.syne(14, weight: .bold))
+                        .font(Theme.syne(15, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
                         .lineLimit(1)
-                    Text("with \(item.otherPersonName)")
-                        .font(Theme.syne(12, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .lineLimit(1)
-                    if let title = item.productTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
-                        Text(title)
-                            .font(Theme.syne(12, weight: .semibold))
-                            .foregroundStyle(campusTheme.textPrimary.opacity(0.85))
-                            .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted.opacity(0.8))
+                }
+
+                VStack(alignment: .leading, spacing: 7) {
+                    meetupInfoRow(icon: "person", text: "with \(item.otherPersonName)")
+                    if !itemTitle.isEmpty {
+                        meetupInfoRow(icon: "tag", text: itemTitle)
                     }
                     if let time = item.formattedProposedTime {
-                        Label(time, systemImage: "clock")
-                            .font(Theme.syne(12, weight: .semibold))
-                            .foregroundStyle(campusTheme.primary)
-                            .lineLimit(1)
+                        meetupInfoRow(icon: "clock", text: time, accentTime: true)
                     }
                 }
-                Spacer(minLength: 8)
-                Button {
-                    Motion.haptic(.light)
-                    MeetupMaps.open(spotId: item.spotId, spotName: item.spotName, theme: campusTheme)
-                } label: {
-                    Image(systemName: "map")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(campusTheme.primary)
-                        .frame(width: 32, height: 32)
-                        .background(campusTheme.primary.opacity(0.12))
-                        .clipShape(Circle())
+
+                Rectangle()
+                    .fill(stroke)
+                    .frame(height: 1)
+                    .padding(.vertical, 2)
+
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "shield")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted.opacity(0.7))
+                        .padding(.top, 1)
+                    Text(safety)
+                        .font(Theme.syne(11, weight: .regular))
+                        .foregroundStyle(campusTheme.textMuted.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
                 }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
             }
-
-            Text(item.isPending
-                 ? "They want to meet — accept, deny, or open chat."
-                 : "Don’t forget — meet in public and pay in-app.")
-                .font(Theme.syne(11, weight: .medium))
-                .foregroundStyle(campusTheme.textMuted)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if item.isPending {
-                HStack(spacing: 8) {
-                    Button {
-                        Motion.haptic(.medium)
-                        Task { await respondToMeetupFromReminder(item, accepted: true) }
-                    } label: {
-                        Text("Accept")
-                            .font(Theme.syne(12, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 9)
-                            .background(campusTheme.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-
-                    Button {
-                        Motion.haptic(.light)
-                        Task { await respondToMeetupFromReminder(item, accepted: false) }
-                    } label: {
-                        Text("Deny")
-                            .font(Theme.syne(12, weight: .bold))
-                            .foregroundStyle(campusTheme.textMuted)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 9)
-                            .background(campusTheme.elevatedSurface)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-                }
-
-                Button {
-                    openChat(item.conversationId)
-                } label: {
-                    Text("Go to chat")
-                        .font(Theme.syne(12, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .background(campusTheme.primary.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-            } else {
-            HStack(spacing: 8) {
-                Button {
-                    Motion.haptic(.light)
-                    meetupDraft = .reschedule(
-                        spotId: item.spotId,
-                        proposedAt: item.proposedAt,
-                        conversationId: item.conversationId,
-                        previousSpotId: item.spotId
-                    )
-                    openChat(item.conversationId)
-                    showMeetupPicker = true
-                } label: {
-                    Text("Reschedule")
-                        .font(Theme.syne(12, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .background(campusTheme.primary.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-
-                Button {
-                    Motion.haptic(.light)
-                    pendingCancelMeetup = MeetupMessagePayload(
-                        kind: .accepted,
-                        spotId: item.spotId,
-                        spotName: item.spotName,
-                        proposedAt: item.proposedAt
-                    )
-                    openChat(item.conversationId)
-                    showCancelMeetupConfirm = true
-                } label: {
-                    Text("Cancel")
-                        .font(Theme.syne(12, weight: .bold))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .background(campusTheme.elevatedSurface)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-            }
-
-            Button {
-                Motion.haptic(.medium)
-                appState.path.append(.meetupPay(item))
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isCollectingPayment(item) ? "tray.and.arrow.down.fill" : "dollarsign.circle.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                    Text(isCollectingPayment(item) ? "Collect payment" : "Pay")
-                        .font(Theme.syne(12, weight: .bold))
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(campusTheme.primary)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-
-            Button {
-                openChat(item.conversationId)
-            } label: {
-                Text("Open chat")
-                    .font(Theme.syne(12, weight: .bold))
-                    .foregroundStyle(campusTheme.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
-                    .background(campusTheme.primary.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-            }
+            .padding(14)
+            .frame(width: 260, alignment: .leading)
+            .background(fill)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(stroke, lineWidth: 1)
+            )
         }
-        .padding(12)
-        .frame(width: 260, alignment: .leading)
-        .background(campusTheme.surface.opacity(0.95))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(campusTheme.primary.opacity(0.18), lineWidth: 1)
-        )
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+    }
+
+    private func meetupInfoRow(icon: String, text: String, accentTime: Bool = false) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(accentTime ? campusTheme.primary : campusTheme.textMuted)
+                .frame(width: 14, alignment: .center)
+            Text(text)
+                .font(Theme.syne(12, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+                .lineLimit(1)
+        }
     }
 
     @ViewBuilder
@@ -937,7 +946,10 @@ struct MessagesView: View {
     }
 
     private func activeChatView(chat: Chat) -> some View {
-        VStack(spacing: 0) {
+        let glassStroke = campusTheme.isDark ? Color.white.opacity(0.18) : Color.black.opacity(0.1)
+        let glassFill = Color.white.opacity(campusTheme.isDark ? 0.08 : 0.28)
+
+        return VStack(spacing: 0) {
             HStack {
                 HStack(spacing: 12) {
                     if !isTablet {
@@ -948,9 +960,9 @@ struct MessagesView: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(campusTheme.textPrimary)
                                 .frame(width: 36, height: 36)
-                                .background(campusTheme.surface.opacity(0.7))
+                                .background(glassFill)
                                 .clipShape(Circle())
-                                .overlay(Circle().stroke(campusTheme.primary.opacity(0.16), lineWidth: 1))
+                                .overlay(Circle().stroke(glassStroke, lineWidth: 1))
                         }
                         .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
                     }
@@ -959,7 +971,7 @@ struct MessagesView: View {
                         img.resizable().scaledToFill()
                     } placeholder: {
                         ZStack {
-                            campusTheme.elevatedSurface
+                            Color.white.opacity(0.08)
                             Text(String(chat.participant.name.prefix(1)).uppercased())
                                 .font(Theme.syne(14, weight: .bold))
                                 .foregroundStyle(campusTheme.primary)
@@ -967,6 +979,7 @@ struct MessagesView: View {
                     }
                     .frame(width: 40, height: 40)
                     .clipShape(Circle())
+                    .overlay(Circle().stroke(glassStroke, lineWidth: 1))
 
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 4) {
@@ -982,7 +995,7 @@ struct MessagesView: View {
                         Text(chat.participant.college.isEmpty
                              ? "Campus seller"
                              : chat.participant.college)
-                            .font(.system(size: 11))
+                            .font(Theme.syne(11, weight: .medium))
                             .foregroundStyle(campusTheme.textMuted)
                     }
                 }
@@ -996,18 +1009,23 @@ struct MessagesView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .padding(.top, 44)
+            .padding(.top, 52)
             .background {
                 ZStack {
-                    Rectangle().fill(.ultraThinMaterial)
+                    Rectangle().fill(.ultraThinMaterial).opacity(0.55)
                     LinearGradient(
                         colors: [
-                            campusTheme.primary.opacity(0.12),
-                            campusTheme.surface.opacity(0.35),
+                            campusTheme.primary.opacity(campusTheme.isDark ? 0.1 : 0.06),
+                            Color.white.opacity(campusTheme.isDark ? 0.04 : 0.18),
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
+                }
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(glassStroke)
+                        .frame(height: 1)
                 }
             }
 
@@ -1015,14 +1033,18 @@ struct MessagesView: View {
                 AsyncImage(url: URL(string: chat.item.image)) { img in
                     img.resizable().scaledToFill()
                 } placeholder: {
-                    campusTheme.elevatedSurface
+                    Color.white.opacity(0.08)
                 }
                 .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(glassStroke, lineWidth: 1)
+                )
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(chat.item.name)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(Theme.syne(13, weight: .semibold))
                         .foregroundStyle(campusTheme.textPrimary)
                         .lineLimit(1)
                     if chat.item.price > 0 {
@@ -1039,7 +1061,7 @@ struct MessagesView: View {
                         appState.path.append(.productDetail(chat.item.id))
                     } label: {
                         Text("View")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(Theme.syne(12, weight: .bold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
@@ -1051,7 +1073,17 @@ struct MessagesView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(campusTheme.surface.opacity(0.72))
+            .background {
+                ZStack {
+                    Rectangle().fill(.ultraThinMaterial).opacity(0.4)
+                    Color.white.opacity(campusTheme.isDark ? 0.04 : 0.16)
+                }
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(glassStroke)
+                        .frame(height: 1)
+                }
+            }
 
             ScrollViewReader { proxy in
                 GeometryReader { geo in
@@ -1067,7 +1099,7 @@ struct MessagesView: View {
                                     .clipShape(Capsule())
 
                                 Text("Meet in public campus spots. Don’t share payment info or personal numbers.")
-                                    .font(.system(size: 12))
+                                    .font(Theme.syne(12))
                                     .foregroundStyle(campusTheme.textMuted)
                                     .multilineTextAlignment(.center)
                                     .frame(maxWidth: 280)
@@ -1188,7 +1220,7 @@ struct MessagesView: View {
                         Motion.haptic(.light)
                     } label: {
                         Label("Meetup", systemImage: "mappin.and.ellipse")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(Theme.syne(12, weight: .semibold))
                             .foregroundStyle(campusTheme.primary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
@@ -1204,7 +1236,7 @@ struct MessagesView: View {
                             Motion.haptic(.light)
                         } label: {
                             Text(action)
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(Theme.syne(12, weight: .semibold))
                                 .foregroundStyle(campusTheme.textPrimary)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
@@ -1219,44 +1251,55 @@ struct MessagesView: View {
                 .padding(.vertical, 8)
             }
 
-            HStack(spacing: 10) {
+            HStack(alignment: .bottom, spacing: 10) {
                 TextField("Type a message…", text: $inputValue, axis: .vertical)
-                    .font(.system(size: 14))
+                    .font(Theme.syne(15, weight: .regular))
                     .foregroundStyle(campusTheme.textPrimary)
                     .tint(campusTheme.primary)
                     .lineLimit(1 ... 5)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
+                    .padding(.leading, 4)
+                    .padding(.vertical, 6)
 
                 Button {
                     handleSendMessage()
                 } label: {
                     Image(systemName: "paperplane.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? campusTheme.textMuted : Color.white)
-                        .frame(width: 40, height: 40)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(
+                            inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? campusTheme.textMuted
+                                : Color.white
+                        )
+                        .frame(width: 36, height: 36)
                         .background(
                             inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                ? campusTheme.elevatedSurface
+                                ? Color.white.opacity(campusTheme.isDark ? 0.08 : 0.55)
                                 : campusTheme.primary
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .clipShape(Circle())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
                 .disabled(inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .padding(.trailing, 4)
             }
-            .background(campusTheme.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.leading, 18)
+            .padding(.trailing, 6)
+            .padding(.vertical, 6)
+            .background(Color.white.opacity(campusTheme.isDark ? 0.08 : 0.72))
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(campusTheme.primary.opacity(0.18), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .stroke(
+                        campusTheme.isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.08),
+                        lineWidth: 1
+                    )
             )
             .padding(.horizontal, 16)
-            .padding(.bottom, 16)
-            .padding(.top, 4)
+            .padding(.top, 2)
+            .padding(.bottom, 10)
         }
-        .background(campusTheme.wash.opacity(0.35))
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(campusTheme.background.ignoresSafeArea(edges: .bottom))
     }
 
     private var emptyChatView: some View {
@@ -1269,7 +1312,7 @@ struct MessagesView: View {
                 .font(Theme.syne(20, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text("Select a conversation to keep thrifting.")
-                .font(.system(size: 14))
+                .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
@@ -1279,16 +1322,18 @@ struct MessagesView: View {
     }
 
     private func headerActionButton(icon: String) -> some View {
-        Button {
+        let glassStroke = campusTheme.isDark ? Color.white.opacity(0.18) : Color.black.opacity(0.1)
+        let glassFill = Color.white.opacity(campusTheme.isDark ? 0.08 : 0.28)
+        return Button {
             // Report / more — future
         } label: {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
                 .frame(width: 36, height: 36)
-                .background(campusTheme.surface.opacity(0.7))
+                .background(glassFill)
                 .clipShape(Circle())
-                .overlay(Circle().stroke(campusTheme.primary.opacity(0.16), lineWidth: 1))
+                .overlay(Circle().stroke(glassStroke, lineWidth: 1))
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
     }
@@ -1355,33 +1400,6 @@ struct MessagesView: View {
             }
         }
         return false
-    }
-
-    private func respondToMeetupFromReminder(_ item: MeetupChecklistItem, accepted: Bool) async {
-        let kind: MeetupMessageKind = accepted ? .accepted : .declined
-        let spot = campusTheme.meetupLocations.first(where: { $0.id == item.spotId })
-            ?? CampusMeetupSpot(id: item.spotId, name: item.spotName, latitude: 0, longitude: 0)
-        await vm.send(
-            conversationId: item.conversationId,
-            content: MeetupMessageCodec.encode(kind: kind, spot: spot, proposedAt: item.proposedAt),
-            senderId: authVM.user?.id
-        )
-        if accepted {
-            MeetupChecklistStore.applyStatus(
-                MeetupMessagePayload(kind: .accepted, spotId: item.spotId, spotName: item.spotName, proposedAt: item.proposedAt),
-                conversationId: item.conversationId,
-                otherUserId: item.otherUserId,
-                productId: item.productId,
-                productTitle: item.productTitle,
-                otherPersonName: item.otherPersonName,
-                spots: campusTheme.meetupLocations,
-                isIncoming: false,
-                isSeller: item.isSeller ?? chats.first(where: { $0.id == item.conversationId })?.isMyListing
-            )
-        } else {
-            MeetupChecklistStore.remove(conversationId: item.conversationId, spotId: item.spotId)
-        }
-        meetupChecklist = MeetupChecklistStore.load()
     }
 
     private func respondToMeetup(_ invite: MeetupMessagePayload, accepted: Bool) async {
@@ -1552,6 +1570,16 @@ struct MessagesView: View {
                 case .declined: return "Meetup declined · \(meetup.spotName)"
                 case .cancelled: return "Meetup cancelled · \(meetup.spotName)"
                 }
+            }
+            if OfferMessageCodec.isOffer(raw) {
+                let amount = OfferMessageCodec.displayAmount(raw)
+                if let listing = OfferMessageCodec.listing(from: raw) {
+                    return "Offer · \(amount) · \(listing.title)"
+                }
+                return "Offer · \(amount)"
+            }
+            if let listing = ListingRefMessageCodec.parse(raw) {
+                return "Listing · \(listing.title)"
             }
             return raw
         }()

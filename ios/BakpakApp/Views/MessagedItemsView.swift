@@ -70,13 +70,13 @@ struct MessagedItemsView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(Theme.syne(15, weight: .semibold))
                         .foregroundStyle(campusTheme.textPrimary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
 
                     Text(item.sellerName)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(Theme.syne(13, weight: .medium))
                         .foregroundStyle(campusTheme.textMuted)
                         .lineLimit(1)
 
@@ -126,7 +126,7 @@ struct MessagedItemsView: View {
                 .font(Theme.syne(18, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text(detail)
-                .font(.system(size: 14, weight: .medium))
+                .font(Theme.syne(14, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 28)

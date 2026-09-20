@@ -1,5 +1,5 @@
 {
-  "name": "bakpak",
+  "name": "popup",
   "version": "1.0.0",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
@@ -20,7 +20,6 @@
     "@react-navigation/native": "^6.1.9",
     "@react-navigation/native-stack": "^6.9.17",
     "@react-navigation/stack": "^6.3.20",
-    "@stripe/stripe-react-native": "^0.28.0",
     "axios": "^1.6.2",
     "expo": "~49.0.15",
     "expo-font": "~11.4.0",
@@ -44,7 +43,10 @@
     "socket.io-client": "^4.5.4"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.20.0",
+    "@tailwindcss/postcss": "^4.3.2",
+    "autoprefixer": "^10.5.2",
+    "tailwindcss": "^4.3.2"
   },
   "private": true
 }

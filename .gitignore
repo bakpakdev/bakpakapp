@@ -38,6 +38,11 @@ Thumbs.db
 backend/.env
 backend/uploads/
 
+# Native iOS (script local build output)
+ios/build/
+ios/Config/Secrets.xcconfig
+
+
 # Frontend
 frontend/.expo/
 frontend/.expo-shared/

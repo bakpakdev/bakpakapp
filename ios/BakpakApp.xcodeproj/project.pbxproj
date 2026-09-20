@@ -1,0 +1,447 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5D45B66ACD2D9459FA4A4DD0 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B787FA8C33C213D77D417D /* AppState.swift */; };
+		3C3BEB37C2823CE15019B2B3 /* PopupApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA094A3229177CEF4EA3E93B /* PopupApp.swift */; };
+		33F54CCCB167B10B7A3048CD /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25DE967115A83CEFBB515BFA /* ContentView.swift */; };
+		23E7E062F400B53D54845CB3 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BE13609A42E8EC77714E1BC /* APIClient.swift */; };
+		1A0CC3E5FEB55BA2BD5A4382 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01AF6FC814DBB328082F774D /* AuthViewModel.swift */; };
+		C2170C782C55F58F194B01DB /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001DBF024DD413FE875719C6 /* KeychainManager.swift */; };
+		42E6D9857C75E69E9C937C8D /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEF12A1CF105450A2BCCD665 /* Models.swift */; };
+		FBA3DC38D9B2E1154471FA13 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FD81E01E003B249D4808BD /* Services.swift */; };
+		7017423281EA6A56EA7F64ED /* SupabaseCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8190BBEB9ECE93FB6CFDD394 /* SupabaseCatalogService.swift */; };
+		BB0C745D02E62387016A2510 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A9132D6B9B143832F19582 /* SupabaseConfig.swift */; };
+		41EF0DDE017B3F8DF4CAE92A /* SupabaseDataServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112EB20126BFAFE91DC7005B /* SupabaseDataServices.swift */; };
+		CD7BC621D4CAC6D113E0AD3A /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDDF426DE5B81ADA66F9A11C /* SupabaseManager.swift */; };
+		ABEF20DC17B301630226DF6D /* SupabaseProductService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14BD8B201D1EEA02BC45948D /* SupabaseProductService.swift */; };
+		934B2677F22170A1FAC63BB9 /* ViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76C5DDB72175E75CC2C3426D /* ViewModels.swift */; };
+		31358896207C46CA9B9B53CF /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD8C444150170E9BAAD7CA57 /* MainTabView.swift */; };
+		01BA0A24A1DECCDD8B07D566 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79CC5B6E5B14D827174DEB5A /* RootView.swift */; };
+		2FE6D52E4B9BAD64CF80F76C /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 229D3C8FA3900BF21BD968ED /* Theme.swift */; };
+		0D6981E721CBD2CAD26C39AE /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ABE521A4BFF94FF75C4E8B4 /* LoginView.swift */; };
+		D71B34AA30BE2B2DDE269937 /* RegisterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E20FA7B16A9E661ADE3A43C /* RegisterView.swift */; };
+		27395A658C93757DE03DA781 /* CartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6524356F01C7A9816B18165 /* CartView.swift */; };
+		8118F791705B6E376EF64EB5 /* CheckoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53E53325F7797C669D640DFA /* CheckoutView.swift */; };
+		ED4DD4D3FE1A6F90A4C4A48E /* ConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 839489810827B5A0CBB4050E /* ConversationView.swift */; };
+		FA1E8F24FC51F4E612489BDA /* CreateListingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793E200396E79E47BFE61A0F /* CreateListingView.swift */; };
+		71298C12AE19702CBC7BD619 /* EditListingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5B945EEF3E50A6BC485ED5 /* EditListingView.swift */; };
+		879E6462B91C08FB7B3C5C36 /* EditProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B76D6EE70EB07663EAE9409 /* EditProfileView.swift */; };
+		B07E02EBEB59730010ABFF98 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D93F3C3B117EC3D47A8ED76A /* HomeView.swift */; };
+		E35984D9427FC87E425F58D2 /* LikedItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC3884917594CDB57977EAA /* LikedItemsView.swift */; };
+		ADFE7D40A4FFB9389306791F /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 370B2F5C52104A11E11852BD /* MessagesView.swift */; };
+		23640F93F88513D60D164B74 /* MyListingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 176EB1A32CA93DB85A622278 /* MyListingsView.swift */; };
+		7A7DF3E2A0DADCC6D836663F /* OrdersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA5682B65580789B98345C0 /* OrdersView.swift */; };
+		9D242B08E025D2B62BF60D66 /* ProductDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F1E6E93D5F1DADEB6CE8C4B /* ProductDetailView.swift */; };
+		952216CD78431213388307FB /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F3707656BEDC8DE7247FAD /* ProfileView.swift */; };
+		19DAA83F51356B4EF4CF27DF /* SavedItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E119BFF23EF12910FE3EE9FA /* SavedItemsView.swift */; };
+		4E1B4301A9FEF782CD87FE50 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE635052FC76755A350D684 /* SearchView.swift */; };
+		4C061CB576AE2CB0C934412C /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6778711191B7466BD5BC71CA /* SharedViews.swift */; };
+		FE0322E9B5F2A1B4D4DA184B /* UserProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 628F6F0C74B57B5373A13D9C /* UserProfileView.swift */; };
+		CDD801442F222790BAC41BD7 /* Syne-wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9B4260FE84073AF537EED3CF /* Syne-wght.ttf */; };
+		4CFDB62A578198D570261535 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A21DBECBA72A06B7808941A8 /* Supabase */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		26BA0F5787724953842258A4 /* PopupApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PopupApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		67F71A5791E0882E40A94BF7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AABB8CC7995A1FE9454C42FC /* SupabaseProject.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = SupabaseProject.xcconfig; sourceTree = "<group>"; };
+		E6B787FA8C33C213D77D417D /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AppState.swift'; sourceTree = "<group>"; };
+		EA094A3229177CEF4EA3E93B /* PopupApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'PopupApp.swift'; sourceTree = "<group>"; };
+		25DE967115A83CEFBB515BFA /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ContentView.swift'; sourceTree = "<group>"; };
+		9BE13609A42E8EC77714E1BC /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'APIClient.swift'; sourceTree = "<group>"; };
+		01AF6FC814DBB328082F774D /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AuthViewModel.swift'; sourceTree = "<group>"; };
+		001DBF024DD413FE875719C6 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'KeychainManager.swift'; sourceTree = "<group>"; };
+		EEF12A1CF105450A2BCCD665 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Models.swift'; sourceTree = "<group>"; };
+		B1FD81E01E003B249D4808BD /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Services.swift'; sourceTree = "<group>"; };
+		8190BBEB9ECE93FB6CFDD394 /* SupabaseCatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseCatalogService.swift'; sourceTree = "<group>"; };
+		E9A9132D6B9B143832F19582 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseConfig.swift'; sourceTree = "<group>"; };
+		112EB20126BFAFE91DC7005B /* SupabaseDataServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseDataServices.swift'; sourceTree = "<group>"; };
+		EDDF426DE5B81ADA66F9A11C /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseManager.swift'; sourceTree = "<group>"; };
+		14BD8B201D1EEA02BC45948D /* SupabaseProductService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseProductService.swift'; sourceTree = "<group>"; };
+		76C5DDB72175E75CC2C3426D /* ViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ViewModels.swift'; sourceTree = "<group>"; };
+		CD8C444150170E9BAAD7CA57 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MainTabView.swift'; sourceTree = "<group>"; };
+		79CC5B6E5B14D827174DEB5A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'RootView.swift'; sourceTree = "<group>"; };
+		229D3C8FA3900BF21BD968ED /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Theme.swift'; sourceTree = "<group>"; };
+		8ABE521A4BFF94FF75C4E8B4 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'LoginView.swift'; sourceTree = "<group>"; };
+		9E20FA7B16A9E661ADE3A43C /* RegisterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'RegisterView.swift'; sourceTree = "<group>"; };
+		B6524356F01C7A9816B18165 /* CartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'CartView.swift'; sourceTree = "<group>"; };
+		53E53325F7797C669D640DFA /* CheckoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'CheckoutView.swift'; sourceTree = "<group>"; };
+		839489810827B5A0CBB4050E /* ConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ConversationView.swift'; sourceTree = "<group>"; };
+		793E200396E79E47BFE61A0F /* CreateListingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'CreateListingView.swift'; sourceTree = "<group>"; };
+		1E5B945EEF3E50A6BC485ED5 /* EditListingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'EditListingView.swift'; sourceTree = "<group>"; };
+		0B76D6EE70EB07663EAE9409 /* EditProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'EditProfileView.swift'; sourceTree = "<group>"; };
+		D93F3C3B117EC3D47A8ED76A /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'HomeView.swift'; sourceTree = "<group>"; };
+		DAC3884917594CDB57977EAA /* LikedItemsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'LikedItemsView.swift'; sourceTree = "<group>"; };
+		370B2F5C52104A11E11852BD /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MessagesView.swift'; sourceTree = "<group>"; };
+		176EB1A32CA93DB85A622278 /* MyListingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MyListingsView.swift'; sourceTree = "<group>"; };
+		BBA5682B65580789B98345C0 /* OrdersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'OrdersView.swift'; sourceTree = "<group>"; };
+		1F1E6E93D5F1DADEB6CE8C4B /* ProductDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ProductDetailView.swift'; sourceTree = "<group>"; };
+		87F3707656BEDC8DE7247FAD /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ProfileView.swift'; sourceTree = "<group>"; };
+		E119BFF23EF12910FE3EE9FA /* SavedItemsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SavedItemsView.swift'; sourceTree = "<group>"; };
+		1AE635052FC76755A350D684 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SearchView.swift'; sourceTree = "<group>"; };
+		6778711191B7466BD5BC71CA /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SharedViews.swift'; sourceTree = "<group>"; };
+		628F6F0C74B57B5373A13D9C /* UserProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'UserProfileView.swift'; sourceTree = "<group>"; };
+		9B4260FE84073AF537EED3CF /* Syne-wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = 'Syne-wght.ttf'; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4C3A7A0C45DB67CB35276802 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4CFDB62A578198D570261535 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		8AD8F0A5B2746A5BD6CAEA93 = {
+			isa = PBXGroup;
+			children = (
+				2FA4D5E3478FDDE2F4229E54 /* Config */,
+				5F6E514030A2EE8ED96F2156 /* PopupApp */,
+				31B6C7E0E375B4D61129FFFF /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		2FA4D5E3478FDDE2F4229E54 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				AABB8CC7995A1FE9454C42FC /* SupabaseProject.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		31B6C7E0E375B4D61129FFFF /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				26BA0F5787724953842258A4 /* PopupApp.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5F6E514030A2EE8ED96F2156 /* PopupApp */ = {
+			isa = PBXGroup;
+			children = (
+				67F71A5791E0882E40A94BF7 /* Info.plist */,
+				E6B787FA8C33C213D77D417D /* AppState.swift */,
+				EA094A3229177CEF4EA3E93B /* PopupApp.swift */,
+				25DE967115A83CEFBB515BFA /* ContentView.swift */,
+				CD8C444150170E9BAAD7CA57 /* MainTabView.swift */,
+				79CC5B6E5B14D827174DEB5A /* RootView.swift */,
+				229D3C8FA3900BF21BD968ED /* Theme.swift */,
+				2F0678918AC82461D722D1DB /* Core */,
+				F9BF59B82157FD07E97A9F3F /* Views */,
+				35D5D3361B4B2EEF5388B9C8 /* Resources */,
+			);
+			path = PopupApp;
+			sourceTree = "<group>";
+		};
+		2F0678918AC82461D722D1DB /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				9BE13609A42E8EC77714E1BC /* APIClient.swift */,
+				01AF6FC814DBB328082F774D /* AuthViewModel.swift */,
+				001DBF024DD413FE875719C6 /* KeychainManager.swift */,
+				EEF12A1CF105450A2BCCD665 /* Models.swift */,
+				B1FD81E01E003B249D4808BD /* Services.swift */,
+				8190BBEB9ECE93FB6CFDD394 /* SupabaseCatalogService.swift */,
+				E9A9132D6B9B143832F19582 /* SupabaseConfig.swift */,
+				112EB20126BFAFE91DC7005B /* SupabaseDataServices.swift */,
+				EDDF426DE5B81ADA66F9A11C /* SupabaseManager.swift */,
+				14BD8B201D1EEA02BC45948D /* SupabaseProductService.swift */,
+				76C5DDB72175E75CC2C3426D /* ViewModels.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		F9BF59B82157FD07E97A9F3F /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B6524356F01C7A9816B18165 /* CartView.swift */,
+				53E53325F7797C669D640DFA /* CheckoutView.swift */,
+				839489810827B5A0CBB4050E /* ConversationView.swift */,
+				793E200396E79E47BFE61A0F /* CreateListingView.swift */,
+				1E5B945EEF3E50A6BC485ED5 /* EditListingView.swift */,
+				0B76D6EE70EB07663EAE9409 /* EditProfileView.swift */,
+				D93F3C3B117EC3D47A8ED76A /* HomeView.swift */,
+				DAC3884917594CDB57977EAA /* LikedItemsView.swift */,
+				370B2F5C52104A11E11852BD /* MessagesView.swift */,
+				176EB1A32CA93DB85A622278 /* MyListingsView.swift */,
+				BBA5682B65580789B98345C0 /* OrdersView.swift */,
+				1F1E6E93D5F1DADEB6CE8C4B /* ProductDetailView.swift */,
+				87F3707656BEDC8DE7247FAD /* ProfileView.swift */,
+				E119BFF23EF12910FE3EE9FA /* SavedItemsView.swift */,
+				1AE635052FC76755A350D684 /* SearchView.swift */,
+				6778711191B7466BD5BC71CA /* SharedViews.swift */,
+				628F6F0C74B57B5373A13D9C /* UserProfileView.swift */,
+				73DF8DD353BB38C3903AF9F2 /* Auth */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		73DF8DD353BB38C3903AF9F2 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				8ABE521A4BFF94FF75C4E8B4 /* LoginView.swift */,
+				9E20FA7B16A9E661ADE3A43C /* RegisterView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		35D5D3361B4B2EEF5388B9C8 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				2C4AF6B2341D7C9D86A8385D /* Fonts */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		2C4AF6B2341D7C9D86A8385D /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				9B4260FE84073AF537EED3CF /* Syne-wght.ttf */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		83C367DA79825C8F7C65214A /* PopupApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FCFE7C7005F3CD1187E8D448 /* Build configuration list for PBXNativeTarget "PopupApp" */;
+			buildPhases = (
+				844458EAB9ACED54C2B9B12F /* Sources */,
+				B1C867117D4BDABDD93ECD81 /* Resources */,
+				4C3A7A0C45DB67CB35276802 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			packageProductDependencies = (
+				A21DBECBA72A06B7808941A8 /* Supabase */,
+			);
+			name = PopupApp;
+			productName = PopupApp;
+			productReference = 26BA0F5787724953842258A4 /* PopupApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AECC5A1D037E00A6F114865B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					83C367DA79825C8F7C65214A = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = F0C1C8E6922D0AD8E35C6980 /* Build configuration list for PBXProject "PopupApp" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 8AD8F0A5B2746A5BD6CAEA93;
+			packageReferences = (
+				3A2F341C7C08421DB34203A5 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
+			productRefGroup = 31B6C7E0E375B4D61129FFFF /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				83C367DA79825C8F7C65214A /* PopupApp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		844458EAB9ACED54C2B9B12F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5D45B66ACD2D9459FA4A4DD0 /* AppState.swift in Sources */,
+				3C3BEB37C2823CE15019B2B3 /* PopupApp.swift in Sources */,
+				33F54CCCB167B10B7A3048CD /* ContentView.swift in Sources */,
+				23E7E062F400B53D54845CB3 /* APIClient.swift in Sources */,
+				1A0CC3E5FEB55BA2BD5A4382 /* AuthViewModel.swift in Sources */,
+				C2170C782C55F58F194B01DB /* KeychainManager.swift in Sources */,
+				42E6D9857C75E69E9C937C8D /* Models.swift in Sources */,
+				FBA3DC38D9B2E1154471FA13 /* Services.swift in Sources */,
+				7017423281EA6A56EA7F64ED /* SupabaseCatalogService.swift in Sources */,
+				BB0C745D02E62387016A2510 /* SupabaseConfig.swift in Sources */,
+				41EF0DDE017B3F8DF4CAE92A /* SupabaseDataServices.swift in Sources */,
+				CD7BC621D4CAC6D113E0AD3A /* SupabaseManager.swift in Sources */,
+				ABEF20DC17B301630226DF6D /* SupabaseProductService.swift in Sources */,
+				934B2677F22170A1FAC63BB9 /* ViewModels.swift in Sources */,
+				31358896207C46CA9B9B53CF /* MainTabView.swift in Sources */,
+				01BA0A24A1DECCDD8B07D566 /* RootView.swift in Sources */,
+				2FE6D52E4B9BAD64CF80F76C /* Theme.swift in Sources */,
+				0D6981E721CBD2CAD26C39AE /* LoginView.swift in Sources */,
+				D71B34AA30BE2B2DDE269937 /* RegisterView.swift in Sources */,
+				27395A658C93757DE03DA781 /* CartView.swift in Sources */,
+				8118F791705B6E376EF64EB5 /* CheckoutView.swift in Sources */,
+				ED4DD4D3FE1A6F90A4C4A48E /* ConversationView.swift in Sources */,
+				FA1E8F24FC51F4E612489BDA /* CreateListingView.swift in Sources */,
+				71298C12AE19702CBC7BD619 /* EditListingView.swift in Sources */,
+				879E6462B91C08FB7B3C5C36 /* EditProfileView.swift in Sources */,
+				B07E02EBEB59730010ABFF98 /* HomeView.swift in Sources */,
+				E35984D9427FC87E425F58D2 /* LikedItemsView.swift in Sources */,
+				ADFE7D40A4FFB9389306791F /* MessagesView.swift in Sources */,
+				23640F93F88513D60D164B74 /* MyListingsView.swift in Sources */,
+				7A7DF3E2A0DADCC6D836663F /* OrdersView.swift in Sources */,
+				9D242B08E025D2B62BF60D66 /* ProductDetailView.swift in Sources */,
+				952216CD78431213388307FB /* ProfileView.swift in Sources */,
+				19DAA83F51356B4EF4CF27DF /* SavedItemsView.swift in Sources */,
+				4E1B4301A9FEF782CD87FE50 /* SearchView.swift in Sources */,
+				4C061CB576AE2CB0C934412C /* SharedViews.swift in Sources */,
+				FE0322E9B5F2A1B4D4DA184B /* UserProfileView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B1C867117D4BDABDD93ECD81 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CDD801442F222790BAC41BD7 /* Syne-wght.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		3A2F341C7C08421DB34203A5 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A21DBECBA72A06B7808941A8 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3A2F341C7C08421DB34203A5 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+/* Begin XCBuildConfiguration section */
+		DCF31CBC90A3AAABA3B9189D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		91EA2BC713969D4E21B47FAB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+			};
+			name = Release;
+		};
+		B3D180871C4086035A44CFED /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = AABB8CC7995A1FE9454C42FC /* SupabaseProject.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PopupApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				ONLY_ACTIVE_ARCH = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.popup.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5CE9EB8DA65705FE2529BBB5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = AABB8CC7995A1FE9454C42FC /* SupabaseProject.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PopupApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.popup.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F0C1C8E6922D0AD8E35C6980 /* Build configuration list for PBXProject "PopupApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DCF31CBC90A3AAABA3B9189D /* Debug */,
+				91EA2BC713969D4E21B47FAB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FCFE7C7005F3CD1187E8D448 /* Build configuration list for PBXNativeTarget "PopupApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B3D180871C4086035A44CFED /* Debug */,
+				5CE9EB8DA65705FE2529BBB5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AECC5A1D037E00A6F114865B /* Project object */;
+}

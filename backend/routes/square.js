@@ -66,23 +66,171 @@ router.get('/status', protectSupabase, async (req, res) => {
       ? await loadConnection(supabase, req.user.id)
       : null;
     const balance = await getOrCreateSellerBalance(supabase, req.user.id);
-    const connected = Boolean(connection);
+    let refreshed = connection;
+    let bankAccountsLinked = false;
+    if (connection) {
+      try {
+        refreshed = await refreshConnectionIfNeeded(supabase, connection);
+        const banks = await square.listBankAccounts(refreshed.access_token);
+        bankAccountsLinked = banks.some((b) => {
+          const status = String(b.status || '').toUpperCase();
+          return status === 'VERIFIED' || status === 'VERIFICATION_IN_PROGRESS' || status === 'ACTIVE';
+        }) || banks.length > 0;
+      } catch (bankErr) {
+        console.warn('Square bank accounts check:', bankErr.message);
+      }
+    }
+    const connected = Boolean(refreshed);
     res.json({
       configured: square.isSquareConfigured(),
       canTakePayments: square.canTakePayments(),
       connected,
       environment: square.squareEnvironment(),
-      merchantId: connection?.merchant_id || null,
-      locationId: connection?.location_id || square.platformLocationId() || null,
+      merchantId: refreshed?.merchant_id || null,
+      locationId: refreshed?.location_id || square.platformLocationId() || null,
       chargesEnabled: connected,
-      payoutsEnabled: connected,
-      onboardingComplete: connected,
+      payoutsEnabled: connected && bankAccountsLinked,
+      onboardingComplete: connected && bankAccountsLinked,
       detailsSubmitted: connected,
-      requiresAction: !connected,
+      bankAccountsLinked,
+      requiresAction: !connected || !bankAccountsLinked,
       ...serializeBalance(balance),
     });
   } catch (error) {
     console.error('Square status error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+function serializePayoutProfile(row) {
+  if (!row) return null;
+  return {
+    userId: row.user_id,
+    legalFirstName: row.legal_first_name || '',
+    legalLastName: row.legal_last_name || '',
+    email: row.email || '',
+    phone: row.phone || '',
+    entityType: row.entity_type || 'individual',
+    businessName: row.business_name || '',
+    addressLine1: row.address_line1 || '',
+    addressLine2: row.address_line2 || '',
+    city: row.city || '',
+    state: row.state || '',
+    postalCode: row.postal_code || '',
+    country: row.country || 'US',
+    hasIdReady: Boolean(row.has_id_ready),
+    hasBankReady: Boolean(row.has_bank_ready),
+    currentStep: row.current_step || 'overview',
+    overviewDone: Boolean(row.overview_done),
+    personalDone: Boolean(row.personal_done),
+    addressDone: Boolean(row.address_done),
+    entityDone: Boolean(row.entity_done),
+    checklistDone: Boolean(row.checklist_done),
+    squareConnectDone: Boolean(row.square_connect_done),
+    bankLinkDone: Boolean(row.bank_link_done),
+    completedAt: row.completed_at || null,
+  };
+}
+
+router.get('/payout-profile', protectSupabase, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('seller_payout_profiles')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .maybeSingle();
+    if (error) throw error;
+
+    let profile = data;
+    if (!profile) {
+      const { data: userRow } = await supabase
+        .from('profiles')
+        .select('email, first_name, last_name, shop_name')
+        .eq('id', req.user.id)
+        .maybeSingle();
+      profile = {
+        user_id: req.user.id,
+        legal_first_name: userRow?.first_name || '',
+        legal_last_name: userRow?.last_name || '',
+        email: userRow?.email || req.user.email || '',
+        phone: '',
+        entity_type: 'individual',
+        business_name: userRow?.shop_name || '',
+        address_line1: '',
+        address_line2: '',
+        city: '',
+        state: '',
+        postal_code: '',
+        country: 'US',
+        has_id_ready: false,
+        has_bank_ready: false,
+        current_step: 'overview',
+        overview_done: false,
+        personal_done: false,
+        address_done: false,
+        entity_done: false,
+        checklist_done: false,
+        square_connect_done: false,
+        bank_link_done: false,
+        completed_at: null,
+      };
+    }
+
+    const connection = await loadConnection(supabase, req.user.id);
+    res.json({
+      profile: serializePayoutProfile(profile),
+      squareConnected: Boolean(connection),
+    });
+  } catch (error) {
+    console.error('Square payout profile get error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.put('/payout-profile', protectSupabase, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const entityType = body.entityType === 'business' ? 'business' : 'individual';
+    const row = {
+      user_id: req.user.id,
+      legal_first_name: String(body.legalFirstName || '').trim() || null,
+      legal_last_name: String(body.legalLastName || '').trim() || null,
+      email: String(body.email || '').trim() || null,
+      phone: String(body.phone || '').trim() || null,
+      entity_type: entityType,
+      business_name: String(body.businessName || '').trim() || null,
+      address_line1: String(body.addressLine1 || '').trim() || null,
+      address_line2: String(body.addressLine2 || '').trim() || null,
+      city: String(body.city || '').trim() || null,
+      state: String(body.state || '').trim().toUpperCase() || null,
+      postal_code: String(body.postalCode || '').trim() || null,
+      country: String(body.country || 'US').trim().toUpperCase() || 'US',
+      has_id_ready: Boolean(body.hasIdReady),
+      has_bank_ready: Boolean(body.hasBankReady),
+      current_step: String(body.currentStep || 'overview').trim() || 'overview',
+      overview_done: Boolean(body.overviewDone),
+      personal_done: Boolean(body.personalDone),
+      address_done: Boolean(body.addressDone),
+      entity_done: Boolean(body.entityDone),
+      checklist_done: Boolean(body.checklistDone),
+      square_connect_done: Boolean(body.squareConnectDone),
+      bank_link_done: Boolean(body.bankLinkDone),
+      completed_at: body.completedAt || (body.bankLinkDone ? new Date().toISOString() : null),
+      updated_at: new Date().toISOString(),
+    };
+
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('seller_payout_profiles')
+      .upsert(row, { onConflict: 'user_id' })
+      .select('*')
+      .single();
+    if (error) throw error;
+
+    res.json({ profile: serializePayoutProfile(data) });
+  } catch (error) {
+    console.error('Square payout profile put error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -148,6 +296,15 @@ router.get('/oauth/callback', async (req, res) => {
         updated_at: new Date().toISOString(),
       })
       .eq('id', parsed.uid);
+
+    await supabase
+      .from('seller_payout_profiles')
+      .upsert({
+        user_id: parsed.uid,
+        square_connect_done: true,
+        current_step: 'bank',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
 
     res.redirect('popup://square-oauth?connected=1');
   } catch (error) {

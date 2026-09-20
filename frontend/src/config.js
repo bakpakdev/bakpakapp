@@ -3,9 +3,34 @@
  * loads from your computer's IP (e.g. 192.168.1.x:8081). "localhost" on the
  * phone is the phone itself, so we use the same host as the dev server for
  * API and socket connections.
+ *
+ * Backend port: app.json `extra.apiPort`, or EXPO_PUBLIC_API_PORT, or 5001.
+ * Default 5001: macOS AirPlay Receiver often binds 5000 and returns HTTP 403,
+ * so login/register appear to "fail" with status 403 if the app points at 5000.
  */
-let API_BASE_URL = 'http://localhost:5000/api';
-let SOCKET_URL = 'http://localhost:5000';
+function resolveApiPort(extra) {
+  if (extra && extra.apiPort != null && extra.apiPort !== '') {
+    const p = Number(extra.apiPort);
+    if (Number.isFinite(p)) return p;
+  }
+  if (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_PORT) {
+    const p = parseInt(process.env.EXPO_PUBLIC_API_PORT, 10);
+    if (Number.isFinite(p)) return p;
+  }
+  return 5001;
+}
+
+let apiPort = 5001;
+try {
+  const Constants = require('expo-constants').default;
+  const extra = (Constants.expoConfig && Constants.expoConfig.extra) || (Constants.manifest && Constants.manifest.extra) || {};
+  apiPort = resolveApiPort(extra);
+} catch (_) {
+  apiPort = resolveApiPort({});
+}
+
+let API_BASE_URL = `http://localhost:${apiPort}/api`;
+let SOCKET_URL = `http://localhost:${apiPort}`;
 
 try {
   const Constants = require('expo-constants').default;
@@ -19,8 +44,8 @@ try {
   } else {
     const host = getDevServerHost(Constants);
     if (host) {
-      API_BASE_URL = `http://${host}:5000/api`;
-      SOCKET_URL = `http://${host}:5000`;
+      API_BASE_URL = `http://${host}:${apiPort}/api`;
+      SOCKET_URL = `http://${host}:${apiPort}`;
     }
   }
 } catch (_) {

@@ -17,7 +17,7 @@ struct ApplePayButton: View {
                     Image(systemName: "applelogo")
                         .font(.system(size: 18, weight: .semibold))
                     Text(title)
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(Theme.syne(17, weight: .semibold))
                 }
             }
             .foregroundStyle(.white)

@@ -1,0 +1,20 @@
+// The PopupApp target uses `SupabaseProject.xcconfig` (tracked) for SUPABASE_URL.
+//
+// xcconfig quirk: a bare `https://...` is parsed as `https:` because `//` starts a comment.
+// In SupabaseProject.xcconfig the URL uses: https:/$()/YOUR_REF.supabase.co
+//
+// Optional override in Secrets.xcconfig:
+//   SUPABASE_AUTH_REDIRECT_URL = https:/$()/your.domain/auth/verified.html
+//
+// Create `Secrets.xcconfig` in this folder (gitignored) with:
+//   SUPABASE_ANON_KEY = eyJ...your_anon_key...
+//   SQUARE_APPLICATION_ID = sandbox-sq0idb-...
+//   APPLE_PAY_MERCHANT_ID = merchant.com.your.app
+//
+// Notes:
+// - Square application ID goes in iOS Secrets.xcconfig; access token and secret stay in backend/.env
+// - API_BASE_URL defaults to http://127.0.0.1:5001/api (match backend PORT)
+// - Apple Pay merchant ID is optional until Apple Developer Program is set up.
+//   Card entry still works. Tap to Pay needs an Organization team and a physical iPhone XS+.
+//
+// SupabaseProject.xcconfig includes Secrets.xcconfig when present.

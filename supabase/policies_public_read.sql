@@ -1,0 +1,1 @@
+-- DEPRECATED: use `policies.sql` after `schema.sql` and `storage.sql`.

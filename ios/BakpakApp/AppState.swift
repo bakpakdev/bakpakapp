@@ -6,6 +6,8 @@ final class AppState: ObservableObject {
     @Published var selectedTab: AppTab = .home
     @Published var path = [Route]()
     @Published var modal: Route?
+    /// Hide the custom tab bar (e.g. while a chat thread is open).
+    @Published var hidesTabBar: Bool = false
     /// When set, Profile selects this content tab (then clears).
     @Published var profileFocusTab: ProfileFocusTab?
     /// Bumped to force Profile shop listings to reload (e.g. after posting).
@@ -14,6 +16,8 @@ final class AppState: ObservableObject {
     @Published var pendingProfileProductId: String?
     /// Bumped to force Home to clear and show a loading state, then reload.
     @Published var homeEntryToken: Int = 0
+    /// Bumped whenever the tab-bar + is tapped — Sell flow resets and opens the camera.
+    @Published var sellCameraToken: Int = 0
     @Published var appearance: PopupAppearance {
         didSet {
             UserDefaults.standard.set(appearance.rawValue, forKey: Self.appearanceKey)
@@ -37,10 +41,25 @@ final class AppState: ObservableObject {
         appearance = PopupAppearance(rawValue: raw) ?? .light
     }
 
-    func openProfileLikes() {
+    func openSellCamera() {
+        selectedTab = .sell
+        hidesTabBar = false
         path.removeAll()
-        profileFocusTab = .likes
+        sellCameraToken += 1
+    }
+
+    func openProfileLikes() {
         selectedTab = .profile
+        if path.last != .likedItems {
+            path.append(.likedItems)
+        }
+    }
+
+    func openProfileSaved() {
+        selectedTab = .profile
+        if path.last != .savedItems {
+            path.append(.savedItems)
+        }
     }
 
     /// After posting a listing: open Profile → Shop and optionally the new listing.
@@ -57,6 +76,7 @@ final class AppState: ObservableObject {
         selectedTab = .home
         path.removeAll()
         modal = nil
+        hidesTabBar = false
         profileFocusTab = nil
         if reload {
             homeEntryToken += 1
@@ -68,6 +88,7 @@ final class AppState: ObservableObject {
         inboxUnreadSelling = 0
         path.removeAll()
         modal = nil
+        hidesTabBar = false
         profileFocusTab = nil
         pendingProfileProductId = nil
         profileReloadToken += 1
@@ -131,8 +152,6 @@ enum AppTab: Hashable {
 
 enum ProfileFocusTab: Hashable {
     case shop
-    case likes
-    case saved
     case reviews
 }
 
@@ -153,7 +172,11 @@ enum Route: Hashable, Identifiable {
     case editListing(String)
     case accountSettings
     case accountDetails
+    case sellerCashOutSetup
     case meetupPay(MeetupChecklistItem)
+    case meetupDetail(MeetupChecklistItem)
+    case leaderboard
+    case badgeCollection
 
     var id: String {
         switch self {
@@ -174,7 +197,11 @@ enum Route: Hashable, Identifiable {
         case .editListing(let id): return "edit-listing-\(id)"
         case .accountSettings: return "account-settings"
         case .accountDetails: return "account-details"
+        case .sellerCashOutSetup: return "seller-cash-out-setup"
         case .meetupPay(let item): return "meetup-pay-\(item.id)"
+        case .meetupDetail(let item): return "meetup-detail-\(item.id)"
+        case .leaderboard: return "leaderboard"
+        case .badgeCollection: return "badge-collection"
         }
     }
 }

@@ -87,7 +87,7 @@ struct UserProfileView: View {
                         Text("Couldn't load profile")
                             .font(Theme.syne(17, weight: .bold))
                         Text(errorMessage)
-                            .font(.system(size: 14))
+                            .font(Theme.syne(14))
                             .foregroundStyle(campusTheme.textMuted)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 28)
@@ -166,7 +166,7 @@ struct UserProfileView: View {
                         .overlay(Capsule().stroke(sellerCampusTheme.primary.opacity(0.22), lineWidth: 1))
 
                         Text(universityLabel)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(Theme.syne(12, weight: .medium))
                             .foregroundStyle(campusTheme.textMuted)
                             .lineLimit(1)
                     }
@@ -174,7 +174,7 @@ struct UserProfileView: View {
                     if let username = user?.username, !username.isEmpty,
                        displayName.caseInsensitiveCompare(username) != .orderedSame {
                         Text("@\(username)")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(Theme.syne(13, weight: .medium))
                             .foregroundStyle(campusTheme.textMuted)
                     }
                 }
@@ -182,7 +182,7 @@ struct UserProfileView: View {
 
             if let bio = user?.bio?.trimmingCharacters(in: .whitespacesAndNewlines), !bio.isEmpty {
                 Text(bio)
-                    .font(.system(size: 14))
+                    .font(Theme.syne(14))
                     .foregroundStyle(campusTheme.textMuted)
                     .lineSpacing(3)
             }
@@ -197,7 +197,7 @@ struct UserProfileView: View {
                     appState.path.append(.editProfile)
                 } label: {
                     Text("Edit Profile")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(Theme.syne(14, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 46)
@@ -214,7 +214,7 @@ struct UserProfileView: View {
                         Image(systemName: "bubble.left.and.bubble.right.fill")
                             .font(.system(size: 13, weight: .semibold))
                         Text("Message")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(Theme.syne(14, weight: .bold))
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -243,7 +243,7 @@ struct UserProfileView: View {
                 .font(Theme.syne(16, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text(label)
-                .font(.system(size: 11, weight: .medium))
+                .font(Theme.syne(11, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
         }
         .frame(maxWidth: .infinity)
@@ -276,7 +276,7 @@ struct UserProfileView: View {
                         .font(Theme.syne(17, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
                     Text("This seller hasn’t posted anything yet.")
-                        .font(.system(size: 14))
+                        .font(Theme.syne(14))
                         .foregroundStyle(campusTheme.textMuted)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 28)
@@ -287,7 +287,7 @@ struct UserProfileView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     if activeShopItems.isEmpty {
                         Text("No active listings")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(Theme.syne(14, weight: .medium))
                             .foregroundStyle(campusTheme.textMuted)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 18)

@@ -95,6 +95,10 @@ struct Conversation: Codable, Identifiable, Hashable {
     let messages: [Message]?
     let updatedAt: String?
     let productId: String?
+    /// Client-enriched listing for inbox rows (not always present in API JSON).
+    var product: Product? = nil
+    /// Unread messages from the other person (client-enriched).
+    var unreadCount: Int = 0
 }
 
 struct MessagedListing: Identifiable, Hashable {

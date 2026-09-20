@@ -4,6 +4,153 @@ import MapKit
 import CoreLocation
 import UIKit
 
+// MARK: - Offer message codec
+
+enum OfferMessageCodec {
+    static let prefix = "Offer:"
+    private static let legacyPrefix = "💰 Offer:"
+
+    /// Wire: `Offer: $12` or `Offer: $12|productId|title|price|imageURL`
+    static func encode(
+        amount: String,
+        productId: String? = nil,
+        title: String? = nil,
+        price: Double? = nil,
+        imageURL: String? = nil
+    ) -> String {
+        let trimmed = amount.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = trimmed.hasPrefix("$") ? trimmed : "$\(trimmed)"
+        var parts = ["\(prefix) \(value)"]
+        if let productId, !productId.isEmpty {
+            parts.append(productId)
+            parts.append(sanitize(title ?? ""))
+            parts.append(price.map { String(format: "%.2f", $0) } ?? "")
+            parts.append(sanitize(imageURL ?? ""))
+        }
+        return parts.joined(separator: "|")
+    }
+
+    static func isOffer(_ content: String) -> Bool {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.hasPrefix(prefix) || trimmed.hasPrefix(legacyPrefix)
+    }
+
+    static func displayAmount(_ content: String) -> String {
+        var trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix(legacyPrefix) {
+            trimmed = String(trimmed.dropFirst(legacyPrefix.count))
+        } else if trimmed.hasPrefix(prefix) {
+            trimmed = String(trimmed.dropFirst(prefix.count))
+        }
+        let head = trimmed.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? trimmed
+        return head.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func listing(from content: String) -> ListingRefPayload? {
+        guard isOffer(content) else { return nil }
+        var trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix(legacyPrefix) {
+            trimmed = String(trimmed.dropFirst(legacyPrefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if trimmed.hasPrefix(prefix) {
+            trimmed = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let parts = trimmed.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        // parts[0]=amount, [1]=id, [2]=title, [3]=price, [4]=image
+        guard parts.count >= 2, !parts[1].isEmpty else { return nil }
+        let price = parts.count > 3 ? Double(parts[3]) : nil
+        return ListingRefPayload(
+            productId: parts[1],
+            title: parts.count > 2 ? unsanitize(parts[2]) : "Listing",
+            price: price ?? 0,
+            imageURL: parts.count > 4 ? unsanitize(parts[4]) : nil
+        )
+    }
+
+    private static func sanitize(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "|", with: "/")
+            .replacingOccurrences(of: "\n", with: " ")
+    }
+
+    private static func unsanitize(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+// MARK: - Listing reference (shows which item a chat turn is about)
+
+struct ListingRefPayload: Hashable {
+    let productId: String
+    let title: String
+    let price: Double
+    let imageURL: String?
+}
+
+enum ListingRefMessageCodec {
+    static let prefix = "Listing:"
+
+    /// Wire: `Listing:productId|title|price|imageURL`
+    static func encode(_ product: Product) -> String {
+        let image = product.images?.first(where: { $0.isPrimary == true })?.url
+            ?? product.images?.first?.url
+            ?? ""
+        return encode(
+            payload: ListingRefPayload(
+                productId: product.id,
+                title: product.title,
+                price: product.price,
+                imageURL: image.isEmpty ? nil : image
+            )
+        )
+    }
+
+    static func encode(payload: ListingRefPayload) -> String {
+        "\(prefix)\(payload.productId)|\(sanitize(payload.title))|\(String(format: "%.2f", payload.price))|\(sanitize(payload.imageURL ?? ""))"
+    }
+
+    static func isListingRef(_ content: String) -> Bool {
+        content.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(prefix)
+    }
+
+    static func parse(_ content: String) -> ListingRefPayload? {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix(prefix) else { return nil }
+        let body = String(trimmed.dropFirst(prefix.count))
+        let parts = body.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count >= 2, !parts[0].isEmpty else { return nil }
+        return ListingRefPayload(
+            productId: parts[0],
+            title: parts.count > 1 ? unsanitize(parts[1]) : "Listing",
+            price: parts.count > 2 ? (Double(parts[2]) ?? 0) : 0,
+            imageURL: parts.count > 3 ? unsanitize(parts[3]) : nil
+        )
+    }
+
+    static func shouldAnnounce(productId: String, in messages: [Message]) -> Bool {
+        let pid = productId.lowercased()
+        guard !pid.isEmpty else { return false }
+        for msg in messages.reversed() {
+            if let listing = parse(msg.content) {
+                return listing.productId.lowercased() != pid
+            }
+            if let listing = OfferMessageCodec.listing(from: msg.content) {
+                return listing.productId.lowercased() != pid
+            }
+        }
+        return true
+    }
+
+    private static func sanitize(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "|", with: "/")
+            .replacingOccurrences(of: "\n", with: " ")
+    }
+
+    private static func unsanitize(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 // MARK: - Message codec
 
 enum MeetupMessageKind: String {
@@ -25,7 +172,7 @@ struct MeetupMessagePayload: Hashable {
     let proposedAt: Date?
 
     var wireContent: String {
-        var parts = ["📍 Meetup \(kind.rawValue)", spotId, spotName]
+        var parts = ["Meetup \(kind.rawValue)", spotId, spotName]
         if let proposedAt {
             parts.append(MeetupMessageCodec.isoString(from: proposedAt))
         }
@@ -50,8 +197,14 @@ enum MeetupMessageCodec {
 
     static func parse(_ content: String) -> MeetupMessagePayload? {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("📍 Meetup ") else { return nil }
-        let rest = String(trimmed.dropFirst("📍 Meetup ".count))
+        let rest: String
+        if trimmed.hasPrefix("📍 Meetup ") {
+            rest = String(trimmed.dropFirst("📍 Meetup ".count))
+        } else if trimmed.hasPrefix("Meetup ") {
+            rest = String(trimmed.dropFirst("Meetup ".count))
+        } else {
+            return nil
+        }
         let parts = rest.split(separator: "|", maxSplits: 3, omittingEmptySubsequences: false).map(String.init)
         guard parts.count >= 3, let kind = MeetupMessageKind(rawValue: parts[0]) else { return nil }
         let proposedAt: Date? = {

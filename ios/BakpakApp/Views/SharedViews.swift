@@ -1,5 +1,105 @@
 import SwiftUI
 
+/// Single continuous bubble path with a small bottom-corner tip (strokes cleanly).
+struct ChatBubbleShape: Shape {
+    var isFromMe: Bool
+    var cornerRadius: CGFloat = 18
+
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width
+        let h = rect.height
+        let tipH: CGFloat = 5.5
+        let tipW: CGFloat = 7.5
+        let bodyBottom = h - tipH
+        let r = min(cornerRadius, min(w, bodyBottom) / 2)
+
+        var path = Path()
+
+        if isFromMe {
+            path.move(to: CGPoint(x: r, y: 0))
+            path.addLine(to: CGPoint(x: w - r, y: 0))
+            path.addArc(
+                center: CGPoint(x: w - r, y: r),
+                radius: r,
+                startAngle: .degrees(-90),
+                endAngle: .degrees(0),
+                clockwise: false
+            )
+            // Right edge all the way to the bottom corner (no skipped gap).
+            path.addLine(to: CGPoint(x: w, y: bodyBottom))
+            // Tip point, then rejoin bottom — straight segments stay solid.
+            path.addLine(to: CGPoint(x: w - 0.8, y: h))
+            path.addLine(to: CGPoint(x: w - tipW, y: bodyBottom))
+            path.addLine(to: CGPoint(x: r, y: bodyBottom))
+            path.addArc(
+                center: CGPoint(x: r, y: bodyBottom - r),
+                radius: r,
+                startAngle: .degrees(90),
+                endAngle: .degrees(180),
+                clockwise: false
+            )
+            path.addLine(to: CGPoint(x: 0, y: r))
+            path.addArc(
+                center: CGPoint(x: r, y: r),
+                radius: r,
+                startAngle: .degrees(180),
+                endAngle: .degrees(270),
+                clockwise: false
+            )
+            path.closeSubpath()
+        } else {
+            path.move(to: CGPoint(x: r, y: 0))
+            path.addLine(to: CGPoint(x: w - r, y: 0))
+            path.addArc(
+                center: CGPoint(x: w - r, y: r),
+                radius: r,
+                startAngle: .degrees(-90),
+                endAngle: .degrees(0),
+                clockwise: false
+            )
+            path.addLine(to: CGPoint(x: w, y: bodyBottom - r))
+            path.addArc(
+                center: CGPoint(x: w - r, y: bodyBottom - r),
+                radius: r,
+                startAngle: .degrees(0),
+                endAngle: .degrees(90),
+                clockwise: false
+            )
+            path.addLine(to: CGPoint(x: tipW, y: bodyBottom))
+            path.addLine(to: CGPoint(x: 0.8, y: h))
+            path.addLine(to: CGPoint(x: 0, y: bodyBottom))
+            path.addLine(to: CGPoint(x: 0, y: r))
+            path.addArc(
+                center: CGPoint(x: r, y: r),
+                radius: r,
+                startAngle: .degrees(180),
+                endAngle: .degrees(270),
+                clockwise: false
+            )
+            path.closeSubpath()
+        }
+
+        return path
+    }
+}
+
+struct ChatBubbleTail: View {
+    let isFromMe: Bool
+    let fill: Color
+    let stroke: Color?
+
+    var body: some View {
+        ChatBubbleShape(isFromMe: isFromMe)
+            .fill(fill)
+            .overlay {
+                if let stroke {
+                    ChatBubbleShape(isFromMe: isFromMe)
+                        .stroke(stroke, lineWidth: 1)
+                }
+            }
+    }
+}
+
 struct ProductCardView: View {
     let product: Product
     @Environment(\.campusTheme) private var campusTheme
@@ -91,5 +191,55 @@ struct ShopProductCell: View {
             )
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+    }
+}
+
+/// Heart + save controls overlaid on listing thumbnails / detail heroes.
+struct ListingReactionButtons: View {
+    let isLiked: Bool
+    let isSaved: Bool
+    var compact: Bool = true
+    let onLike: () -> Void
+    let onSave: () -> Void
+
+    private var buttonSize: CGFloat { compact ? 32 : 40 }
+    private var iconSize: CGFloat { compact ? 14 : 16 }
+
+    var body: some View {
+        HStack(spacing: compact ? 6 : 8) {
+            reactionButton(
+                systemName: isLiked ? "heart.fill" : "heart",
+                tint: isLiked ? Color(hex: "#E11D48") : .white,
+                accessibility: isLiked ? "Unlike" : "Like",
+                action: onLike
+            )
+            reactionButton(
+                systemName: isSaved ? "bookmark.fill" : "bookmark",
+                tint: isSaved ? Color(hex: "#F59E0B") : .white,
+                accessibility: isSaved ? "Unsave" : "Save",
+                action: onSave
+            )
+        }
+    }
+
+    private func reactionButton(
+        systemName: String,
+        tint: Color,
+        accessibility: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            Motion.haptic(.light)
+            action()
+        } label: {
+            Image(systemName: systemName)
+                .font(.system(size: iconSize, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: buttonSize, height: buttonSize)
+                .background(Color.black.opacity(0.42))
+                .clipShape(Circle())
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
+        .accessibilityLabel(accessibility)
     }
 }

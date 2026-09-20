@@ -13,7 +13,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../services/api';
 import { AuthContext } from '../context/AuthContext';
-import BakpakLogo from '../components/BakpakLogo';
+import PopupLogo from '../components/PopupLogo';
 
 export default function RegisterScreen({ navigation }) {
   const [formData, setFormData] = useState({
@@ -54,10 +54,10 @@ export default function RegisterScreen({ navigation }) {
       >
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.logoContainer}>
-            <BakpakLogo size={100} color="#000" />
+            <PopupLogo size={100} color="#000" />
           </View>
           <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join bakpak today</Text>
+          <Text style={styles.subtitle}>Join popup today</Text>
 
         <TextInput
           style={styles.input}

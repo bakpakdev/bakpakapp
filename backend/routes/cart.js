@@ -40,6 +40,23 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
+// @route   GET /api/cart/count
+// @desc    Get cart item count
+// @access  Private
+// NOTE: Registered before /:id routes so "count" is never captured as an id.
+router.get('/count', protect, async (req, res) => {
+  try {
+    const count = await prisma.cartItem.count({
+      where: { userId: req.user.id },
+    });
+
+    res.json({ count });
+  } catch (error) {
+    console.error('Get cart count error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // @route   POST /api/cart
 // @desc    Add item to cart
 // @access  Private
@@ -210,22 +227,6 @@ router.delete('/:id', protect, async (req, res) => {
     res.json({ message: 'Item removed from cart' });
   } catch (error) {
     console.error('Remove from cart error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// @route   GET /api/cart/count
-// @desc    Get cart item count
-// @access  Private
-router.get('/count', protect, async (req, res) => {
-  try {
-    const count = await prisma.cartItem.count({
-      where: { userId: req.user.id },
-    });
-
-    res.json({ count });
-  } catch (error) {
-    console.error('Get cart count error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

@@ -17,7 +17,7 @@ import { api } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import BakpakLogo from '../components/BakpakLogo';
+import PopupLogo from '../components/PopupLogo';
 
 const { width } = Dimensions.get('window');
 const itemWidth = (width - 48) / 2; // 2 columns with padding
@@ -208,7 +208,7 @@ export default function HomeScreen() {
               style={styles.headerLogo}
               resizeMode="contain"
             />
-            <Text style={styles.headerTitle}>bakpak</Text>
+            <Text style={styles.headerTitle}>popup</Text>
           </View>
           <TouchableOpacity
             style={styles.cartButton}
@@ -243,7 +243,7 @@ export default function HomeScreen() {
             />
             <View style={styles.bannerContent}>
               <View style={styles.bannerHeader}>
-                <BakpakLogo size={32} color="#fff" />
+                <PopupLogo size={32} color="#fff" />
                 <Text style={styles.bannerTag}>Campus Marketplace</Text>
               </View>
               <Text style={styles.bannerTitle}>Buy & Sell on Campus</Text>

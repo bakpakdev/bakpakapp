@@ -12,6 +12,7 @@ struct AccountSettingsView: View {
     @State private var isLoadingSquare = false
     @State private var showLogoutModal = false
     @State private var showDisconnectSquare = false
+    @State private var hideNameOnLeaderboard = SellerRankStore.hideNameOnLeaderboard
 
     private let squareConnect = SquareConnectService.shared
 
@@ -50,10 +51,10 @@ struct AccountSettingsView: View {
                         title: "Payments",
                         rows: [
                             .init(icon: "creditcard", title: paymentSettingsTitle, subtitle: paymentSettingsSubtitle) {
-                                Task { await openSquareOnboardingOrDashboard() }
+                                openCashOutSetupOrManage()
                             },
                             .init(icon: "building.columns", title: "Payout methods", subtitle: payoutMethodsSubtitle) {
-                                Task { await openSquareOnboardingOrDashboard() }
+                                openCashOutSetupOrManage()
                             },
                             .init(icon: "link", title: squareSettingsTitle, subtitle: squareSettingsSubtitle) {
                                 Task { await squareConnectTapped() }
@@ -83,6 +84,7 @@ struct AccountSettingsView: View {
                             },
                         ]
                     )
+                    leaderboardPrivacyGroup
                     logoutButton
                 }
                 .padding(.horizontal, 16)
@@ -133,7 +135,7 @@ struct AccountSettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text("Balance")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(Theme.syne(13, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.75))
                 Spacer()
                 if isLoadingSquare {
@@ -146,14 +148,14 @@ struct AccountSettingsView: View {
                 .foregroundStyle(.white)
 
             Text(balanceSubtitle)
-                .font(.system(size: 13, weight: .medium))
+                .font(Theme.syne(13, weight: .medium))
                 .foregroundStyle(.white.opacity(0.78))
 
             Button {
                 Task { await cashOutTapped() }
             } label: {
                 Text(cashOutButtonTitle)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(Theme.syne(14, weight: .bold))
                     .foregroundStyle(campusTheme.primary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
@@ -272,11 +274,11 @@ struct AccountSettingsView: View {
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(row.title)
-                                    .font(.system(size: 15, weight: .semibold))
+                                    .font(Theme.syne(15, weight: .semibold))
                                     .foregroundStyle(campusTheme.textPrimary)
                                 if let subtitle = row.subtitle, !subtitle.isEmpty {
                                     Text(subtitle)
-                                        .font(.system(size: 12))
+                                        .font(Theme.syne(12))
                                         .foregroundStyle(campusTheme.textMuted)
                                         .lineLimit(1)
                                 }
@@ -317,7 +319,7 @@ struct AccountSettingsView: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 Text("Appearance")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(Theme.syne(15, weight: .semibold))
                     .foregroundStyle(campusTheme.textPrimary)
 
                 HStack(spacing: 8) {
@@ -329,7 +331,7 @@ struct AccountSettingsView: View {
                             Motion.haptic(.light)
                         } label: {
                             Text(mode.title)
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(Theme.syne(13, weight: .semibold))
                                 .foregroundStyle(appState.appearance == mode ? Color.white : campusTheme.textPrimary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
@@ -351,7 +353,7 @@ struct AccountSettingsView: View {
                 } label: {
                     HStack {
                         Text("Notifications")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(Theme.syne(15, weight: .semibold))
                             .foregroundStyle(campusTheme.textPrimary)
                         Spacer()
                         Image(systemName: "chevron.right")
@@ -360,6 +362,48 @@ struct AccountSettingsView: View {
                     }
                 }
                 .buttonStyle(.plain)
+            }
+            .padding(14)
+            .background(campusTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(campusTheme.border, lineWidth: 1)
+            )
+        }
+    }
+
+    private var leaderboardPrivacyGroup: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Leaderboard")
+                .font(Theme.syne(15, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .padding(.leading, 4)
+
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Hide my name on the leaderboard")
+                        .font(Theme.syne(15, weight: .semibold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                    Text("Show as Anonymous Seller #ID on the \(campusTheme.shortName) Grid")
+                        .font(Theme.syne(12, weight: .regular))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Toggle("", isOn: $hideNameOnLeaderboard)
+                    .labelsHidden()
+                    .tint(campusTheme.primary)
+                    .onChange(of: hideNameOnLeaderboard) { value in
+                        SellerRankStore.hideNameOnLeaderboard = value
+                        if let uid = authVM.user?.id {
+                            _ = SellerRankStore.anonymousSellerId(
+                                userId: uid,
+                                schoolID: campusTheme.schoolID
+                            )
+                        }
+                        Motion.haptic(.light)
+                    }
             }
             .padding(14)
             .background(campusTheme.surface)
@@ -412,9 +456,23 @@ struct AccountSettingsView: View {
         }
     }
 
+    private func openCashOutSetupOrManage() {
+        if squareStatus?.onboardingComplete == true {
+            Task { await openSquareOnboardingOrDashboard() }
+        } else {
+            appState.path.append(.sellerCashOutSetup)
+        }
+    }
+
     private func cashOutTapped() async {
         guard SquareConfig.isConfigured else {
             comingSoonMessage = "Add Square application ID and backend Square env vars first."
+            return
+        }
+
+        let available = squareStatus?.availableCents ?? 0
+        if available <= 0 || squareStatus?.onboardingComplete != true {
+            appState.path.append(.sellerCashOutSetup)
             return
         }
 
@@ -422,22 +480,16 @@ struct AccountSettingsView: View {
         defer { isLoadingSquare = false }
 
         do {
-            let available = squareStatus?.availableCents ?? 0
-            if available > 0 {
-                let response = try await squareConnect.cashOut()
-                if let updated = response.status {
-                    squareStatus = updated
-                    soldBalance = updated.availableDollars
-                }
-                if response.requiresOnboarding == true, let url = response.url, !url.isEmpty {
-                    try await squareConnect.open(url)
-                    return
-                }
-                comingSoonMessage = response.message ?? "Cash out sent."
+            let response = try await squareConnect.cashOut()
+            if let updated = response.status {
+                squareStatus = updated
+                soldBalance = updated.availableDollars
+            }
+            if response.requiresOnboarding == true {
+                appState.path.append(.sellerCashOutSetup)
                 return
             }
-
-            await openSquareOnboardingOrDashboard()
+            comingSoonMessage = response.message ?? "Cash out sent."
         } catch {
             comingSoonMessage = error.localizedDescription
         }
@@ -465,7 +517,7 @@ struct AccountSettingsView: View {
                 return
             }
 
-            try await squareConnect.startOAuth()
+            appState.path.append(.sellerCashOutSetup)
         } catch {
             comingSoonMessage = error.localizedDescription
         }
@@ -479,7 +531,7 @@ struct AccountSettingsView: View {
                 Image(systemName: "rectangle.portrait.and.arrow.right")
                     .font(.system(size: 15, weight: .semibold))
                 Text("Log out")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(Theme.syne(15, weight: .semibold))
             }
             .foregroundStyle(Color(hex: "#E11D48"))
             .frame(maxWidth: .infinity)

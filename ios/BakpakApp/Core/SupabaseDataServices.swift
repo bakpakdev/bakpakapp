@@ -100,6 +100,20 @@ enum SupabaseSocialService {
         return !rows.isEmpty
     }
 
+    static func isSaved(client: SupabaseClient, productId: String) async throws -> Bool {
+        let uid = try await client.auth.session.user.id.uuidString.lowercased()
+        struct Row: Decodable { let id: String }
+        let rows: [Row] = try await client
+            .from("saved_items")
+            .select("id")
+            .eq("user_id", value: uid)
+            .eq("product_id", value: productId)
+            .limit(1)
+            .execute()
+            .value
+        return !rows.isEmpty
+    }
+
     static func setLiked(client: SupabaseClient, productId: String, liked: Bool) async throws {
         let uid = try await client.auth.session.user.id.uuidString.lowercased()
         if liked {
@@ -117,6 +131,24 @@ enum SupabaseSocialService {
                 .execute()
         }
     }
+
+    static func setSaved(client: SupabaseClient, productId: String, saved: Bool) async throws {
+        let uid = try await client.auth.session.user.id.uuidString.lowercased()
+        if saved {
+            struct Ins: Encodable { let user_id: String; let product_id: String }
+            _ = try await client
+                .from("saved_items")
+                .upsert(Ins(user_id: uid, product_id: productId), onConflict: "user_id,product_id")
+                .execute()
+        } else {
+            try await client
+                .from("saved_items")
+                .delete()
+                .eq("user_id", value: uid)
+                .eq("product_id", value: productId)
+                .execute()
+        }
+    }
 }
 
 // MARK: - Messages
@@ -124,8 +156,59 @@ enum SupabaseSocialService {
 enum SupabaseMessageService {
     static func openOrCreateConversation(client: SupabaseClient, otherUserId: String, productId: String?) async throws -> String {
         let myId = try await client.auth.session.user.id.uuidString.lowercased()
-        guard myId != otherUserId else { throw SupabaseDataError.notFound }
+        let otherId = otherUserId.lowercased()
+        guard myId != otherId else { throw SupabaseDataError.notFound }
 
+        // One chat per user pair — reuse any existing thread before creating.
+        if let existing = try? await findExistingConversation(
+            client: client,
+            myId: myId,
+            otherId: otherId
+        ) {
+            if let productId, !productId.isEmpty {
+                struct Patch: Encodable { let product_id: String }
+                _ = try? await client
+                    .from("conversations")
+                    .update(Patch(product_id: productId))
+                    .eq("id", value: existing)
+                    .execute()
+            }
+            return existing
+        }
+
+        struct Params: Encodable {
+            let p_other_user_id: String
+            let p_product_id: String?
+        }
+
+        do {
+            let id: String = try await client
+                .rpc(
+                    "open_or_create_conversation",
+                    params: Params(p_other_user_id: otherId, p_product_id: productId)
+                )
+                .execute()
+                .value
+            if !id.isEmpty { return id.lowercased() }
+        } catch {
+            throw NSError(
+                domain: "PopupMessages",
+                code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Chat setup needs a Supabase update. Run migrate_one_chat_per_user_pair.sql in the SQL Editor, then try again."
+                ]
+            )
+        }
+        throw SupabaseDataError.notFound
+    }
+
+    /// Most recently updated conversation that already includes both users.
+    private static func findExistingConversation(
+        client: SupabaseClient,
+        myId: String,
+        otherId: String
+    ) async throws -> String? {
         struct CP: Decodable { let conversation_id: String }
         let mine: [CP] = try await client
             .from("conversation_participants")
@@ -134,52 +217,28 @@ enum SupabaseMessageService {
             .execute()
             .value
         let myConvIds = mine.map(\.conversation_id)
-        if !myConvIds.isEmpty {
-            let shared: [CP] = try await client
-                .from("conversation_participants")
-                .select("conversation_id")
-                .eq("user_id", value: otherUserId)
-                .in("conversation_id", values: myConvIds)
-                .execute()
-                .value
-            let sharedIds = shared.map(\.conversation_id)
-            if !sharedIds.isEmpty {
-                if let productId {
-                    struct ConvMatch: Decodable { let id: String; let product_id: String? }
-                    let matches: [ConvMatch] = try await client
-                        .from("conversations")
-                        .select("id, product_id")
-                        .in("id", values: sharedIds)
-                        .execute()
-                        .value
-                    if let exact = matches.first(where: { ($0.product_id ?? "").lowercased() == productId.lowercased() }) {
-                        return exact.id
-                    }
-                }
-                if let existing = sharedIds.first { return existing }
-            }
-        }
+        guard !myConvIds.isEmpty else { return nil }
 
-        struct NewConv: Encodable {
-            let product_id: String?
-        }
-        let inserted: ConversationIdRow = try await client
-            .from("conversations")
-            .insert(NewConv(product_id: productId))
-            .select("id")
-            .single()
+        let shared: [CP] = try await client
+            .from("conversation_participants")
+            .select("conversation_id")
+            .eq("user_id", value: otherId)
+            .in("conversation_id", values: myConvIds)
             .execute()
             .value
+        let sharedIds = shared.map(\.conversation_id)
+        guard !sharedIds.isEmpty else { return nil }
 
-        struct PartIns: Encodable {
-            let conversation_id: String
-            let user_id: String
-        }
-        try await client
-            .from("conversation_participants")
-            .insert([PartIns(conversation_id: inserted.id, user_id: myId), PartIns(conversation_id: inserted.id, user_id: otherUserId)])
+        struct ConvMatch: Decodable { let id: String }
+        let matches: [ConvMatch] = try await client
+            .from("conversations")
+            .select("id")
+            .in("id", values: sharedIds)
+            .order("updated_at", ascending: false)
+            .limit(1)
             .execute()
-        return inserted.id
+            .value
+        return matches.first?.id
     }
 
     static func loadConversations(client: SupabaseClient) async throws -> [Conversation] {
@@ -223,10 +282,11 @@ enum SupabaseMessageService {
             let content: String
             let created_at: String?
             let conversation_id: String
+            let sender_id: String?
         }
         let msgs: [MRow] = try await client
             .from("messages")
-            .select("id, content, created_at, conversation_id")
+            .select("id, content, created_at, conversation_id, sender_id")
             .in("conversation_id", values: ids)
             .order("created_at", ascending: false)
             .limit(300)
@@ -244,26 +304,117 @@ enum SupabaseMessageService {
             }
         }
 
+        let productIds = Array(Set(convs.compactMap(\.product_id).filter { !$0.isEmpty }))
+        let productsById: [String: Product]
+        if productIds.isEmpty {
+            productsById = [:]
+        } else {
+            let products = try await SupabaseProductService.fetchProductsByIds(client: client, ids: productIds)
+            productsById = Dictionary(uniqueKeysWithValues: products.map { ($0.id.lowercased(), $0) })
+        }
+
+        struct UnreadMsg: Decodable {
+            let conversation_id: String
+            let created_at: String?
+        }
+        let otherMsgs: [UnreadMsg] = (try? await client
+            .from("messages")
+            .select("conversation_id, created_at")
+            .in("conversation_id", values: ids)
+            .neq("sender_id", value: myId)
+            .order("created_at", ascending: false)
+            .limit(500)
+            .execute()
+            .value) ?? []
+
+        struct LastReadRow: Decodable {
+            let conversation_id: String
+            let last_read_at: String?
+        }
+        let myReads: [LastReadRow] = (try? await client
+            .from("conversation_participants")
+            .select("conversation_id, last_read_at")
+            .eq("user_id", value: myId)
+            .in("conversation_id", values: ids)
+            .execute()
+            .value) ?? []
+        let serverLastRead = Dictionary(uniqueKeysWithValues: myReads.map { ($0.conversation_id, $0.last_read_at) })
+
+        // Newest message from the other person per conversation.
+        var latestOtherAt: [String: Date] = [:]
+        for m in otherMsgs {
+            guard latestOtherAt[m.conversation_id] == nil,
+                  let d = InboxReadStore.parseISO(m.created_at) else { continue }
+            latestOtherAt[m.conversation_id] = d
+        }
+
+        // One-time: treat existing threads as read so relaunch doesn't revive old badges.
+        InboxReadStore.seedBaselineIfNeeded(conversationIds: ids)
+
+        var unreadConvs = Set<String>()
+        for (convId, otherDate) in latestOtherAt {
+            let effective = InboxReadStore.effectiveLastRead(
+                conversationId: convId,
+                serverISO: serverLastRead[convId] ?? nil
+            )
+            if let effective {
+                // Unread only when they sent something after we last read this chat.
+                if otherDate > effective.addingTimeInterval(0.5) {
+                    unreadConvs.insert(convId)
+                }
+            } else {
+                // Brand-new conversation we've never opened — show a badge.
+                unreadConvs.insert(convId)
+            }
+        }
+
         return convs.map { c in
             let preview = lastByConv[c.id].map {
                 Message(
                     id: $0.id,
                     content: $0.content,
-                    senderId: nil,
+                    senderId: $0.sender_id,
                     conversationId: $0.conversation_id,
                     isRead: nil,
                     createdAt: $0.created_at,
                     sender: nil
                 )
             }
+            let product = c.product_id.flatMap { productsById[$0.lowercased()] }
             return Conversation(
                 id: c.id,
                 participants: participantsByConv[c.id] ?? [],
                 messages: preview.map { [$0] },
                 updatedAt: c.updated_at,
-                productId: c.product_id
+                productId: c.product_id,
+                product: product,
+                unreadCount: unreadConvs.contains(c.id) ? 1 : 0
             )
         }
+    }
+
+    static func markConversationRead(client: SupabaseClient, conversationId: String) async throws {
+        let myId = try await client.auth.session.user.id.uuidString.lowercased()
+        // Always clear locally first so badges don't stick across relaunches.
+        InboxReadStore.markRead(conversationId)
+
+        struct ReadFlag: Encodable { let is_read: Bool }
+        try? await client
+            .from("messages")
+            .update(ReadFlag(is_read: true))
+            .eq("conversation_id", value: conversationId)
+            .neq("sender_id", value: myId)
+            .eq("is_read", value: false)
+            .execute()
+
+        struct Touch: Encodable { let last_read_at: String }
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        try? await client
+            .from("conversation_participants")
+            .update(Touch(last_read_at: stamp))
+            .eq("conversation_id", value: conversationId)
+            .eq("user_id", value: myId)
+            .execute()
     }
 
     static func messagedListings(client: SupabaseClient) async throws -> [MessagedListing] {
@@ -319,11 +470,10 @@ enum SupabaseMessageService {
             let created_at: String?
             let sender_id: String?
             let is_read: Bool?
-            let profiles: SupabaseProfileRow?
         }
         let rows: [MsgRow] = try await client
             .from("messages")
-            .select("id, content, created_at, sender_id, is_read, profiles (\(profileCols))")
+            .select("id, content, created_at, sender_id, is_read")
             .eq("conversation_id", value: conversationId)
             .order("created_at", ascending: true)
             .execute()
@@ -336,13 +486,16 @@ enum SupabaseMessageService {
                 conversationId: conversationId,
                 isRead: $0.is_read,
                 createdAt: $0.created_at,
-                sender: $0.profiles.map { $0.asUser }
+                sender: nil
             )
         }
     }
 
     static func send(client: SupabaseClient, conversationId: String, content: String) async throws -> Message {
         let uid = try await client.auth.session.user.id.uuidString.lowercased()
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw SupabaseDataError.notFound }
+
         struct Ins: Encodable {
             let conversation_id: String
             let sender_id: String
@@ -354,23 +507,31 @@ enum SupabaseMessageService {
             let created_at: String?
             let sender_id: String?
             let is_read: Bool?
-            let profiles: SupabaseProfileRow?
         }
         let row: Out = try await client
             .from("messages")
-            .insert(Ins(conversation_id: conversationId, sender_id: uid, content: content))
-            .select("id, content, created_at, sender_id, is_read, profiles (\(profileCols))")
+            .insert(Ins(conversation_id: conversationId, sender_id: uid, content: trimmed))
+            .select("id, content, created_at, sender_id, is_read")
             .single()
             .execute()
             .value
+
+        struct Touch: Encodable { let updated_at: String }
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        try? await client
+            .from("conversations")
+            .update(Touch(updated_at: stamp))
+            .eq("id", value: conversationId)
+            .execute()
+
         return Message(
             id: row.id,
             content: row.content,
-            senderId: row.sender_id,
+            senderId: row.sender_id ?? uid,
             conversationId: conversationId,
             isRead: row.is_read,
-            createdAt: row.created_at,
-            sender: row.profiles.map { $0.asUser }
+            createdAt: row.created_at ?? stamp,
+            sender: nil
         )
     }
 }
@@ -481,7 +642,7 @@ enum SupabaseListingService {
             .execute()
     }
 
-    /// Marks a listing sold outside Stripe (cash/other). Does not credit seller balance.
+    /// Marks a listing sold outside Square (cash/other). Does not credit seller balance.
     static func setSold(client: SupabaseClient, productId: String, isSold: Bool) async throws {
         struct Patch: Encodable { let is_sold: Bool }
         try await client

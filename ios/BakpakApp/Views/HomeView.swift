@@ -1,29 +1,15 @@
 import SwiftUI
 
-// MARK: - Scroll offset (sticky header fade)
-
-private struct HomeScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 // MARK: - Product helpers
 
 private extension Product {
     var primaryListingImage: ProductImage? {
         images?.first(where: { $0.isPrimary == true }) ?? images?.first
     }
-
-    var displayCondition: String? {
-        guard let c = condition?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty else { return nil }
-        return c.replacingOccurrences(of: "-", with: " ").uppercased()
-    }
 }
 
 private let homeCategoryChips: [String] = [
-    "Tops & Shirts", "Bottoms", "Shoes",
+    "All", "Tops & Shirts", "Bottoms", "Shoes",
     "Accessories", "Jackets & Outerwear", "Dresses & Skirts",
 ]
 
@@ -32,25 +18,9 @@ private let homeClothingCategories: Set<String> = [
     "jackets", "outerwear", "jackets & outerwear", "dresses", "dresses & skirts",
 ]
 
-private struct PopupLogoGlyph: View {
-    let color: Color
-    let size: CGFloat
-    let zoom: CGFloat
-
-    var body: some View {
-        Image("popup_logo_white_mark")
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-            .luminanceToAlpha()
-            .foregroundStyle(color)
-            .scaleEffect(zoom)
-            .clipped()
-    }
-}
-
-private func categorySlug(for displayName: String) -> String {
+private func categorySlug(for displayName: String) -> String? {
     switch displayName {
+    case "All": return nil
     case "Tops & Shirts": return "tops"
     case "Bottoms": return "bottoms"
     case "Shoes": return "shoes"
@@ -72,43 +42,63 @@ private struct HomeProductCard: View {
         guard let size = product.size?.trimmingCharacters(in: .whitespacesAndNewlines), !size.isEmpty else {
             return nil
         }
-        return size
+        return size.uppercased()
+    }
+
+    private var brandLabel: String? {
+        guard let brand = product.brand?.trimmingCharacters(in: .whitespacesAndNewlines), !brand.isEmpty else {
+            return nil
+        }
+        return brand.uppercased()
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            AsyncImage(url: URL(string: product.primaryListingImage?.url ?? "")) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                campusTheme.elevatedSurface
-            }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(1, contentMode: .fit)
-            .clipped()
+        VStack(alignment: .leading, spacing: 10) {
+            Color.clear
+                .aspectRatio(0.82, contentMode: .fit)
+                .overlay {
+                    AsyncImage(url: URL(string: product.primaryListingImage?.url ?? "")) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Color.white.opacity(0.06)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(alignment: .topTrailing) {
+                    if let sizeLabel {
+                        Text(sizeLabel)
+                            .font(Theme.syne(11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(Color.black.opacity(0.48))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .padding(10)
+                    }
+                }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(product.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-
-                if let sizeLabel {
-                    Text(sizeLabel)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white)
+                if let brandLabel {
+                    Text(brandLabel)
+                        .font(Theme.syne(10, weight: .semibold))
+                        .tracking(0.6)
+                        .foregroundStyle(campusTheme.textMuted)
                         .lineLimit(1)
                 }
 
+                Text(product.title)
+                    .font(Theme.syne(14, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .lineLimit(1)
+
                 Text("$\(Int(product.price))")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.white)
+                    .font(Theme.syne(15, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
-            .background(campusTheme.primary)
+            .padding(.horizontal, 2)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .pressableCard { onTap() }
     }
@@ -119,21 +109,17 @@ private struct HomeProductCard: View {
 struct HomeView: View {
     @StateObject private var vm = ProductListViewModel()
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var authVM: AuthViewModel
     @Environment(\.campusTheme) private var campusTheme
 
-    @State private var scrollOffset: CGFloat = 0
-    @State private var selectedCategory: String?
+    @State private var selectedCategory: String? = "All"
     @State private var searchText = ""
     @State private var searchTask: Task<Void, Never>?
-    @State private var messagedCount = 0
-
-    private var headerOpacity: Double {
-        1.0 - Double(max(0, min(scrollOffset, 50)) / 50) * 0.05
-    }
+    @State private var notificationUnread = 0
 
     private let columns: [GridItem] = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 14),
+        GridItem(.flexible(), spacing: 14),
     ]
 
     private var clothingProducts: [Product] {
@@ -144,7 +130,7 @@ struct HomeView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
+        ZStack {
             campusTheme.background.ignoresSafeArea()
 
             Circle()
@@ -163,31 +149,36 @@ struct HomeView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Color.clear.frame(height: 148)
+                    headerBlock
+                        .padding(.top, 56)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 8)
 
-                    categorySection
-                        .padding(.top, 18)
-                        .padding(.bottom, 24)
+                    Text("Browse campus thrift finds near you")
+                        .font(Theme.syne(14, weight: .regular))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 18)
 
-                    productsSection
-                        .padding(.bottom, 100)
+                    searchBar
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 14)
+
+                    categoryChips
+                        .padding(.bottom, 22)
+
+                    productsGrid
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 110)
                 }
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: HomeScrollOffsetKey.self,
-                            value: -geo.frame(in: .named("homeScroll")).minY
-                        )
-                    }
-                )
             }
-            .coordinateSpace(name: "homeScroll")
-            .onPreferenceChange(HomeScrollOffsetKey.self) { scrollOffset = $0 }
             .refreshable { await reloadProducts() }
-
-            stickyHeader
         }
-        .background(campusTheme.wash)
+        .background(campusTheme.background.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationBarHidden(true)
+        .hidesSystemNavigationBar(true)
         .ignoresSafeArea(edges: .top)
         .overlay {
             if vm.isLoading && vm.products.isEmpty {
@@ -198,16 +189,23 @@ struct HomeView: View {
         }
         .task {
             await reloadProducts()
-            await loadMessagedCount()
+            await loadNotificationBadge()
+        }
+        .onChange(of: appState.path) { path in
+            if path.isEmpty {
+                Task {
+                    await loadNotificationBadge()
+                }
+            }
         }
         .onChange(of: appState.homeEntryToken) { _ in
             searchText = ""
-            selectedCategory = nil
+            selectedCategory = "All"
             searchTask?.cancel()
             vm.beginFreshHomeLoad()
             Task {
                 await reloadProducts()
-                await loadMessagedCount()
+                await loadNotificationBadge()
             }
         }
         .onChange(of: selectedCategory) { _ in
@@ -221,250 +219,176 @@ struct HomeView: View {
         }
     }
 
-    private var categorySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Shop thrift by category")
-                    .font(Theme.syne(18, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                Spacer()
-                Button("See all") {
-                    appState.selectedTab = .search
-                }
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(campusTheme.primary)
-            }
-            .padding(.horizontal, 16)
+    // MARK: - Header
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(homeCategoryChips, id: \.self) { cat in
-                        Button {
-                            withAnimation(Motion.snappy) {
-                                selectedCategory = (cat == selectedCategory) ? nil : cat
-                            }
-                            Motion.haptic(.light)
-                        } label: {
-                            Text(cat)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(selectedCategory == cat ? Color.white : campusTheme.textPrimary)
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 20)
-                                .background(selectedCategory == cat ? campusTheme.primary : campusTheme.surface)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .scaleEffect(selectedCategory == cat ? 1.04 : 1)
-                        }
-                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
-        }
-    }
+    private var headerBlock: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Text("popup")
+                .font(Theme.syne(28, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
 
-    private var productsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? "Fresh thrift finds"
-                    : "Thrift results")
-                    .font(Theme.syne(18, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                Spacer()
-                Button {
-                    appState.selectedTab = .search
-                } label: {
-                    Image(systemName: "line.3.horizontal.decrease")
-                        .font(.system(size: 18))
-                        .foregroundStyle(campusTheme.textPrimary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 16)
+            Spacer(minLength: 8)
 
-            if let err = vm.errorMessage, !err.isEmpty {
-                Text(err)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .padding(.horizontal, 16)
-            }
-
-            if clothingProducts.isEmpty, !vm.isLoading {
-                VStack(spacing: 8) {
-                    Text("No thrift finds yet")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                    Text("Try another clothing search or pull down to refresh.")
-                        .font(.system(size: 14))
-                        .foregroundStyle(campusTheme.textMuted)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(40)
-            } else {
-                LazyVGrid(columns: columns, spacing: 10) {
-                    ForEach(clothingProducts) { product in
-                        HomeProductCard(product: product) {
-                            appState.path.append(.productDetail(product.id))
-                        }
-                    }
-                }
-                .padding(.horizontal, 10)
-            }
-        }
-    }
-
-    private var searchAndCartBar: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 7) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(campusTheme.textMuted)
-
-                TextField("Search vintage, denim, shoes…", text: $searchText)
-                    .font(.system(size: 13))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .tint(campusTheme.primary)
-                    .submitLabel(.search)
-                    .onSubmit {
-                        searchTask?.cancel()
-                        Task { await reloadProducts() }
-                    }
-
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(campusTheme.textMuted)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 12)
-            .frame(height: 36)
-            .background(campusTheme.primary.opacity(0.035))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(campusTheme.primary.opacity(0.20), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            campusBadge
 
             Button {
                 Motion.haptic(.light)
-                withAnimation(Motion.snappy) {
-                    appState.openProfileLikes()
-                }
-            } label: {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .frame(width: 36, height: 36)
-                    .background(campusTheme.primary.opacity(0.055))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(campusTheme.primary.opacity(0.20), lineWidth: 1)
-                    )
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
-
-            Button {
-                Motion.haptic(.light)
-                appState.path.append(.messagedItems)
+                appState.path.append(.notificationCenter)
             } label: {
                 ZStack(alignment: .topTrailing) {
-                    Image(systemName: "bell.fill")
-                        .font(.system(size: 14, weight: .semibold))
+                    Image(systemName: "bell")
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(campusTheme.textPrimary)
-                        .frame(width: 36, height: 36)
-                        .background(campusTheme.primary.opacity(0.055))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .frame(width: 38, height: 38)
+                        .background(Color.white.opacity(campusTheme.isDark ? 0.06 : 0.55))
+                        .clipShape(Circle())
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(campusTheme.primary.opacity(0.20), lineWidth: 1)
+                            Circle().stroke(
+                                campusTheme.isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.1),
+                                lineWidth: 1
+                            )
                         )
 
-                    if messagedCount > 0 {
-                        Text(messagedCount > 99 ? "99+" : "\(messagedCount)")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .frame(minWidth: 16, minHeight: 16)
-                            .background(campusTheme.primary)
-                            .clipShape(Capsule())
-                            .offset(x: 4, y: -3)
-                            .transition(.scale.combined(with: .opacity))
+                    if notificationUnread > 0 {
+                        Circle()
+                            .fill(campusTheme.primary)
+                            .frame(width: 8, height: 8)
+                            .offset(x: 1, y: 1)
                     }
                 }
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
             .accessibilityLabel("Notifications")
-            .animation(Motion.bounce, value: messagedCount)
         }
     }
 
-    private var stickyHeader: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("popup")
-                    .font(Theme.syne(24, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
+    private var campusBadge: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(campusTheme.secondary)
+                .frame(width: 6, height: 6)
 
-                Spacer()
+            Text(campusTheme.shortName)
+                .font(Theme.syne(10, weight: .black))
+                .tracking(0.6)
+        }
+        .foregroundStyle(campusTheme.primary)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(campusTheme.surface.opacity(0.55))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(campusTheme.primary.opacity(0.28), lineWidth: 1)
+        )
+    }
 
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(campusTheme.secondary)
-                        .frame(width: 6, height: 6)
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
 
-                    Text(campusTheme.shortName)
-                        .font(Theme.syne(10, weight: .black))
-                        .tracking(0.6)
+            TextField("Search thrift, brands, styles…", text: $searchText)
+                .font(Theme.syne(15, weight: .regular))
+                .foregroundStyle(campusTheme.textPrimary)
+                .tint(campusTheme.primary)
+                .submitLabel(.search)
+                .onSubmit {
+                    searchTask?.cancel()
+                    Task { await reloadProducts() }
                 }
-                .foregroundStyle(campusTheme.primary)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(campusTheme.surface.opacity(0.48))
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(campusTheme.primary.opacity(0.28), lineWidth: 1)
-                )
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 50)
-            .padding(.bottom, 8)
 
-            searchAndCartBar
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-        }
-        .background {
-            ZStack {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-
-                LinearGradient(
-                    colors: [
-                        campusTheme.primary.opacity(campusTheme.isDark ? 0.38 : 0.22),
-                        campusTheme.secondary.opacity(campusTheme.isDark ? 0.12 : 0.10),
-                        campusTheme.background.opacity(campusTheme.isDark ? 0.72 : 0.20),
-                        campusTheme.surface.opacity(campusTheme.isDark ? 0.55 : 0.42),
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
+                .buttonStyle(.plain)
             }
-            .opacity(headerOpacity)
-            .ignoresSafeArea(edges: .top)
         }
-        .animation(Motion.gentle, value: headerOpacity)
+        .padding(.horizontal, 16)
+        .frame(height: 48)
+        .background(Color.white.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
     }
+
+    private var categoryChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(homeCategoryChips, id: \.self) { cat in
+                    let isActive = (selectedCategory ?? "All") == cat
+                    Button {
+                        withAnimation(Motion.snappy) {
+                            selectedCategory = cat
+                        }
+                        Motion.haptic(.light)
+                    } label: {
+                        Text(cat)
+                            .font(Theme.syne(13, weight: .semibold))
+                            .foregroundStyle(isActive ? Color.white : campusTheme.textMuted)
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 16)
+                            .background(isActive ? campusTheme.primary : Color.white.opacity(0.06))
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(isActive ? Color.clear : Color.white.opacity(0.1), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+
+    private var productsGrid: some View {
+        Group {
+            if let err = vm.errorMessage, !err.isEmpty {
+                Text(err)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .padding(.bottom, 12)
+            }
+
+            if clothingProducts.isEmpty, !vm.isLoading {
+                VStack(spacing: 10) {
+                    Text("No thrift finds yet")
+                        .font(Theme.syne(18, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                    Text("Try another search or pull down to refresh.")
+                        .font(Theme.syne(14))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 48)
+            } else {
+                LazyVGrid(columns: columns, spacing: 18) {
+                    ForEach(clothingProducts) { product in
+                        HomeProductCard(
+                            product: product,
+                            onTap: { appState.path.append(.productDetail(product.id)) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Data
 
     private func reloadProducts() async {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let category = selectedCategory.map { categorySlug(for: $0) }
+        let category = categorySlug(for: selectedCategory ?? "All")
         let school = campusTheme.schoolID
         if query.isEmpty, category == nil {
             await vm.loadDiscover(school: school)
@@ -482,12 +406,23 @@ struct HomeView: View {
         }
     }
 
-    private func loadMessagedCount() async {
+    private func loadNotificationBadge() async {
         do {
-            let items = try await MessageService().messagedListings()
-            await MainActor.run { messagedCount = items.count }
+            let conversations = try await MessageService().conversations()
+            await MainActor.run {
+                appState.applyInboxUnread(from: conversations, meId: authVM.user?.id)
+                let items = NotificationCenterStore.sync(
+                    from: conversations,
+                    meId: authVM.user?.id
+                )
+                notificationUnread = NotificationCenterStore.unreadCount(in: items)
+            }
         } catch {
-            await MainActor.run { messagedCount = 0 }
+            await MainActor.run {
+                notificationUnread = NotificationCenterStore.unreadCount(
+                    in: NotificationCenterStore.loadPersisted()
+                )
+            }
         }
     }
 }

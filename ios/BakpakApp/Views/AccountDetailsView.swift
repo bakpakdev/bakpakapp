@@ -1,0 +1,179 @@
+import SwiftUI
+
+struct AccountDetailsView: View {
+    @EnvironmentObject private var authVM: AuthViewModel
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.campusTheme) private var campusTheme
+
+    @State private var graduationYear = ""
+    @State private var allowDMs = false
+    @State private var isSaving = false
+    @State private var comingSoonMessage: String?
+
+    private var emailDisplay: String {
+        let email = authVM.user?.email?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return email.isEmpty ? "Not set" : email
+    }
+
+    private var universityDisplay: String {
+        campusTheme.fullName
+    }
+
+    var body: some View {
+        ZStack {
+            campusTheme.wash.ignoresSafeArea()
+
+            Circle()
+                .fill(campusTheme.primary.opacity(0.14))
+                .frame(width: 260, height: 260)
+                .blur(radius: 55)
+                .offset(x: -130, y: -90)
+                .allowsHitTesting(false)
+
+            Circle()
+                .fill(campusTheme.secondary.opacity(0.12))
+                .frame(width: 220, height: 220)
+                .blur(radius: 60)
+                .offset(x: 150, y: 80)
+                .allowsHitTesting(false)
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    EditProfileSectionHeader(
+                        title: "Login",
+                        subtitle: "Private account credentials — not shown on your profile"
+                    )
+                    EditProfileCard {
+                        EditProfileRow(label: "Email") {
+                            Text(emailDisplay)
+                                .font(Theme.syne(15))
+                                .foregroundStyle(campusTheme.textMuted)
+                                .multilineTextAlignment(.trailing)
+                                .frame(maxWidth: 200, alignment: .trailing)
+                        }
+                        EditProfileRow(label: "Password & login", showDivider: false) {
+                            Button {
+                                comingSoonMessage = "Login management is coming soon."
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text("Manage")
+                                        .font(Theme.syne(15, weight: .medium))
+                                        .foregroundStyle(campusTheme.primary)
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(campusTheme.textMuted)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    EditProfileSectionHeader(
+                        title: "Campus",
+                        subtitle: "Tied to your account — badge visibility is controlled in Edit Profile"
+                    )
+                    EditProfileCard {
+                        EditProfileRow(label: "School") {
+                            Text(universityDisplay)
+                                .font(Theme.syne(15))
+                                .foregroundStyle(campusTheme.textMuted)
+                                .multilineTextAlignment(.trailing)
+                                .frame(maxWidth: 200, alignment: .trailing)
+                        }
+                        EditProfileRow(label: "Graduation Year", showDivider: false) {
+                            TextField("2026", text: $graduationYear)
+                                .modifier(EditProfileFieldStyle())
+                                .frame(maxWidth: 80)
+                                .keyboardType(.numberPad)
+                        }
+                    }
+
+                    EditProfileSectionHeader(title: "Privacy")
+                    EditProfileCard {
+                        EditProfileRow(label: "Allow DMs from strangers", showDivider: false) {
+                            EditProfileIOSSwitch(isOn: $allowDMs)
+                        }
+                    }
+
+                    Button {
+                        // Account deletion flow — hook to backend when available
+                    } label: {
+                        Text("Delete Account")
+                            .font(Theme.syne(15, weight: .semibold))
+                            .foregroundStyle(Color(hex: "#E11D48"))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(Color(hex: "#E11D48").opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                    .padding(.top, 28)
+                    .padding(.bottom, 40)
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Account Details")
+                    .font(Theme.syne(17, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    Task { await save() }
+                } label: {
+                    if isSaving {
+                        ProgressView().tint(campusTheme.primary)
+                    } else {
+                        Text("Save")
+                            .font(Theme.syne(14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .background(campusTheme.primary)
+                            .clipShape(Capsule())
+                    }
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
+                .disabled(isSaving)
+            }
+        }
+        .toolbarBackground(campusTheme.surface.opacity(0.9), for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(campusTheme.isDark ? .dark : .light, for: .navigationBar)
+        .preferredColorScheme(campusTheme.isDark ? .dark : .light)
+        .tint(campusTheme.primary)
+        .onAppear { load() }
+        .alert("Account", isPresented: Binding(
+            get: { comingSoonMessage != nil },
+            set: { if !$0 { comingSoonMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { comingSoonMessage = nil }
+        } message: {
+            Text(comingSoonMessage ?? "")
+        }
+    }
+
+    private func load() {
+        let d = UserDefaults.standard
+        graduationYear = d.string(forKey: EditProfilePrefs.gradYear) ?? ""
+        if d.object(forKey: EditProfilePrefs.allowDMs) != nil {
+            allowDMs = d.bool(forKey: EditProfilePrefs.allowDMs)
+        }
+    }
+
+    private func saveLocal() {
+        let d = UserDefaults.standard
+        d.set(graduationYear, forKey: EditProfilePrefs.gradYear)
+        d.set(allowDMs, forKey: EditProfilePrefs.allowDMs)
+    }
+
+    private func save() async {
+        isSaving = true
+        defer { isSaving = false }
+        saveLocal()
+        dismiss()
+    }
+}

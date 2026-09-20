@@ -148,12 +148,12 @@ struct MeetupPayFlowView: View {
                                 .foregroundStyle(.white)
                         } else {
                             Text("\(s.rawValue + 1)")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(Theme.syne(12, weight: .bold))
                                 .foregroundStyle(active ? .white : campusTheme.textMuted)
                         }
                     }
                     Text(s.title(collecting: isCollecting))
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(Theme.syne(11, weight: .semibold))
                         .foregroundStyle(active ? campusTheme.textPrimary : campusTheme.textMuted)
                 }
                 .frame(maxWidth: .infinity)
@@ -180,7 +180,7 @@ struct MeetupPayFlowView: View {
             Text(isCollecting
                  ? "Double-check the details before you collect payment from the buyer."
                  : "Double-check the details before you pay the seller.")
-                .font(.system(size: 15))
+                .font(Theme.syne(15))
                 .foregroundStyle(campusTheme.textMuted)
 
             detailCard
@@ -199,7 +199,7 @@ struct MeetupPayFlowView: View {
             Text(isCollecting
                  ? "Receive with Apple Pay in the app, or open another app if you agreed on that."
                  : "Pay with Apple Pay in the app, or open another app if you agreed on that.")
-                .font(.system(size: 15))
+                .font(Theme.syne(15))
                 .foregroundStyle(campusTheme.textMuted)
 
             if let priceLabel {
@@ -218,7 +218,7 @@ struct MeetupPayFlowView: View {
             .disabled(isPaymentBusy || (item.productId ?? "").isEmpty)
 
             Text("Or use another app")
-                .font(.system(size: 12, weight: .semibold))
+                .font(Theme.syne(12, weight: .semibold))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, 8)
 
@@ -249,7 +249,7 @@ struct MeetupPayFlowView: View {
             Text(isCollecting
                  ? "After you receive payment, continue to confirm."
                  : "After you pay, continue to confirm.")
-                .font(.system(size: 13, weight: .medium))
+                .font(Theme.syne(13, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, 4)
         }
@@ -265,7 +265,7 @@ struct MeetupPayFlowView: View {
             Text(isCollecting
                  ? "Only tap below once the buyer has sent you the money."
                  : "Only tap below once you’ve sent payment to the seller.")
-                .font(.system(size: 15))
+                .font(Theme.syne(15))
                 .foregroundStyle(campusTheme.textMuted)
 
             VStack(alignment: .leading, spacing: 12) {
@@ -322,7 +322,7 @@ struct MeetupPayFlowView: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(campusTheme.primary)
             Text("Meet in a public campus spot. Only confirm after payment actually goes through.")
-                .font(.system(size: 13))
+                .font(Theme.syne(13))
                 .foregroundStyle(campusTheme.textMuted)
         }
         .padding(12)
@@ -334,11 +334,11 @@ struct MeetupPayFlowView: View {
     private func summaryRow(label: String, value: String) -> some View {
         HStack(alignment: .top) {
             Text(label)
-                .font(.system(size: 13, weight: .semibold))
+                .font(Theme.syne(13, weight: .semibold))
                 .foregroundStyle(campusTheme.textMuted)
             Spacer(minLength: 12)
             Text(value)
-                .font(.system(size: 14, weight: .semibold))
+                .font(Theme.syne(14, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
                 .multilineTextAlignment(.trailing)
         }
@@ -399,7 +399,7 @@ struct MeetupPayFlowView: View {
                     .multilineTextAlignment(.center)
 
                 Text(tapToPay.statusMessage)
-                    .font(.system(size: 15))
+                    .font(Theme.syne(15))
                     .foregroundStyle(campusTheme.textMuted)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 8)
@@ -417,7 +417,7 @@ struct MeetupPayFlowView: View {
                         Task { await retryTapToPay() }
                     } label: {
                         Text("Try again")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(Theme.syne(15, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 50)
@@ -433,7 +433,7 @@ struct MeetupPayFlowView: View {
                         Task { await cancelSellerPayment(requestId: requestId) }
                     } label: {
                         Text("Cancel")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(Theme.syne(15, weight: .semibold))
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
@@ -492,7 +492,7 @@ struct MeetupPayFlowView: View {
                     .multilineTextAlignment(.center)
 
                 Text("Pay securely on your phone. The seller gets paid in popup.")
-                    .font(.system(size: 15))
+                    .font(Theme.syne(15))
                     .foregroundStyle(campusTheme.textMuted)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 8)
@@ -516,7 +516,7 @@ struct MeetupPayFlowView: View {
                 Button("Cancel") {
                     showBuyerPaymentSheet = false
                 }
-                .font(.system(size: 15, weight: .semibold))
+                .font(Theme.syne(15, weight: .semibold))
                 .foregroundStyle(campusTheme.textMuted)
             }
             .padding(24)
@@ -564,7 +564,7 @@ struct MeetupPayFlowView: View {
                     }
                 } label: {
                     Text("Back")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(Theme.syne(15, weight: .semibold))
                         .foregroundStyle(campusTheme.textPrimary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
@@ -579,7 +579,7 @@ struct MeetupPayFlowView: View {
                 advance()
             } label: {
                 Text(primaryButtonTitle)
-                    .font(.system(size: 15, weight: .bold))
+                    .font(Theme.syne(15, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)

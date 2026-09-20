@@ -86,9 +86,32 @@ struct ProductDetailView: View {
             .task { await load() }
     }
 
+    private var cardStroke: Color {
+        campusTheme.isDark ? Color.white.opacity(0.22) : Color.black.opacity(0.14)
+    }
+
+    private var glassFill: Color {
+        Color.white.opacity(campusTheme.isDark ? 0.06 : 0.55)
+    }
+
     private var mainContent: some View {
         ZStack {
             campusTheme.background.ignoresSafeArea()
+
+            Circle()
+                .fill(campusTheme.primary.opacity(0.16))
+                .frame(width: 280, height: 280)
+                .blur(radius: 55)
+                .offset(x: -140, y: -100)
+                .allowsHitTesting(false)
+
+            Circle()
+                .fill(campusTheme.secondary.opacity(0.12))
+                .frame(width: 240, height: 240)
+                .blur(radius: 60)
+                .offset(x: 150, y: 280)
+                .allowsHitTesting(false)
+
             if let product {
                 if isOwner { ownerManageScroll(product) }
                 else { buyerScroll(product) }
@@ -96,10 +119,14 @@ struct ProductDetailView: View {
                 ProgressView().tint(campusTheme.primary)
             } else {
                 Text(errorMessage ?? "Listing unavailable")
-                    .foregroundStyle(campusTheme.textMuted).padding()
+                    .font(Theme.syne(15, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .padding()
             }
+
             if isBusy {
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(.ultraThinMaterial)
             }
         }
@@ -115,28 +142,27 @@ struct ProductDetailView: View {
 
     private func ownerManageScroll(_ product: Product) -> some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 16) {
                 ownerHeroSummary(product)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 18)
 
                 statsRow
-                    .padding(.top, 4)
-                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 4)
+                    .background(glassFill)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(cardStroke, lineWidth: 1)
+                    )
 
-                sectionHeader("Manage listing")
-                    .padding(.top, 28)
-                    .padding(.horizontal, 16)
+                Text("Manage listing")
+                    .font(Theme.syne(18, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .padding(.top, 4)
 
                 if product.isSold != true {
                     collectPaymentButton(product)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-
                     alternatePaymentAppsRow
-                        .padding(.horizontal, 16)
-                        .padding(.top, 10)
                 }
 
                 manageList([
@@ -166,9 +192,10 @@ struct ProductDetailView: View {
 
                 Spacer(minLength: 40)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
             .padding(.bottom, 24)
         }
-        .background(campusTheme.background)
     }
 
     private func ownerHeroSummary(_ product: Product) -> some View {
@@ -178,28 +205,44 @@ struct ProductDetailView: View {
                 case .success(let image):
                     image.resizable().scaledToFill()
                 default:
-                    campusTheme.elevatedSurface
+                    Color.white.opacity(0.08)
                 }
             }
-            .frame(width: 72, height: 72)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(width: 78, height: 78)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(cardStroke, lineWidth: 1)
+            )
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(product.title)
-                    .font(Theme.syne(16, weight: .semibold))
+                    .font(Theme.syne(17, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .lineLimit(2)
                 Text("$\(formattedPrice(product.price))")
-                    .font(Theme.syne(18, weight: .bold))
+                    .font(Theme.syne(20, weight: .bold))
                     .foregroundStyle(campusTheme.primary)
                 if product.isSold == true {
                     Text("Sold")
                         .font(Theme.syne(11, weight: .bold))
                         .foregroundStyle(campusTheme.textMuted)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(glassFill)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(cardStroke, lineWidth: 1))
                 }
             }
             Spacer(minLength: 0)
         }
+        .padding(14)
+        .background(glassFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(cardStroke, lineWidth: 1)
+        )
     }
 
     private var statsRow: some View {
@@ -235,22 +278,16 @@ struct ProductDetailView: View {
                         .foregroundStyle(campusTheme.textMuted)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
-                        .background(campusTheme.elevatedSurface)
+                        .background(glassFill)
                         .clipShape(Capsule())
+                        .overlay(Capsule().stroke(cardStroke, lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
             } else {
                 Color.clear.frame(height: 20)
             }
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(Theme.syne(20, weight: .bold))
-            .foregroundStyle(campusTheme.textPrimary)
-            .padding(.bottom, 6)
     }
 
     private struct ManageRowModel {
@@ -268,7 +305,7 @@ struct ProductDetailView: View {
                 Button(action: row.action) {
                     HStack(spacing: 10) {
                         Text(row.title)
-                            .font(Theme.syne(16, weight: .regular))
+                            .font(Theme.syne(15, weight: .semibold))
                             .foregroundStyle(row.destructive ? Color(hex: "#FF6B6B") : campusTheme.textPrimary)
                         Spacer(minLength: 8)
                         if let badge = row.badge {
@@ -280,27 +317,35 @@ struct ProductDetailView: View {
                                 .background(
                                     row.badgeTone == .accent
                                         ? campusTheme.primary.opacity(0.15)
-                                        : campusTheme.elevatedSurface
+                                        : glassFill
                                 )
                                 .clipShape(Capsule())
+                                .overlay(Capsule().stroke(cardStroke, lineWidth: 1))
                         }
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(campusTheme.textMuted.opacity(0.7))
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 15)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
 
                 if index < rows.count - 1 {
-                    Divider()
-                        .overlay(campusTheme.border)
+                    Rectangle()
+                        .fill(cardStroke)
+                        .frame(height: 1)
                         .padding(.leading, 16)
                 }
             }
         }
+        .background(glassFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(cardStroke, lineWidth: 1)
+        )
     }
 
     // MARK: - Buyer product layout
@@ -308,24 +353,31 @@ struct ProductDetailView: View {
     private func buyerScroll(_ product: Product) -> some View {
         ZStack(alignment: .bottom) {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 16) {
                     imageHero
-                    VStack(alignment: .leading, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("$\(formattedPrice(product.price))")
-                                .font(Theme.syne(28, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
-                            Text(product.title)
-                                .font(Theme.syne(22, weight: .bold))
-                                .foregroundStyle(campusTheme.textPrimary)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let brand = product.brand?.trimmingCharacters(in: .whitespacesAndNewlines), !brand.isEmpty {
+                            Text(brand.uppercased())
+                                .font(Theme.syne(11, weight: .semibold))
+                                .tracking(0.6)
+                                .foregroundStyle(campusTheme.textMuted)
                         }
-                        metaChips(product)
-                        descriptionBlock(product)
-                        sellerCard(product)
+                        Text(product.title)
+                            .font(Theme.syne(24, weight: .bold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                        Text("$\(formattedPrice(product.price))")
+                            .font(Theme.syne(26, weight: .bold))
+                            .foregroundStyle(campusTheme.primary)
                     }
-                    .padding(16)
-                    .padding(.bottom, 100)
+
+                    metaChips(product)
+                    descriptionBlock(product)
+                    sellerCard(product)
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 120)
             }
 
             buyerBottomBar(product)
@@ -337,7 +389,7 @@ struct ProductDetailView: View {
             ZStack(alignment: .bottom) {
                 Group {
                     if imageURLs.isEmpty {
-                        campusTheme.elevatedSurface
+                        Color.white.opacity(0.08)
                     } else {
                         TabView(selection: $imageIndex) {
                             ForEach(Array(imageURLs.enumerated()), id: \.offset) { idx, url in
@@ -346,7 +398,7 @@ struct ProductDetailView: View {
                                     case .success(let image):
                                         image.resizable().scaledToFill()
                                     default:
-                                        campusTheme.elevatedSurface
+                                        Color.white.opacity(0.08)
                                     }
                                 }
                                 .tag(idx)
@@ -356,20 +408,25 @@ struct ProductDetailView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .aspectRatio(1, contentMode: .fit)
+                .aspectRatio(0.92, contentMode: .fit)
                 .clipped()
 
                 if imageURLs.count > 1 {
                     HStack(spacing: 6) {
                         ForEach(0..<imageURLs.count, id: \.self) { idx in
                             Capsule()
-                                .fill(idx == imageIndex ? Color.white : Color.white.opacity(0.4))
+                                .fill(idx == imageIndex ? Color.white : Color.white.opacity(0.45))
                                 .frame(width: idx == imageIndex ? 16 : 6, height: 6)
                         }
                     }
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 14)
                 }
             }
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(cardStroke, lineWidth: 1)
+            )
 
             if !isOwner {
                 ListingReactionButtons(
@@ -392,13 +449,13 @@ struct ProductDetailView: View {
                     HStack(spacing: 8) {
                         ForEach(chips, id: \.self) { chip in
                             Text(chip)
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(Theme.syne(12, weight: .bold))
                                 .foregroundStyle(campusTheme.textPrimary)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
-                                .background(campusTheme.surface)
+                                .background(glassFill)
                                 .clipShape(Capsule())
-                                .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+                                .overlay(Capsule().stroke(cardStroke, lineWidth: 1))
                         }
                     }
                 }
@@ -411,14 +468,20 @@ struct ProductDetailView: View {
         return VStack(alignment: .leading, spacing: 8) {
             Text("About")
                 .font(Theme.syne(15, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
             Text(desc.isEmpty || desc == " " ? "No description provided." : desc)
-                .font(.system(size: 15))
+                .font(Theme.syne(15))
                 .foregroundStyle(campusTheme.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(campusTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(glassFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(cardStroke, lineWidth: 1)
+        )
     }
 
     private func sellerCard(_ product: Product) -> some View {
@@ -438,22 +501,23 @@ struct ProductDetailView: View {
                         img.resizable().scaledToFill()
                     } placeholder: {
                         ZStack {
-                            campusTheme.elevatedSurface
+                            Color.white.opacity(0.08)
                             Text(String(name.prefix(1)).uppercased())
-                                .font(.system(size: 16, weight: .bold))
+                                .font(Theme.syne(16, weight: .bold))
                                 .foregroundStyle(campusTheme.primary)
                         }
                     }
                 }
-                .frame(width: 44, height: 44)
+                .frame(width: 48, height: 48)
                 .clipShape(Circle())
+                .overlay(Circle().stroke(cardStroke, lineWidth: 1))
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(name)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(Theme.syne(15, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
                     Text("View profile")
-                        .font(.system(size: 12))
+                        .font(Theme.syne(12, weight: .medium))
                         .foregroundStyle(campusTheme.textMuted)
                 }
                 Spacer()
@@ -462,8 +526,12 @@ struct ProductDetailView: View {
                     .foregroundStyle(campusTheme.textMuted)
             }
             .padding(14)
-            .background(campusTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(glassFill)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(cardStroke, lineWidth: 1)
+            )
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
     }
@@ -475,13 +543,13 @@ struct ProductDetailView: View {
                 Button {
                     Motion.haptic(.medium)
                     guard let userId = product.user?.id else { return }
-                    appState.path.append(.conversation("", userId, product.id))
+                    Task { await startMessage(for: product, sellerId: userId) }
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "bubble.left.and.bubble.right.fill")
                             .font(.system(size: 13, weight: .semibold))
-                        Text("Message seller")
-                            .font(.system(size: 14, weight: .bold))
+                        Text("Message")
+                            .font(Theme.syne(14, weight: .bold))
                             .lineLimit(1)
                     }
                     .foregroundStyle(.white)
@@ -501,19 +569,19 @@ struct ProductDetailView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "tag.fill")
                             .font(.system(size: 13, weight: .semibold))
-                        Text("Send offer")
-                            .font(.system(size: 14, weight: .bold))
+                        Text("Offer")
+                            .font(Theme.syne(14, weight: .bold))
                             .lineLimit(1)
                     }
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.textPrimary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
-                    .background(campusTheme.surface)
+                    .background(glassFill)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(campusTheme.primary.opacity(0.35), lineWidth: 1.5)
+                            .stroke(campusTheme.primary.opacity(0.45), lineWidth: 1.5)
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
                 .disabled(product.isSold == true)
@@ -529,14 +597,14 @@ struct ProductDetailView: View {
                         Image(systemName: "applelogo")
                         Text("Pay with Apple Pay")
                     }
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(Theme.syne(14, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 46)
-                    .background(campusTheme.surface)
+                    .background(glassFill)
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(campusTheme.border, lineWidth: 1)
+                            .stroke(cardStroke, lineWidth: 1)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
@@ -546,13 +614,14 @@ struct ProductDetailView: View {
                 .padding(.bottom, 10)
             } else if activePayment?.active == true, activePayment?.role == "buyer" {
                 Text("Seller is ready to collect payment")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(Theme.syne(13, weight: .medium))
                     .foregroundStyle(campusTheme.textMuted)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 10)
             }
         }
+        .padding(.top, 10)
         .background(
             campusTheme.background.opacity(0.92)
                 .background(.ultraThinMaterial)
@@ -591,7 +660,7 @@ struct ProductDetailView: View {
                             .font(Theme.syne(18, weight: .bold))
                             .foregroundStyle(campusTheme.textPrimary)
                         Text(product.title)
-                            .font(.system(size: 13, weight: .medium))
+                            .font(Theme.syne(13, weight: .medium))
                             .foregroundStyle(campusTheme.textMuted)
                             .lineLimit(1)
                         Text("Listed at $\(Int(listed))")
@@ -626,17 +695,17 @@ struct ProductDetailView: View {
                                 Text("\(percent)% off")
                                     .font(Theme.syne(14, weight: .bold))
                                 Text("$\(amount, specifier: "%.0f")")
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .font(Theme.syne(13, weight: .semibold))
                                     .opacity(0.85)
                             }
                             .foregroundStyle(selected ? Color.white : campusTheme.textPrimary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(selected ? campusTheme.primary : campusTheme.elevatedSurface)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .background(selected ? campusTheme.primary : glassFill)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(selected ? Color.clear : campusTheme.border, lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(selected ? Color.clear : cardStroke, lineWidth: 1)
                             )
                         }
                         .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
@@ -665,12 +734,12 @@ struct ProductDetailView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
-                .background(campusTheme.elevatedSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(glassFill)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(
-                            customOfferText.isEmpty ? campusTheme.border : campusTheme.primary.opacity(0.35),
+                            customOfferText.isEmpty ? cardStroke : campusTheme.primary.opacity(0.35),
                             lineWidth: 1
                         )
                 )
@@ -679,7 +748,7 @@ struct ProductDetailView: View {
                     let savings = max(0, listed - offerAmount)
                     HStack {
                         Text("Your offer")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(Theme.syne(13, weight: .medium))
                             .foregroundStyle(campusTheme.textMuted)
                         Spacer()
                         Text("$\(offerAmount, specifier: "%.2f")")
@@ -687,7 +756,7 @@ struct ProductDetailView: View {
                             .foregroundStyle(campusTheme.primary)
                         if savings > 0.5 {
                             Text("· $\(savings, specifier: "%.0f") off")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(Theme.syne(12, weight: .semibold))
                                 .foregroundStyle(campusTheme.textMuted)
                         }
                     }
@@ -705,7 +774,7 @@ struct ProductDetailView: View {
                             Image(systemName: "paperplane.fill")
                                 .font(.system(size: 13, weight: .semibold))
                             Text("Send offer")
-                                .font(.system(size: 15, weight: .bold))
+                                .font(Theme.syne(15, weight: .bold))
                         }
                     }
                     .foregroundStyle(.white)
@@ -721,10 +790,20 @@ struct ProductDetailView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 24)
         }
-        .background(campusTheme.surface)
+        .background(campusTheme.background)
         .presentationDetents([.height(520)])
         .presentationDragIndicator(.hidden)
         .environment(\.campusTheme, campusTheme)
+    }
+
+    private func startMessage(for product: Product, sellerId: String) async {
+        do {
+            let convo = try await messageService.openOrCreate(otherUserId: sellerId, productId: product.id)
+            appState.path.append(.conversation(convo.id, sellerId, product.id))
+        } catch {
+            // Still open the chat; ConversationView will create/reuse the thread.
+            appState.path.append(.conversation("", sellerId, product.id))
+        }
     }
 
     private func sendOffer(amount: Double, sellerId: String, product: Product) async {
@@ -737,10 +816,18 @@ struct ProductDetailView: View {
                 }
                 return String(format: "%.2f", amount)
             }()
+            let imageURL = product.images?.first(where: { $0.isPrimary == true })?.url
+                ?? product.images?.first?.url
             let convo = try await messageService.openOrCreate(otherUserId: sellerId, productId: product.id)
             _ = try await messageService.send(
                 conversationId: convo.id,
-                content: "💰 Offer: $\(formatted)"
+                content: OfferMessageCodec.encode(
+                    amount: formatted,
+                    productId: product.id,
+                    title: product.title,
+                    price: product.price,
+                    imageURL: imageURL
+                )
             )
             showOfferSheet = false
             Motion.haptic(.medium)
@@ -761,9 +848,9 @@ struct ProductDetailView: View {
                     .font(.system(size: 20))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Collect payment")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(Theme.syne(15, weight: .bold))
                     Text("Buyer taps their card or phone on yours")
-                        .font(.system(size: 12))
+                        .font(Theme.syne(12, weight: .medium))
                         .opacity(0.85)
                 }
                 Spacer()
@@ -775,7 +862,7 @@ struct ProductDetailView: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(campusTheme.primary)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
         .disabled(isPaymentBusy || product.isSold == true)
@@ -784,7 +871,7 @@ struct ProductDetailView: View {
     private var alternatePaymentAppsRow: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Or pay with")
-                .font(.system(size: 12, weight: .semibold))
+                .font(Theme.syne(12, weight: .bold))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.leading, 2)
 
@@ -865,7 +952,7 @@ struct ProductDetailView: View {
                     .multilineTextAlignment(.center)
 
                 Text(tapToPay.statusMessage)
-                    .font(.system(size: 15))
+                    .font(Theme.syne(15))
                     .foregroundStyle(campusTheme.textMuted)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 8)
@@ -883,7 +970,7 @@ struct ProductDetailView: View {
                         Task { await retryTapToPay() }
                     } label: {
                         Text("Try again")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(Theme.syne(15, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 50)
@@ -899,7 +986,7 @@ struct ProductDetailView: View {
                         Task { await cancelSellerPayment(requestId: requestId) }
                     } label: {
                         Text("Cancel")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(Theme.syne(15, weight: .semibold))
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)

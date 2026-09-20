@@ -6,6 +6,7 @@ const OAUTH_SCOPES = [
   'PAYMENTS_WRITE_IN_PERSON',
   'MERCHANT_PROFILE_READ',
   'PAYMENTS_READ',
+  'BANK_ACCOUNTS_READ',
 ].join(' ');
 
 function isSquareConfigured() {
@@ -153,6 +154,11 @@ async function listLocations(accessToken) {
   return locations.filter((loc) => (loc.status || 'ACTIVE') === 'ACTIVE');
 }
 
+async function listBankAccounts(accessToken) {
+  const json = await squareFetch('/v2/bank-accounts', { accessToken });
+  return Array.isArray(json.bank_accounts) ? json.bank_accounts : [];
+}
+
 async function retrievePayment(accessToken, paymentId) {
   const json = await squareFetch(`/v2/payments/${encodeURIComponent(paymentId)}`, { accessToken });
   return json.payment || json;
@@ -221,6 +227,7 @@ module.exports = {
   obtainToken,
   revokeToken,
   listLocations,
+  listBankAccounts,
   retrievePayment,
   retrievePlatformPayment,
   createPlatformPayment,

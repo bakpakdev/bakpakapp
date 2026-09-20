@@ -6,6 +6,36 @@ const recommendationService = require('../services/recommendationService');
 const router = express.Router();
 const prisma = new PrismaClient();
 
+/** In-memory click popularity until a dedicated SearchEvent table is migrated. */
+const suggestionClicks = new Map(); // lowercased suggestion -> count
+
+function bumpSuggestion(text) {
+  if (!text) return;
+  const key = String(text).trim().toLowerCase();
+  if (!key) return;
+  suggestionClicks.set(key, (suggestionClicks.get(key) || 0) + 1);
+}
+
+function scoreCandidate(text, query, type) {
+  const t = text.toLowerCase();
+  const q = query.toLowerCase();
+  let score = 0;
+  if (!q) {
+    score += type === 'trending' ? 12 : type === 'brand' ? 10 : 6;
+  } else if (t.startsWith(q)) {
+    score += 40;
+  } else if (t.includes(q)) {
+    score += 22;
+  } else {
+    return 0;
+  }
+  if (type === 'brand') score += 12;
+  if (type === 'listing') score += 8;
+  if (type === 'trending') score += 6;
+  score += Math.min(25, (suggestionClicks.get(t) || 0) * 3);
+  return score;
+}
+
 // Optional auth middleware - doesn't fail if no token
 const optionalAuth = async (req, res, next) => {
   try {
@@ -27,6 +57,7 @@ const optionalAuth = async (req, res, next) => {
             firstName: true,
             lastName: true,
             avatar: true,
+            country: true,
           },
         });
 
@@ -36,19 +67,133 @@ const optionalAuth = async (req, res, next) => {
           req.user = null;
         }
       } catch (error) {
-        // Token invalid, continue without user
         req.user = null;
       }
     } else {
       req.user = null;
     }
-    
+
     next();
   } catch (error) {
     req.user = null;
     next();
   }
 };
+
+// @route   GET /api/search/suggest
+// @desc    Ranked typeahead suggestions (Phase 1 popularity + match ranking)
+// @access  Public
+router.get('/suggest', optionalAuth, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    const limit = Math.min(12, Math.max(1, parseInt(req.query.limit, 10) || 8));
+    const school = String(req.query.school || req.user?.country || '').trim();
+
+    const candidates = new Map(); // lower -> { text, type, score }
+
+    const add = (text, type) => {
+      const cleaned = String(text || '').trim();
+      if (!cleaned || cleaned.length < 2) return;
+      const score = scoreCandidate(cleaned, q, type);
+      if (score <= 0 && q) return;
+      const key = cleaned.toLowerCase();
+      const prev = candidates.get(key);
+      if (!prev || score > prev.score) {
+        candidates.set(key, { text: cleaned, type, score });
+      }
+    };
+
+    const products = await prisma.product.findMany({
+      where: {
+        isSold: false,
+        ...(q
+          ? {
+              OR: [
+                { title: { contains: q, mode: 'insensitive' } },
+                { brand: { contains: q, mode: 'insensitive' } },
+                { category: { contains: q, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      select: { title: true, brand: true, category: true },
+      take: q ? 40 : 30,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    products.forEach((p) => {
+      if (p.title) add(p.title, 'listing');
+      if (p.brand) add(p.brand, 'brand');
+      if (p.category) add(p.category, 'category');
+    });
+
+    for (const [key, count] of suggestionClicks.entries()) {
+      if (!q || key.includes(q.toLowerCase())) {
+        const display = key.replace(/\b\w/g, (c) => c.toUpperCase());
+        add(display, 'popular');
+        const cur = candidates.get(key);
+        if (cur) cur.score += Math.min(25, count * 3);
+      }
+    }
+
+    const suggestions = Array.from(candidates.values())
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(({ text, type, score }) => ({
+        text,
+        type,
+        score: Math.round(score * 10) / 10,
+      }));
+
+    res.json({
+      query: q,
+      school: school || null,
+      suggestions,
+    });
+  } catch (error) {
+    console.error('Suggest error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// @route   POST /api/search/events
+// @desc    Log typeahead / click / submit for future model training
+// @access  Public (optional auth)
+router.post('/events', optionalAuth, async (req, res) => {
+  try {
+    const {
+      queryText = '',
+      suggestionText = null,
+      suggestionType = null,
+      resultProductId = null,
+      eventType = 'typeahead',
+      school = null,
+    } = req.body || {};
+
+    if (eventType === 'click' && suggestionText) {
+      bumpSuggestion(suggestionText);
+    }
+    if (eventType === 'submit' && (suggestionText || queryText)) {
+      bumpSuggestion(suggestionText || queryText);
+    }
+
+    res.status(201).json({
+      ok: true,
+      logged: {
+        userId: req.user?.id || null,
+        queryText,
+        suggestionText,
+        suggestionType,
+        resultProductId,
+        eventType,
+        school: school || req.user?.country || null,
+      },
+    });
+  } catch (error) {
+    console.error('Search event error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 
 // @route   GET /api/search
 // @desc    Search products (excludes user's own listings if logged in)
@@ -63,8 +208,7 @@ router.get('/', optionalAuth, async (req, res) => {
     const where = {
       isSold: false,
     };
-    
-    // Exclude user's own listings if logged in (same as discover tab)
+
     if (userId) {
       where.userId = { not: userId };
       console.log('Filtering out user listings for userId:', userId);
@@ -72,18 +216,14 @@ router.get('/', optionalAuth, async (req, res) => {
       console.log('No userId provided - showing all listings');
     }
 
-    // Text search
     if (q) {
       where.OR = [
         { title: { contains: q, mode: 'insensitive' } },
         { description: { contains: q, mode: 'insensitive' } },
         { brand: { contains: q, mode: 'insensitive' } },
-        // Note: Tag search in JSON requires raw SQL for MySQL
-        // We'll filter tags in application code after fetching
       ];
     }
 
-    // Filters
     if (category) {
       where.category = category;
     }
@@ -106,7 +246,6 @@ router.get('/', optionalAuth, async (req, res) => {
       if (maxPrice) where.price.lte = parseFloat(maxPrice);
     }
 
-    // Sort options
     let orderBy = {};
     switch (sortBy) {
       case 'price-low':
@@ -136,7 +275,7 @@ router.get('/', optionalAuth, async (req, res) => {
         isSold: true,
         createdAt: true,
         updatedAt: true,
-        userId: true, // Include userId for filtering
+        userId: true,
         images: {
           where: { isPrimary: true },
         },
@@ -156,7 +295,6 @@ router.get('/', optionalAuth, async (req, res) => {
       orderBy,
     });
 
-    // Filter by tags if search query provided (MySQL JSON search)
     if (q) {
       const tagMatches = products.filter((product) => {
         if (product.tags && Array.isArray(product.tags)) {
@@ -166,41 +304,36 @@ router.get('/', optionalAuth, async (req, res) => {
         }
         return false;
       });
-      
-      // Merge tag matches with existing results (avoid duplicates)
-      const existingIds = new Set(products.map(p => p.id));
-      tagMatches.forEach(product => {
+
+      const existingIds = new Set(products.map((p) => p.id));
+      tagMatches.forEach((product) => {
         if (!existingIds.has(product.id)) {
           products.push(product);
         }
       });
     }
-    
-    // Final filter: Remove user's own listings if logged in (in case tag matching added them back)
+
     if (userId) {
-      products = products.filter(product => product.userId !== userId);
+      products = products.filter((product) => product.userId !== userId);
       console.log('After filtering user listings, products count:', products.length);
     }
 
-    // Apply relevance scoring if search query provided
     if (q) {
-      const scoredProducts = products.map(product => {
+      const scoredProducts = products.map((product) => {
         const relevanceScore = recommendationService.calculateRelevanceScore(product, q);
         const qualityScore = recommendationService.calculateListingQualityScore(product);
-        
+
         return {
           ...product,
           relevanceScore,
           qualityScore,
-          totalScore: relevanceScore + (qualityScore * 0.3), // Quality boosts relevance
+          totalScore: relevanceScore + qualityScore * 0.3,
         };
       });
-      
-      // Sort by relevance score (highest first)
+
       products = scoredProducts.sort((a, b) => b.totalScore - a.totalScore);
     } else if (sortBy === 'relevance' || sortBy === 'recommended') {
-      // If no query but relevance sort requested, use quality score
-      const scoredProducts = products.map(product => {
+      const scoredProducts = products.map((product) => {
         const qualityScore = recommendationService.calculateListingQualityScore(product);
         return {
           ...product,
@@ -208,7 +341,7 @@ router.get('/', optionalAuth, async (req, res) => {
           totalScore: qualityScore,
         };
       });
-      
+
       products = scoredProducts.sort((a, b) => b.totalScore - a.totalScore);
     }
 
@@ -240,4 +373,3 @@ router.get('/categories', async (req, res) => {
 });
 
 module.exports = router;
-

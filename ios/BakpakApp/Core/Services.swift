@@ -235,6 +235,22 @@ struct SocialService {
         }
         try await api.requestVoid(path: "/social/like/\(productId)", method: "DELETE")
     }
+
+    func save(productId: String) async throws {
+        if let c = await SupabaseManager.shared.clientWithValidSession(), SupabaseConfig.isConfigured {
+            try await SupabaseSocialService.setSaved(client: c, productId: productId, saved: true)
+            return
+        }
+        let _: APIMessage = try await api.request(path: "/social/save/\(productId)", method: "POST")
+    }
+
+    func unsave(productId: String) async throws {
+        if let c = await SupabaseManager.shared.clientWithValidSession(), SupabaseConfig.isConfigured {
+            try await SupabaseSocialService.setSaved(client: c, productId: productId, saved: false)
+            return
+        }
+        try await api.requestVoid(path: "/social/save/\(productId)", method: "DELETE")
+    }
 }
 
 struct MessageService {
@@ -280,6 +296,12 @@ struct MessageService {
         let payload = ["conversationId": conversationId, "content": content]
         let body = try JSONSerialization.data(withJSONObject: payload)
         return try await api.request(path: "/messages", method: "POST", body: body)
+    }
+
+    func markRead(conversationId: String) async throws {
+        if let c = await SupabaseManager.shared.clientWithValidSession(), SupabaseConfig.isConfigured {
+            try await SupabaseMessageService.markConversationRead(client: c, conversationId: conversationId)
+        }
     }
 }
 

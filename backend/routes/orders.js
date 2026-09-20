@@ -1,7 +1,7 @@
+const crypto = require('crypto');
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { protect } = require('../middleware/auth');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -45,23 +45,14 @@ router.post('/', protect, async (req, res) => {
 
     // Get seller ID (assuming all items from same seller for simplicity)
     const sellerId = products[0].userId;
-
-    // Create Stripe payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(total * 100), // Convert to cents
-      currency: 'usd',
-      metadata: {
-        buyerId: req.user.id,
-        sellerId: sellerId,
-      },
-    });
+    const paymentIntentId = `square:order:${crypto.randomUUID()}`;
 
     // Create order
     const order = await prisma.order.create({
       data: {
         total,
         shippingAddress,
-        paymentIntentId: paymentIntent.id,
+        paymentIntentId,
         buyerId: req.user.id,
         sellerId: sellerId,
         items: {
@@ -103,7 +94,6 @@ router.post('/', protect, async (req, res) => {
 
     res.status(201).json({
       order,
-      clientSecret: paymentIntent.client_secret,
     });
   } catch (error) {
     console.error('Create order error:', error);
@@ -252,33 +242,6 @@ router.put('/:id/status', protect, async (req, res) => {
     console.error('Update order status error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
-});
-
-// @route   POST /api/orders/webhook
-// @desc    Stripe webhook handler
-// @access  Public (Stripe calls this)
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-
-  let event;
-
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    return res.status(400).send(`Webhook signature verification failed. ${err.message}`);
-  }
-
-  // Handle the event
-  if (event.type === 'payment_intent.succeeded') {
-    const paymentIntent = event.data.object;
-    // Update order status
-    await prisma.order.updateMany({
-      where: { paymentIntentId: paymentIntent.id },
-      data: { status: 'processing' },
-    });
-  }
-
-  res.json({ received: true });
 });
 
 module.exports = router;

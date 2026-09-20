@@ -15,6 +15,7 @@ struct SquareConnectStatus: Decodable {
     let payoutsEnabled: Bool?
     let onboardingComplete: Bool?
     let detailsSubmitted: Bool?
+    let bankAccountsLinked: Bool?
     let requiresAction: Bool?
     let availableCents: Int?
     let pendingCents: Int?
@@ -24,6 +25,69 @@ struct SquareConnectStatus: Decodable {
     var availableDollars: Double {
         Double(availableCents ?? 0) / 100.0
     }
+}
+
+struct SellerPayoutProfile: Codable, Hashable {
+    var legalFirstName: String
+    var legalLastName: String
+    var email: String
+    var phone: String
+    var entityType: String
+    var businessName: String
+    var addressLine1: String
+    var addressLine2: String
+    var city: String
+    var state: String
+    var postalCode: String
+    var country: String
+    var hasIdReady: Bool
+    var hasBankReady: Bool
+    var currentStep: String
+    var overviewDone: Bool
+    var personalDone: Bool
+    var addressDone: Bool
+    var entityDone: Bool
+    var checklistDone: Bool
+    var squareConnectDone: Bool
+    var bankLinkDone: Bool
+    var completedAt: String?
+
+    static var empty: SellerPayoutProfile {
+        SellerPayoutProfile(
+            legalFirstName: "",
+            legalLastName: "",
+            email: "",
+            phone: "",
+            entityType: "individual",
+            businessName: "",
+            addressLine1: "",
+            addressLine2: "",
+            city: "",
+            state: "",
+            postalCode: "",
+            country: "US",
+            hasIdReady: false,
+            hasBankReady: false,
+            currentStep: "overview",
+            overviewDone: false,
+            personalDone: false,
+            addressDone: false,
+            entityDone: false,
+            checklistDone: false,
+            squareConnectDone: false,
+            bankLinkDone: false,
+            completedAt: nil
+        )
+    }
+}
+
+struct SellerPayoutProfileResponse: Decodable {
+    let profile: SellerPayoutProfile?
+    let squareConnected: Bool?
+}
+
+struct SellerPayoutProfileSaveResponse: Decodable {
+    let profile: SellerPayoutProfile?
 }
 
 struct SquareOAuthStartResponse: Decodable {
@@ -47,6 +111,20 @@ final class SquareConnectService {
 
     func fetchStatus() async throws -> SquareConnectStatus {
         try await api.request(path: "/payments/square/status")
+    }
+
+    func fetchPayoutProfile() async throws -> SellerPayoutProfileResponse {
+        try await api.request(path: "/payments/square/payout-profile")
+    }
+
+    func savePayoutProfile(_ profile: SellerPayoutProfile) async throws -> SellerPayoutProfile {
+        let body = try JSONEncoder().encode(profile)
+        let response: SellerPayoutProfileSaveResponse = try await api.request(
+            path: "/payments/square/payout-profile",
+            method: "PUT",
+            body: body
+        )
+        return response.profile ?? profile
     }
 
     func disconnect() async throws {

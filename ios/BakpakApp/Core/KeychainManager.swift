@@ -5,7 +5,7 @@ final class KeychainManager {
     static let shared = KeychainManager()
     private init() {}
 
-    private let service = "com.bakpak.app"
+    private let service = "com.popup.app"
     private let account = "auth.token"
 
     func saveToken(_ token: String) {

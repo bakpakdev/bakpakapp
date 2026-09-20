@@ -1,28 +1,26 @@
 {
   "expo": {
-    "name": "bakpak",
-    "slug": "bakpak",
+    "name": "popup",
+    "slug": "popup",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "bakpak",
+    "scheme": "popup",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.bakpak.app"
+      "bundleIdentifier": "com.popup.app"
     },
     "android": {
-      "package": "com.bakpak.app"
+      "package": "com.popup.app"
     },
     "web": {
       "bundler": "metro"
     },
     "extra": {
-      "eas": {
-        "projectId": "bakpak"
-      }
+      "apiPort": 5001
     }
   }
 }

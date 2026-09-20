@@ -1,0 +1,14 @@
+// Project Supabase URL (safe to commit). Anon key lives in gitignored Secrets.xcconfig.
+// IMPORTANT: In .xcconfig, `//` starts a comment. Use https:/$()/host so the URL is not truncated.
+SUPABASE_URL = https:/$()/mmmiywxemxwyikbysdop.supabase.co
+// After email confirm, Supabase redirects here so the link opens the app.
+// xcconfig: use popup:/$()/... so `//` is not treated as a comment.
+// Also add this exact URL under Supabase → Authentication → URL Configuration → Redirect URLs:
+//   popup://auth-callback
+SUPABASE_AUTH_REDIRECT_URL = popup:/$()/auth-callback
+// Payments API (Node backend with Square). Use your machine IP for device testing.
+API_BASE_URL = http:/$()/127.0.0.1:5001/api
+// Square application ID (sandbox-sq0idb-... or sq0idp-...). Secret stays in backend/.env.
+SQUARE_APPLICATION_ID =
+APPLE_PAY_MERCHANT_ID =
+#include? "Secrets.xcconfig"

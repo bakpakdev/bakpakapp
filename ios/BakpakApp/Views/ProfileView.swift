@@ -3,13 +3,11 @@ import SwiftUI
 // MARK: - Tabs (name avoids clash with `AppTab`)
 
 private enum ProfileContentTab: String, CaseIterable {
-    case shop, likes, saved, reviews
+    case shop, reviews
 
     var title: String {
         switch self {
         case .shop: return "Shop"
-        case .likes: return "Likes"
-        case .saved: return "Saved"
         case .reviews: return "Reviews"
         }
     }
@@ -30,12 +28,10 @@ struct ProfileView: View {
 
     @State private var stats = UserStats()
     @State private var products: [Product] = []
-    @State private var likedItems: [Product] = []
-    @State private var savedItems: [Product] = []
     @State private var activeTab: ProfileContentTab = .shop
     @State private var loadingListings = true
-    @State private var loadingLiked = false
-    @State private var loadingSaved = false
+    @State private var rankSnapshot: SellerRankSnapshot?
+    @State private var loadingRank = false
 
     private let feedColumns = 3
 
@@ -56,11 +52,7 @@ struct ProfileView: View {
         if let c = user?.country?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty {
             return c
         }
-        return "University of Oregon"
-    }
-
-    private var profileTags: [String] {
-        (UserDefaults.standard.array(forKey: "popup.editProfile.tags") as? [String]) ?? []
+        return campusTheme.fullName
     }
 
     private var instagramHandle: String? {
@@ -79,8 +71,6 @@ struct ProfileView: View {
     private var currentItems: [Product] {
         switch activeTab {
         case .shop: return activeShopItems
-        case .likes: return likedItems
-        case .saved: return savedItems
         case .reviews: return []
         }
     }
@@ -88,21 +78,19 @@ struct ProfileView: View {
     private var currentLoading: Bool {
         switch activeTab {
         case .shop: return loadingListings
-        case .likes: return loadingLiked
-        case .saved: return loadingSaved
         case .reviews: return false
         }
     }
 
     var body: some View {
         GeometryReader { geo in
-            let horizontalPad: CGFloat = 16
+            let horizontalPad: CGFloat = 20
             let gridGap: CGFloat = 10
             let usable = geo.size.width - (horizontalPad * 2) - (gridGap * CGFloat(feedColumns - 1))
             let itemSize = usable / CGFloat(feedColumns)
 
             ZStack(alignment: .top) {
-                campusTheme.wash.ignoresSafeArea()
+                campusTheme.background.ignoresSafeArea()
 
                 Circle()
                     .fill(campusTheme.primary.opacity(0.16))
@@ -118,45 +106,74 @@ struct ProfileView: View {
                     .offset(x: 150, y: 60)
                     .allowsHitTesting(false)
 
-                VStack(spacing: 0) {
-                    headerSection
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        headerSection
+                            .padding(.top, 56)
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 18)
 
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            profileSection
-                            tabBar
-                                .padding(.top, 4)
-                                .padding(.bottom, 16)
+                        identityCard
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 14)
 
-                            if currentLoading {
-                                ProgressView()
-                                    .tint(campusTheme.primary)
-                                    .padding(40)
-                            } else if activeTab == .shop {
-                                shopFeed(itemSize: itemSize, horizontalPad: horizontalPad, gridGap: gridGap)
-                            } else if currentItems.isEmpty {
-                                emptyFeedView
-                            } else {
-                                productGrid(
-                                    items: currentItems,
-                                    itemSize: itemSize,
-                                    horizontalPad: horizontalPad,
-                                    gridGap: gridGap
-                                )
-                            }
+                        shareClosetButton
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 22)
 
-                            Spacer(minLength: 100)
+                        statsRow
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 22)
+
+                        HStack(spacing: 10) {
+                            rankingCard
+                            sellerTiersComingSoonCard
                         }
+                        .padding(.horizontal, horizontalPad)
+                        .padding(.bottom, 22)
+
+                        accountActions
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 28)
+
+                        closetSectionHeader
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 12)
+
+                        tabBar
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 16)
+
+                        if currentLoading {
+                            ProgressView()
+                                .tint(campusTheme.primary)
+                                .padding(40)
+                        } else if activeTab == .shop {
+                            shopFeed(itemSize: itemSize, horizontalPad: horizontalPad, gridGap: gridGap)
+                        } else if currentItems.isEmpty {
+                            emptyFeedView
+                        } else {
+                            productGrid(
+                                items: currentItems,
+                                itemSize: itemSize,
+                                horizontalPad: horizontalPad,
+                                gridGap: gridGap
+                            )
+                        }
+
+                        Spacer(minLength: 110)
                     }
                 }
             }
             .preferredColorScheme(campusTheme.isDark ? .dark : .light)
+            .toolbar(.hidden, for: .navigationBar)
             .ignoresSafeArea(edges: .top)
         }
         .task {
             await authVM.refreshMe()
             await loadProducts()
             await loadStats()
+            await loadRank()
             applyProfileFocus(appState.profileFocusTab)
             openPendingProfileProductIfNeeded()
         }
@@ -166,68 +183,369 @@ struct ProfileView: View {
         .onChange(of: appState.profileReloadToken) { _ in
             Task {
                 await loadProducts()
+                await loadRank()
                 openPendingProfileProductIfNeeded()
             }
+        }
+        .onChange(of: authVM.user?.id) { _ in
+            products = []
         }
     }
 
     // MARK: Header
 
     private var headerSection: some View {
-        VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Profile")
+        HStack {
+            Text("Profile")
+                .font(Theme.syne(28, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+
+            Spacer()
+
+            Button {
+                appState.path.append(.accountSettings)
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .frame(width: 38, height: 38)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
+            }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+        }
+    }
+
+    // MARK: Identity
+
+    private var identityCard: some View {
+        HStack(alignment: .center, spacing: 14) {
+            AsyncImage(url: URL(string: user?.avatar ?? "")) { img in
+                img.resizable().scaledToFill()
+            } placeholder: {
+                ZStack {
+                    Color.white.opacity(0.08)
+                    Text(String(displayName.prefix(1)).uppercased())
                         .font(Theme.syne(26, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
-                    Text("@\(user?.username ?? "you")")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                }
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    headerIconButton(systemName: "square.and.arrow.up") {
-                        // Share — future
-                    }
-                    headerIconButton(systemName: "ellipsis") {
-                        appState.path.append(.accountSettings)
-                    }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 50)
-            .padding(.bottom, 12)
-            .background {
-                ZStack {
-                    Rectangle().fill(.ultraThinMaterial)
-                    LinearGradient(
-                        colors: [
-                            campusTheme.primary.opacity(0.14),
-                            campusTheme.secondary.opacity(0.08),
-                            campusTheme.surface.opacity(0.3),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+            .frame(width: 72, height: 72)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(displayName)
+                    .font(Theme.syne(20, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .lineLimit(1)
+
+                HStack(spacing: 8) {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(campusTheme.secondary)
+                            .frame(width: 6, height: 6)
+                        Text(campusTheme.shortName)
+                            .font(Theme.syne(10, weight: .black))
+                            .tracking(0.5)
+                    }
+                    .foregroundStyle(campusTheme.primary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(campusTheme.surface.opacity(0.7))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(campusTheme.primary.opacity(0.22), lineWidth: 1))
+
+                    if user?.isVerified == true {
+                        Text("Verified")
+                            .font(Theme.syne(11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(campusTheme.primary)
+                            .clipShape(Capsule())
+                    }
+                }
+
+                Text(universityLabel)
+                    .font(Theme.syne(13, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .background(Color.white.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
+    }
+
+    private var shareClosetButton: some View {
+        Button {
+            Motion.haptic(.light)
+            appState.path.append(.editProfile)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("Share your closet")
+                    .font(Theme.syne(14, weight: .bold))
+            }
+            .foregroundStyle(campusTheme.textPrimary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .background(Color.white.opacity(0.04))
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(campusTheme.primary.opacity(0.55), lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+    }
+
+    private var statsRow: some View {
+        HStack(spacing: 0) {
+            profileStat(value: "\(stats.products)", label: "Listings")
+            profileStat(value: "\(soldCount)", label: "Sold")
+            profileStat(value: "\(stats.followers)", label: "Followers")
+        }
+    }
+
+    private func profileStat(value: String, label: String) -> some View {
+        VStack(spacing: 6) {
+            Text(value)
+                .font(Theme.syne(24, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+            Text(label)
+                .font(Theme.syne(12, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var rankingCard: some View {
+        let stroke = campusTheme.isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
+        return Button {
+            Motion.haptic(.light)
+            if soldCount == 0 {
+                appState.selectedTab = .sell
+            } else {
+                appState.path.append(.leaderboard)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Grid rank")
+                    .font(Theme.syne(11, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+
+                if loadingRank && rankSnapshot == nil {
+                    ProgressView().tint(campusTheme.primary)
+                    Spacer(minLength: 0)
+                } else if soldCount == 0 {
+                    Text("Join the ranking")
+                        .font(Theme.syne(16, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("List your first item")
+                        .font(Theme.syne(11, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                    Spacer(minLength: 0)
+                    Text("Start selling")
+                        .font(Theme.syne(12, weight: .bold))
+                        .foregroundStyle(campusTheme.primary)
+                } else if let snap = rankSnapshot {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(snap.rankHeadlinePrimary)
+                            .font(Theme.syne(28, weight: .bold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                        Text(snap.rankHeadlineSecondary)
+                            .font(Theme.syne(12, weight: .semibold))
+                            .foregroundStyle(campusTheme.textMuted)
+                    }
+                    Text(snap.gridSubtitle)
+                        .font(Theme.syne(11, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                    if let delta = snap.weeklyDelta, delta != 0 {
+                        Text(delta > 0 ? "+\(delta) this week" : "\(delta) this week")
+                            .font(Theme.syne(11, weight: .bold))
+                            .foregroundStyle(campusTheme.primary)
+                    }
+                    Spacer(minLength: 0)
+                    HStack(spacing: 4) {
+                        Text("Leaderboard")
+                            .font(Theme.syne(12, weight: .bold))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .foregroundStyle(campusTheme.textPrimary)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .background(Color.white.opacity(campusTheme.isDark ? 0.06 : 0.55))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(stroke, lineWidth: 1)
+            )
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+        .aspectRatio(1, contentMode: .fit)
+    }
+
+    private var sellerTiersComingSoonCard: some View {
+        let stroke = campusTheme.isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Seller ranks")
+                .font(Theme.syne(11, weight: .semibold))
+                .foregroundStyle(campusTheme.textMuted)
+
+            Text("Coming soon")
+                .font(Theme.syne(16, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+
+            Text("Unlock tier badges as you close more campus sales — from first deal to top of the Grid.")
+                .font(Theme.syne(12, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+
+            Text("Soon")
+                .font(Theme.syne(11, weight: .bold))
+                .foregroundStyle(campusTheme.primary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(campusTheme.primary.opacity(0.12))
+                .clipShape(Capsule())
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(Color.white.opacity(campusTheme.isDark ? 0.06 : 0.55))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(stroke, lineWidth: 1)
+        )
+        .aspectRatio(1, contentMode: .fit)
+    }
+
+    private func loadRank() async {
+        loadingRank = true
+        defer { loadingRank = false }
+        rankSnapshot = await SellerRankService.shared.snapshot(
+            schoolID: campusTheme.schoolID,
+            schoolName: authVM.user?.country,
+            shortName: campusTheme.shortName,
+            currentUserId: authVM.user?.id,
+            currentUsername: authVM.user?.username,
+            currentAvatar: authVM.user?.avatar,
+            currentSoldHint: soldCount
+        )
+    }
+
+    private var accountActions: some View {
+        VStack(spacing: 10) {
+            accountRow(
+                icon: "person.crop.circle",
+                title: "Edit profile",
+                subtitle: "Name, bio, and campus details"
+            ) {
+                appState.path.append(.editProfile)
+            }
+            accountRow(
+                icon: "gearshape",
+                title: "Account settings",
+                subtitle: "Payouts, notifications, and privacy"
+            ) {
+                appState.path.append(.accountSettings)
+            }
+            accountRow(
+                icon: "heart",
+                title: "Liked items",
+                subtitle: "Pieces you’ve hearted"
+            ) {
+                appState.openProfileLikes()
+            }
+            accountRow(
+                icon: "bookmark",
+                title: "Saved items",
+                subtitle: "Come back to these later"
+            ) {
+                appState.openProfileSaved()
+            }
+            if let ig = instagramHandle, !ig.isEmpty,
+               let igURL = URL(string: "https://instagram.com/\(ig)") {
+                Link(destination: igURL) {
+                    accountRowContent(
+                        icon: "camera",
+                        title: "Instagram",
+                        subtitle: "@\(ig)"
                     )
                 }
-                .ignoresSafeArea(edges: .top)
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
             }
         }
     }
 
-    private func headerIconButton(systemName: String, action: @escaping () -> Void) -> some View {
+    private func accountRow(
+        icon: String,
+        title: String,
+        subtitle: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
-            Image(systemName: systemName)
+            accountRowContent(icon: icon, title: title, subtitle: subtitle)
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+    }
+
+    private func accountRowContent(icon: String, title: String, subtitle: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
-                .frame(width: 36, height: 36)
-                .background(campusTheme.surface.opacity(0.7))
+                .frame(width: 40, height: 40)
+                .background(Color.white.opacity(0.08))
                 .clipShape(Circle())
-                .overlay(Circle().stroke(campusTheme.primary.opacity(0.16), lineWidth: 1))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(Theme.syne(15, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                Text(subtitle)
+                    .font(Theme.syne(12, weight: .regular))
+                    .foregroundStyle(campusTheme.textMuted)
+            }
+
+            Spacer(minLength: 0)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(campusTheme.textMuted.opacity(0.7))
         }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var closetSectionHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Your closet")
+                .font(Theme.syne(20, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+            Text("Your listings on campus")
+                .font(Theme.syne(13, weight: .regular))
+                .foregroundStyle(campusTheme.textMuted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: Tab bar
@@ -240,184 +558,32 @@ struct ProfileView: View {
                     Motion.haptic(.light)
                 } label: {
                     Text(tab.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(activeTab == tab ? Color.white : campusTheme.textPrimary)
+                        .font(Theme.syne(13, weight: .semibold))
+                        .foregroundStyle(activeTab == tab ? Color.white : campusTheme.textMuted)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(activeTab == tab ? campusTheme.primary : campusTheme.surface.opacity(0.75))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .background(activeTab == tab ? campusTheme.primary : Color.white.opacity(0.06))
+                        .clipShape(Capsule())
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(campusTheme.primary.opacity(activeTab == tab ? 0 : 0.16), lineWidth: 1)
+                            Capsule()
+                                .stroke(activeTab == tab ? Color.clear : Color.white.opacity(0.1), lineWidth: 1)
                         )
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
             }
         }
-        .padding(.horizontal, 16)
-    }
-
-    // MARK: Profile block
-
-    private var profileSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center, spacing: 16) {
-                ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: URL(string: user?.avatar ?? "")) { img in
-                        img.resizable().scaledToFill()
-                    } placeholder: {
-                        ZStack {
-                            campusTheme.elevatedSurface
-                            Text(String(displayName.prefix(1)).uppercased())
-                                .font(Theme.syne(28, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
-                        }
-                    }
-                    .frame(width: 84, height: 84)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(campusTheme.primary.opacity(0.22), lineWidth: 2))
-
-                    if user?.isVerified == true {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(campusTheme.primary)
-                            .background(Circle().fill(campusTheme.surface).padding(-2))
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(displayName)
-                        .font(Theme.syne(22, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-
-                    HStack(spacing: 8) {
-                        HStack(spacing: 5) {
-                            Circle()
-                                .fill(campusTheme.secondary)
-                                .frame(width: 6, height: 6)
-                            Text(campusTheme.shortName)
-                                .font(Theme.syne(10, weight: .black))
-                                .tracking(0.5)
-                        }
-                        .foregroundStyle(campusTheme.primary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(campusTheme.surface.opacity(0.7))
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(campusTheme.primary.opacity(0.22), lineWidth: 1))
-
-                        Text(universityLabel)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(campusTheme.textMuted)
-                            .lineLimit(1)
-                    }
-                }
-            }
-
-            if let bio = user?.bio, !bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(bio)
-                    .font(.system(size: 14))
-                    .foregroundStyle(campusTheme.textMuted)
-                    .lineSpacing(3)
-            }
-
-            if !profileTags.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(profileTags, id: \.self) { tag in
-                            Text(tag)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(campusTheme.primary)
-                                .padding(.horizontal, 11)
-                                .padding(.vertical, 7)
-                                .background(campusTheme.primary.opacity(0.1))
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(campusTheme.primary.opacity(0.2), lineWidth: 1))
-                        }
-                    }
-                }
-            }
-
-            if let ig = instagramHandle, !ig.isEmpty,
-               let igURL = URL(string: "https://instagram.com/\(ig)") {
-                Link(destination: igURL) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("@\(ig)")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        LinearGradient(
-                            colors: [Color(hex: "#F58529"), Color(hex: "#DD2A7B"), Color(hex: "#8134AF")],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .clipShape(Capsule())
-                }
-            }
-
-            HStack(spacing: 10) {
-                profileStat(value: "\(stats.products)", label: "Listings")
-                profileStat(value: "\(soldCount)", label: "Sold")
-                profileStat(value: "\(stats.followers)", label: "Followers")
-                profileStat(value: "\(stats.following)", label: "Following")
-            }
-
-            Button {
-                appState.path.append(.editProfile)
-            } label: {
-                Text("Edit Profile")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 46)
-                    .background(campusTheme.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-        }
-        .padding(16)
-        .background(campusTheme.surface.opacity(0.78))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(campusTheme.primary.opacity(0.12), lineWidth: 1)
-        )
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 8)
-    }
-
-    private func profileStat(value: String, label: String) -> some View {
-        VStack(spacing: 3) {
-            Text(value)
-                .font(Theme.syne(16, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(campusTheme.textMuted)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(campusTheme.primary.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var emptyFeedView: some View {
         VStack(spacing: 12) {
             Image(systemName: emptyIcon)
-                .font(.system(size: 32, weight: .medium))
-                .foregroundStyle(campusTheme.primary.opacity(0.7))
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
             Text(emptyTitle)
                 .font(Theme.syne(17, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text(emptyMessage)
-                .font(.system(size: 14))
+                .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 28)
@@ -436,7 +602,7 @@ struct ProfileView: View {
             VStack(alignment: .leading, spacing: 22) {
                 if activeShopItems.isEmpty {
                     Text("No active listings")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(Theme.syne(14, weight: .medium))
                         .foregroundStyle(campusTheme.textMuted)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 18)
@@ -501,17 +667,13 @@ struct ProfileView: View {
     private var emptyIcon: String {
         switch activeTab {
         case .shop: return "tshirt"
-        case .likes: return "heart.fill"
-        case .saved: return "bookmark.fill"
-        case .reviews: return "star.fill"
+        case .reviews: return "star"
         }
     }
 
     private var emptyTitle: String {
         switch activeTab {
         case .shop: return "No listings yet"
-        case .likes: return "No likes yet"
-        case .saved: return "Nothing saved"
         case .reviews: return "No reviews yet"
         }
     }
@@ -519,30 +681,22 @@ struct ProfileView: View {
     private var emptyMessage: String {
         switch activeTab {
         case .shop: return "List a thrift find from the Sell tab and it’ll show up here."
-        case .likes: return "Tap the heart on items you love."
-        case .saved: return "Save pieces to revisit later."
         case .reviews: return "Reviews from campus buyers will land here."
         }
     }
 
     private func handleTabChange(_ tab: ProfileContentTab) {
         withAnimation(Motion.snappy) { activeTab = tab }
-        Task {
-            if tab == .likes, likedItems.isEmpty { await loadLikedItems() }
-            else if tab == .saved, savedItems.isEmpty { await loadSavedItems() }
-        }
     }
 
     private func applyProfileFocus(_ focus: ProfileFocusTab?) {
         guard let focus else { return }
-        let tab: ProfileContentTab
         switch focus {
-        case .shop: tab = .shop
-        case .likes: tab = .likes
-        case .saved: tab = .saved
-        case .reviews: tab = .reviews
+        case .shop:
+            handleTabChange(.shop)
+        case .reviews:
+            handleTabChange(.reviews)
         }
-        handleTabChange(tab)
         appState.profileFocusTab = nil
     }
 
@@ -554,7 +708,6 @@ struct ProfileView: View {
         }
     }
 
-    /// Legacy Express `GET /users/:id` may include `_count`; ignored when using Supabase-only.
     private func loadStats() async {
         guard let uid = authVM.user?.id else { return }
         struct UserCountDTO: Decodable {
@@ -607,32 +760,6 @@ struct ProfileView: View {
                 products = []
                 loadingListings = false
             }
-        }
-    }
-
-    private func loadLikedItems() async {
-        await MainActor.run { loadingLiked = true }
-        do {
-            let fetched = try await SocialService().likedItems()
-            await MainActor.run {
-                likedItems = fetched
-                loadingLiked = false
-            }
-        } catch {
-            await MainActor.run { loadingLiked = false }
-        }
-    }
-
-    private func loadSavedItems() async {
-        await MainActor.run { loadingSaved = true }
-        do {
-            let fetched = try await SocialService().savedItems()
-            await MainActor.run {
-                savedItems = fetched
-                loadingSaved = false
-            }
-        } catch {
-            await MainActor.run { loadingSaved = false }
         }
     }
 }

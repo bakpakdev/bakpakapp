@@ -1,7 +1,7 @@
 import React from 'react';
 import Svg, { Path, Text } from 'react-native-svg';
 
-export default function BakpakLogo({ size = 120, color = '#000' }) {
+export default function PopupLogo({ size = 120, color = '#000' }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 120 120" fill="none">
       {/* Backpack body - soft rounded rectangle */}
