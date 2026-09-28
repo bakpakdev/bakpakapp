@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		DAE86350A55BC5E73E7271CF /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66D9FFD25B3D140635275E0 /* AppState.swift */; };
-		4B860738CD3EC607410C174B /* BakpakApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFAA6DD23B3B637CF0DB3505 /* BakpakApp.swift */; };
 		8310150B931ED1F0C4488B65 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F65FB2BACE081D840BA09A7A /* ContentView.swift */; };
 		8D3B125EE6F044AAD1D9B07E /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12CC73616E80F0C84E88F9D /* APIClient.swift */; };
 		D50FBEF5F1B99F41C6E8D266 /* AccountScopedDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44C34EE2D8CEBBAC83C6E41C /* AccountScopedDefaults.swift */; };
@@ -38,6 +37,7 @@
 		2D3444260046C5664B38D399 /* ViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61367FF9C52CD115DCC53F0D /* ViewModels.swift */; };
 		D58549C87E9CEA8A1E0AAFA1 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6B89003254FBAD68BEF8311 /* MainTabView.swift */; };
 		6A699EAC5C2E8018BFD61DA9 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8244B010A83CB27CA4046F76 /* Motion.swift */; };
+		5CA92B2235FAF49AB4F9BDCA /* PopupApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9983E982FEE631A9D7992CC5 /* PopupApp.swift */; };
 		F7B878E76D34C9320254616B /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5F9304ACEA643330481F86E /* RootView.swift */; };
 		A875372744A534A414CAF614 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C384FB88BAE66F0E88F1FDC7 /* Theme.swift */; };
 		9188D89EB0563EF22A25B4E8 /* AccountDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C28541EC008496C9BC3C5C /* AccountDetailsView.swift */; };
@@ -97,7 +97,6 @@
 		A2D273722051DFBB3CC60E4E /* SupabaseProject.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = SupabaseProject.xcconfig; sourceTree = "<group>"; };
 		3284D144C80F0189F808793F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B66D9FFD25B3D140635275E0 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AppState.swift'; sourceTree = "<group>"; };
-		EFAA6DD23B3B637CF0DB3505 /* BakpakApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'BakpakApp.swift'; sourceTree = "<group>"; };
 		F65FB2BACE081D840BA09A7A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ContentView.swift'; sourceTree = "<group>"; };
 		A12CC73616E80F0C84E88F9D /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'APIClient.swift'; sourceTree = "<group>"; };
 		44C34EE2D8CEBBAC83C6E41C /* AccountScopedDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AccountScopedDefaults.swift'; sourceTree = "<group>"; };
@@ -127,6 +126,7 @@
 		61367FF9C52CD115DCC53F0D /* ViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ViewModels.swift'; sourceTree = "<group>"; };
 		F6B89003254FBAD68BEF8311 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MainTabView.swift'; sourceTree = "<group>"; };
 		8244B010A83CB27CA4046F76 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Motion.swift'; sourceTree = "<group>"; };
+		9983E982FEE631A9D7992CC5 /* PopupApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'PopupApp.swift'; sourceTree = "<group>"; };
 		B5F9304ACEA643330481F86E /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'RootView.swift'; sourceTree = "<group>"; };
 		C384FB88BAE66F0E88F1FDC7 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Theme.swift'; sourceTree = "<group>"; };
 		14C28541EC008496C9BC3C5C /* AccountDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AccountDetailsView.swift'; sourceTree = "<group>"; };
@@ -221,10 +221,10 @@
 				1570962869F528A09563347E /* PopupApp.entitlements */,
 				3284D144C80F0189F808793F /* Assets.xcassets */,
 				B66D9FFD25B3D140635275E0 /* AppState.swift */,
-				EFAA6DD23B3B637CF0DB3505 /* BakpakApp.swift */,
 				F65FB2BACE081D840BA09A7A /* ContentView.swift */,
 				F6B89003254FBAD68BEF8311 /* MainTabView.swift */,
 				8244B010A83CB27CA4046F76 /* Motion.swift */,
+				9983E982FEE631A9D7992CC5 /* PopupApp.swift */,
 				B5F9304ACEA643330481F86E /* RootView.swift */,
 				C384FB88BAE66F0E88F1FDC7 /* Theme.swift */,
 				0F6C3972D754D3BD9E79F393 /* Core */,
@@ -417,7 +417,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				DAE86350A55BC5E73E7271CF /* AppState.swift in Sources */,
-				4B860738CD3EC607410C174B /* BakpakApp.swift in Sources */,
 				8310150B931ED1F0C4488B65 /* ContentView.swift in Sources */,
 				8D3B125EE6F044AAD1D9B07E /* APIClient.swift in Sources */,
 				D50FBEF5F1B99F41C6E8D266 /* AccountScopedDefaults.swift in Sources */,
@@ -447,6 +446,7 @@
 				2D3444260046C5664B38D399 /* ViewModels.swift in Sources */,
 				D58549C87E9CEA8A1E0AAFA1 /* MainTabView.swift in Sources */,
 				6A699EAC5C2E8018BFD61DA9 /* Motion.swift in Sources */,
+				5CA92B2235FAF49AB4F9BDCA /* PopupApp.swift in Sources */,
 				F7B878E76D34C9320254616B /* RootView.swift in Sources */,
 				A875372744A534A414CAF614 /* Theme.swift in Sources */,
 				9188D89EB0563EF22A25B4E8 /* AccountDetailsView.swift in Sources */,

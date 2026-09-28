@@ -41,6 +41,8 @@ backend/uploads/
 # Native iOS (script local build output)
 ios/build/
 ios/Config/Secrets.xcconfig
+ios/__pycache__/
+**/__pycache__/
 
 
 # Frontend
@@ -54,3 +56,6 @@ frontend/web-build/
 *.sqlite
 
 desktop.ini
+
+# Xcode per-user state
+xcuserdata/
