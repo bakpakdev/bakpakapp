@@ -95,7 +95,21 @@ struct IdentifyClothingView: View {
 
     var body: some View {
         ZStack {
-            campusTheme.wash.ignoresSafeArea()
+            campusTheme.background.ignoresSafeArea()
+
+            Circle()
+                .fill(campusTheme.primary.opacity(0.18))
+                .frame(width: 300, height: 300)
+                .blur(radius: 55)
+                .offset(x: -150, y: -110)
+                .allowsHitTesting(false)
+
+            Circle()
+                .fill(campusTheme.secondary.opacity(0.14))
+                .frame(width: 260, height: 260)
+                .blur(radius: 60)
+                .offset(x: 175, y: 20)
+                .allowsHitTesting(false)
 
             if hasResult {
                 confirmationScroll
@@ -144,25 +158,60 @@ struct IdentifyClothingView: View {
         }
     }
 
+    private func pageHeader(title: String, subtitle: String, caption: String?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(Theme.syne(36, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+            Text(subtitle)
+                .font(Theme.syne(28, weight: .semibold))
+                .foregroundStyle(campusTheme.textMuted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            if let caption {
+                Text(caption)
+                    .font(Theme.syne(14, weight: .regular))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 10)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
+        .padding(.bottom, 22)
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(Theme.syne(18, weight: .semibold))
+            .foregroundStyle(campusTheme.textPrimary)
+    }
+
+    private func cardBackground(cornerRadius: CGFloat = 26) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(campusTheme.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(campusTheme.border, lineWidth: 1)
+            )
+    }
+
     private var captureLanding: some View {
         VStack(spacing: 0) {
-            Text("Scan to sell")
-                .font(Theme.syne(17, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+            pageHeader(
+                title: "sell",
+                subtitle: "scan your piece",
+                caption: photos.isEmpty
+                    ? "Take a photo of your item. We’ll identify it for you."
+                    : "Add up to 5 photos. We’ll use all of them to identify the listing."
+            )
 
-            Text(photos.isEmpty
-                 ? "Take a photo of your item. We’ll identify it for you."
-                 : "Add up to 5 photos. We’ll use all of them to identify the listing.")
-                .font(Theme.syne(13))
-                .foregroundStyle(campusTheme.textMuted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 16)
-
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
+                    if !photos.isEmpty {
+                        sectionTitle("your photos")
+                    }
                     if photos.isEmpty {
                         cameraFirstPrompt
                     } else {
@@ -181,10 +230,11 @@ struct IdentifyClothingView: View {
                                 .multilineTextAlignment(.center)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.top, 4)
+                        .padding(16)
+                        .background(cardBackground())
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 24)
             }
 
@@ -219,20 +269,18 @@ struct IdentifyClothingView: View {
     }
 
     private var cameraFirstPrompt: some View {
-        VStack(spacing: 18) {
-            ZStack {
-                Circle()
-                    .fill(campusTheme.primary.opacity(0.12))
-                    .frame(width: 120, height: 120)
-                Image(systemName: "camera.viewfinder")
-                    .font(.system(size: 44, weight: .semibold))
-                    .foregroundStyle(campusTheme.primary)
-            }
-            .padding(.top, 24)
+        VStack(spacing: 16) {
+            Image(systemName: "camera.viewfinder")
+                .font(.system(size: 38, weight: .medium))
+                .foregroundStyle(campusTheme.primary)
+                .frame(width: 104, height: 104)
+                .background(Circle().fill(campusTheme.elevatedSurface))
+                .padding(.top, 10)
 
             Text("Point your camera at the item")
                 .font(Theme.syne(18, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
+                .multilineTextAlignment(.center)
 
             Button {
                 Motion.haptic(.medium)
@@ -254,21 +302,20 @@ struct IdentifyClothingView: View {
                 }
                 .foregroundStyle(campusTheme.textPrimary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(campusTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(campusTheme.border, lineWidth: 1)
-                )
+                .frame(height: 58)
+                .background(campusTheme.elevatedSurface)
+                .clipShape(Capsule())
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
 
             Text("Pick up to 5 photos from your camera roll")
                 .font(Theme.syne(12))
                 .foregroundStyle(campusTheme.textMuted)
+                .padding(.bottom, 4)
         }
+        .padding(16)
         .frame(maxWidth: .infinity)
+        .background(cardBackground())
     }
 
     private var photoGrid: some View {
@@ -282,16 +329,16 @@ struct IdentifyClothingView: View {
                         .frame(height: 108)
                         .frame(maxWidth: .infinity)
                         .clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     if idx == 0 {
                         Text("Cover")
                             .font(Theme.syne(9, weight: .bold))
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
                             .background(campusTheme.primary)
                             .clipShape(Capsule())
-                            .padding(6)
+                            .padding(8)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                     }
                     Button {
@@ -304,7 +351,7 @@ struct IdentifyClothingView: View {
                             .background(Color.black.opacity(0.55))
                             .clipShape(Circle())
                     }
-                    .padding(6)
+                    .padding(8)
                 }
             }
             if remainingSlots > 0 {
@@ -322,29 +369,24 @@ struct IdentifyClothingView: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(Circle().fill(campusTheme.elevatedSurface))
                 Text(title)
-                    .font(Theme.syne(12, weight: .bold))
+                    .font(Theme.syne(12, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
             }
-            .foregroundStyle(campusTheme.primary)
             .frame(maxWidth: .infinity)
             .frame(height: 108)
-            .background(campusTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(campusTheme.primary.opacity(0.22), lineWidth: 1)
-            )
+            .background(cardBackground(cornerRadius: 20))
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
     }
 
     private var confirmationScroll: some View {
         VStack(spacing: 0) {
-            Text("Is this the item?")
-                .font(Theme.syne(17, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-                .padding(.vertical, 12)
+            pageHeader(title: "review", subtitle: "is this the item?", caption: nil)
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
@@ -354,13 +396,14 @@ struct IdentifyClothingView: View {
                         notice(icon: "questionmark.circle.fill", text: "We’re not fully sure — confirm or edit anything that’s off.")
                     }
 
+                    sectionTitle("details")
+                        .padding(.top, 6)
+
                     summaryCard
 
                     if let urls = result?.sourceUrls, !urls.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Verified via")
-                                .font(Theme.syne(12, weight: .bold))
-                                .foregroundStyle(campusTheme.textMuted)
+                        VStack(alignment: .leading, spacing: 8) {
+                            sectionTitle("verified via")
                             ForEach(urls.prefix(3), id: \.absoluteString) { url in
                                 Link(destination: url) {
                                     Text(url.host ?? url.absoluteString)
@@ -376,7 +419,7 @@ struct IdentifyClothingView: View {
                         .font(Theme.syne(12))
                         .foregroundStyle(campusTheme.textMuted)
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 24)
             }
 
@@ -395,12 +438,12 @@ struct IdentifyClothingView: View {
                         goToListing()
                     } label: {
                         Text("Edit")
-                            .font(Theme.syne(14, weight: .bold))
+                            .font(Theme.syne(14, weight: .semibold))
                             .foregroundStyle(campusTheme.textPrimary)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 46)
+                            .frame(height: 52)
                             .background(campusTheme.elevatedSurface)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .clipShape(Capsule())
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
 
@@ -409,20 +452,20 @@ struct IdentifyClothingView: View {
                         identifyError = nil
                     } label: {
                         Text("Change photos")
-                            .font(Theme.syne(14, weight: .bold))
-                            .foregroundStyle(campusTheme.primary)
+                            .font(Theme.syne(14, weight: .semibold))
+                            .foregroundStyle(campusTheme.textPrimary)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 46)
-                            .background(campusTheme.primary.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .frame(height: 52)
+                            .background(campusTheme.surface)
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 20)
             .padding(.bottom, 16)
             .padding(.top, 8)
-            .background(campusTheme.surface.opacity(0.94))
         }
     }
 
@@ -433,9 +476,9 @@ struct IdentifyClothingView: View {
                     Image(uiImage: photo.image)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 92, height: 92)
+                        .frame(width: 104, height: 104)
                         .clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
             }
         }
@@ -457,12 +500,8 @@ struct IdentifyClothingView: View {
             divider
             summaryRow(field: .color, label: "Color", value: draftColor)
         }
-        .background(campusTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(campusTheme.primary.opacity(0.12), lineWidth: 1)
-        )
+        .background(cardBackground())
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
 
     private var draftPriceSummary: String {
@@ -503,16 +542,16 @@ struct IdentifyClothingView: View {
                     Text("Edit")
                         .font(Theme.syne(12, weight: .bold))
                         .foregroundStyle(campusTheme.primary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(campusTheme.primary.opacity(0.12))
+                        .padding(.horizontal, 14)
+                        .frame(height: 32)
+                        .background(campusTheme.elevatedSurface)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 13)
     }
 
     private func summaryEditSheet(_ field: SummaryField) -> some View {
@@ -583,10 +622,10 @@ struct IdentifyClothingView: View {
                 .font(Theme.syne(13))
                 .foregroundStyle(campusTheme.textMuted)
         }
-        .padding(12)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(campusTheme.primary.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private var identifyingOverlay: some View {
@@ -598,7 +637,7 @@ struct IdentifyClothingView: View {
                         .resizable()
                         .scaledToFill()
                         .frame(width: 92, height: 92)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
                 ProgressView()
                     .tint(campusTheme.primary)
@@ -611,7 +650,7 @@ struct IdentifyClothingView: View {
             }
             .padding(28)
             .background(campusTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         }
     }
 
@@ -620,9 +659,9 @@ struct IdentifyClothingView: View {
             .font(Theme.syne(16, weight: .bold))
             .foregroundStyle(filled ? Color.white : campusTheme.primary)
             .frame(maxWidth: .infinity)
-            .frame(height: 50)
+            .frame(height: 58)
             .background(filled ? campusTheme.primary : campusTheme.primary.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(Capsule())
     }
 
     private func appendPhotos(_ images: [UIImage]) {
@@ -735,9 +774,10 @@ struct IdentifyClothingView: View {
 private struct IdentifyFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
-            .padding(12)
+            .padding(.horizontal, 18)
+            .frame(height: 54)
             .background(Color.gray.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(Capsule())
     }
 }
 

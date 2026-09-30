@@ -27,85 +27,6 @@ private let popularSearchBrands = [
 private var recentSearchesKey: String { AccountScopedDefaults.key("popup.recent_searches") }
 private let maxRecentSearches = 4
 
-private extension Product {
-    var searchPrimaryImage: ProductImage? {
-        images?.first(where: { $0.isPrimary == true }) ?? images?.first
-    }
-}
-
-// MARK: - Product card (Home-matched)
-
-private struct SearchProductCard: View {
-    let product: Product
-    let onTap: () -> Void
-    @Environment(\.campusTheme) private var campusTheme
-
-    private var sizeLabel: String? {
-        guard let size = product.size?.trimmingCharacters(in: .whitespacesAndNewlines), !size.isEmpty else {
-            return nil
-        }
-        return size.uppercased()
-    }
-
-    private var brandLabel: String? {
-        guard let brand = product.brand?.trimmingCharacters(in: .whitespacesAndNewlines), !brand.isEmpty else {
-            return nil
-        }
-        return brand.uppercased()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Color.clear
-                .aspectRatio(0.82, contentMode: .fit)
-                .overlay {
-                    AsyncImage(url: URL(string: product.searchPrimaryImage?.url ?? "")) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        Color.white.opacity(0.06)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(alignment: .topTrailing) {
-                    if let sizeLabel {
-                        Text(sizeLabel)
-                            .font(Theme.syne(11, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
-                            .background(Color.black.opacity(0.48))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .padding(10)
-                    }
-                }
-
-            VStack(alignment: .leading, spacing: 3) {
-                if let brandLabel {
-                    Text(brandLabel)
-                        .font(Theme.syne(10, weight: .semibold))
-                        .tracking(0.6)
-                        .foregroundStyle(campusTheme.textMuted)
-                        .lineLimit(1)
-                }
-
-                Text(product.title)
-                    .font(Theme.syne(14, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .lineLimit(1)
-
-                Text("$\(Int(product.price))")
-                    .font(Theme.syne(15, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .pressableCard { onTap() }
-    }
-}
-
 // MARK: - Search tab
 
 struct SearchView: View {
@@ -143,8 +64,8 @@ struct SearchView: View {
     }
 
     private let columns = [
-        GridItem(.flexible(), spacing: 14),
-        GridItem(.flexible(), spacing: 14),
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12),
     ]
 
     var body: some View {
@@ -168,19 +89,13 @@ struct SearchView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     headerBlock
-                        .padding(.top, 56)
+                        .padding(.top, 60)
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 8)
-
-                    Text("Find thrift finds by brand, style, or category")
-                        .font(Theme.syne(14, weight: .regular))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 18)
+                        .padding(.bottom, 22)
 
                     searchBar
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 14)
+                        .padding(.bottom, 26)
 
                     if showResults && !searchFieldFocused {
                         resultsFilterRow
@@ -252,10 +167,17 @@ struct SearchView: View {
     // MARK: Header + search (scroll-integrated)
 
     private var headerBlock: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text("Search")
-                .font(Theme.syne(30, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("search")
+                    .font(Theme.syne(36, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                Text("brands, styles & more")
+                    .font(Theme.syne(28, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
 
             Spacer(minLength: 8)
 
@@ -265,18 +187,17 @@ struct SearchView: View {
             } label: {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(campusTheme.textPrimary)
-                        .frame(width: 38, height: 38)
-                        .background(Color.white.opacity(0.06))
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        .frame(width: 62, height: 62)
+                        .background(campusTheme.elevatedSurface)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
 
                     if notificationUnread > 0 {
                         Circle()
                             .fill(campusTheme.primary)
-                            .frame(width: 8, height: 8)
-                            .offset(x: 1, y: 1)
+                            .frame(width: 9, height: 9)
+                            .offset(x: -16, y: 16)
                             .transition(.scale.combined(with: .opacity))
                     }
                 }
@@ -290,8 +211,9 @@ struct SearchView: View {
     private var searchBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(campusTheme.textMuted)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(campusTheme.textPrimary)
+                .padding(.leading, 6)
 
             TextField(
                 "",
@@ -315,47 +237,82 @@ struct SearchView: View {
 
             if showResults {
                 Button(action: clearAll) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 15))
-                        .foregroundStyle(campusTheme.textMuted)
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(width: 50, height: 50)
+                        .background(campusTheme.elevatedSurface)
+                        .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+                .accessibilityLabel("Clear search")
             }
         }
-        .padding(.horizontal, 16)
-        .frame(height: 48)
-        .background(Color.white.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.leading, 16)
+        .padding(.trailing, showResults ? 6 : 16)
+        .frame(height: 62)
+        .background(campusTheme.surface)
+        .clipShape(Capsule())
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            Capsule()
                 .stroke(
-                    searchFieldFocused
-                        ? campusTheme.primary.opacity(0.45)
-                        : Color.white.opacity(0.1),
+                    searchFieldFocused ? campusTheme.primary.opacity(0.45) : campusTheme.border,
                     lineWidth: 1
                 )
         )
     }
 
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(Theme.syne(18, weight: .semibold))
+            .foregroundStyle(campusTheme.textPrimary)
+    }
+
+    private func listCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(spacing: 0, content: content)
+            .background(campusTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .stroke(campusTheme.border, lineWidth: 1)
+            )
+            .padding(.horizontal, 20)
+    }
+
+    private func rowIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(campusTheme.textPrimary)
+            .frame(width: 36, height: 36)
+            .background(campusTheme.elevatedSurface)
+            .clipShape(Circle())
+    }
+
     private var resultsFilterRow: some View {
         HStack {
             if category != "all" {
-                HStack(spacing: 6) {
+                HStack(spacing: 10) {
+                    Image(systemName: categoryIcon(for: category))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color.white.opacity(0.18)))
+                        .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
                     Text(categoryLabel(for: category))
-                        .font(Theme.syne(13, weight: .semibold))
+                        .font(Theme.syne(14, weight: .semibold))
                         .foregroundStyle(.white)
                     Button {
                         withAnimation(Motion.snappy) { category = "all" }
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.9))
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.leading, 14)
-                .padding(.trailing, 10)
-                .frame(height: 36)
+                .padding(.leading, 5)
+                .padding(.trailing, 16)
+                .frame(height: 46)
                 .background(campusTheme.primary)
                 .clipShape(Capsule())
             }
@@ -365,18 +322,17 @@ struct SearchView: View {
             Button {
                 // Sort — hook later
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 12))
+                        .font(.system(size: 13, weight: .medium))
                     Text("Sort")
-                        .font(Theme.syne(12, weight: .medium))
+                        .font(Theme.syne(13, weight: .semibold))
                 }
-                .foregroundStyle(campusTheme.textMuted)
-                .padding(.horizontal, 14)
-                .frame(height: 36)
-                .background(Color.white.opacity(0.06))
+                .foregroundStyle(campusTheme.textPrimary)
+                .padding(.horizontal, 16)
+                .frame(height: 46)
+                .background(campusTheme.elevatedSurface)
                 .clipShape(Capsule())
-                .overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 1))
             }
             .buttonStyle(.plain)
         }
@@ -387,11 +343,9 @@ struct SearchView: View {
     private var predictionContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? "Popular searches"
-                    : "Search suggestions")
-                    .font(Theme.syne(13, weight: .semibold))
-                    .foregroundStyle(campusTheme.textMuted)
+                sectionTitle(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "popular searches"
+                    : "search suggestions")
                 Spacer()
                 if !query.isEmpty {
                     Text("\(liveSuggestions.count) suggestions")
@@ -418,16 +372,13 @@ struct SearchView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
             } else {
-                VStack(spacing: 0) {
+                listCard {
                     ForEach(liveSuggestions) { suggestion in
                         Button {
                             selectPrediction(suggestion)
                         } label: {
                             HStack(spacing: 12) {
-                                Image(systemName: predictionIcon(for: suggestion))
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(campusTheme.textMuted)
-                                    .frame(width: 20)
+                                rowIcon(predictionIcon(for: suggestion))
 
                                 highlightedPrediction(suggestion.text)
 
@@ -437,26 +388,19 @@ struct SearchView: View {
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(campusTheme.textMuted)
                             }
-                            .padding(.horizontal, 16)
-                            .frame(height: 48)
+                            .padding(.horizontal, 12)
+                            .frame(height: 56)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
 
                         if suggestion.id != liveSuggestions.last?.id {
                             Divider()
-                                .overlay(Color.white.opacity(0.08))
-                                .padding(.leading, 48)
+                                .overlay(campusTheme.border)
+                                .padding(.leading, 60)
                         }
                     }
                 }
-                .background(Color.white.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                )
-                .padding(.horizontal, 20)
             }
         }
         .padding(.top, 4)
@@ -488,7 +432,7 @@ struct SearchView: View {
         VStack(alignment: .leading, spacing: 0) {
             if !recentSearches.isEmpty {
                 trendingSection(
-                    title: "Recent Searches",
+                    title: "recent searches",
                     terms: recentSearches,
                     icon: "clock"
                 )
@@ -496,7 +440,7 @@ struct SearchView: View {
             }
 
             trendingSection(
-                title: "Trending Searches",
+                title: "trending searches",
                 terms: trendingSearchTerms,
                 icon: "arrow.up.right"
             )
@@ -512,53 +456,40 @@ struct SearchView: View {
 
     private func trendingSection(title: String, terms: [String], icon: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(Theme.syne(13, weight: .semibold))
-                .foregroundStyle(campusTheme.textMuted)
+            sectionTitle(title)
                 .padding(.horizontal, 20)
 
-            VStack(spacing: 0) {
+            listCard {
                 ForEach(terms, id: \.self) { term in
                     Button {
                         selectPrediction(SearchSuggestion(text: term, type: "trending", score: 1))
                     } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: icon)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(campusTheme.textMuted)
+                        HStack(spacing: 12) {
+                            rowIcon(icon)
                             Text(term)
                                 .font(Theme.syne(14, weight: .medium))
                                 .foregroundStyle(campusTheme.textPrimary)
                             Spacer()
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, 12)
+                        .frame(height: 56)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
 
                     if term != terms.last {
                         Divider()
-                            .overlay(Color.white.opacity(0.08))
-                            .padding(.leading, 42)
+                            .overlay(campusTheme.border)
+                            .padding(.leading, 60)
                     }
                 }
             }
-            .background(Color.white.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
-            )
-            .padding(.horizontal, 20)
         }
     }
 
     private var categoryTiles: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Browse Categories")
-                .font(Theme.syne(13, weight: .semibold))
-                .foregroundStyle(campusTheme.textMuted)
+            sectionTitle("browse categories")
                 .padding(.horizontal, 20)
 
             LazyVGrid(columns: columns, spacing: 12) {
@@ -568,26 +499,28 @@ struct SearchView: View {
                         Motion.haptic(.light)
                         withAnimation(Motion.snappy) { category = cat.id }
                     } label: {
-                        VStack(spacing: 10) {
+                        VStack(spacing: 12) {
                             Image(systemName: cat.icon)
-                                .font(.system(size: 22, weight: .semibold))
-                                .foregroundStyle(isActive ? Color.white : campusTheme.textMuted)
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
+                                .frame(width: 52, height: 52)
+                                .background(
+                                    Circle().fill(isActive ? Color.white.opacity(0.18) : campusTheme.elevatedSurface)
+                                )
+                                .overlay(
+                                    Circle().stroke(isActive ? Color.white.opacity(0.35) : Color.clear, lineWidth: 1)
+                                )
                             Text(cat.name)
-                                .font(Theme.syne(14, weight: .bold))
+                                .font(Theme.syne(15, weight: .bold))
                                 .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 108)
-                        .background(isActive ? campusTheme.primary : Color.white.opacity(campusTheme.isDark ? 0.06 : 0.55))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .frame(height: 128)
+                        .background(isActive ? campusTheme.primary : campusTheme.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(
-                                    isActive
-                                        ? Color.clear
-                                        : (campusTheme.isDark ? Color.white.opacity(0.22) : Color.black.opacity(0.14)),
-                                    lineWidth: 1
-                                )
+                            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                                .stroke(isActive ? Color.clear : campusTheme.border, lineWidth: 1)
                         )
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
@@ -599,31 +532,30 @@ struct SearchView: View {
 
     private var brandScroller: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Shop by brand")
-                .font(Theme.syne(13, weight: .semibold))
-                .foregroundStyle(campusTheme.textMuted)
+            sectionTitle("shop by brand")
                 .padding(.horizontal, 20)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     ForEach(popularSearchBrands, id: \.self) { brand in
                         Button {
                             selectPrediction(SearchSuggestion(text: brand, type: "brand", score: 1))
                         } label: {
-                            Text(brand)
-                                .font(Theme.syne(13, weight: .semibold))
-                                .foregroundStyle(campusTheme.textPrimary)
-                                .padding(.horizontal, 16)
-                                .frame(height: 40)
-                                .background(Color.white.opacity(campusTheme.isDark ? 0.06 : 0.55))
-                                .clipShape(Capsule())
-                                .overlay(
-                                    Capsule()
-                                        .stroke(
-                                            campusTheme.isDark ? Color.white.opacity(0.22) : Color.black.opacity(0.14),
-                                            lineWidth: 1
-                                        )
-                                )
+                            HStack(spacing: 10) {
+                                Text(String(brand.prefix(1)))
+                                    .font(Theme.syne(15, weight: .bold))
+                                    .foregroundStyle(campusTheme.textPrimary)
+                                    .frame(width: 42, height: 42)
+                                    .background(Circle().fill(campusTheme.surface))
+                                Text(brand)
+                                    .font(Theme.syne(14, weight: .semibold))
+                                    .foregroundStyle(campusTheme.textPrimary)
+                            }
+                            .padding(.leading, 5)
+                            .padding(.trailing, 18)
+                            .frame(height: 52)
+                            .background(campusTheme.elevatedSurface)
+                            .clipShape(Capsule())
                         }
                         .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
                     }
@@ -638,19 +570,16 @@ struct SearchView: View {
     private var resultsContent: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Text(resultsTitle)
-                    .font(Theme.syne(18, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
+                sectionTitle(resultsTitle)
                     .lineLimit(1)
                 Spacer()
                 Text("\(filteredProducts.count) items")
                     .font(Theme.syne(12, weight: .semibold))
-                    .foregroundStyle(campusTheme.textMuted)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.06))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .padding(.horizontal, 12)
+                    .frame(height: 30)
+                    .background(campusTheme.elevatedSurface)
                     .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 1))
             }
             .padding(.horizontal, 20)
 
@@ -662,9 +591,9 @@ struct SearchView: View {
             } else if filteredProducts.isEmpty {
                 emptyState
             } else {
-                LazyVGrid(columns: columns, spacing: 18) {
+                LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(filteredProducts) { product in
-                        SearchProductCard(
+                        HomeProductCard(
                             product: product,
                             onTap: { appState.path.append(.productDetail(product.id)) }
                         )
@@ -678,9 +607,9 @@ struct SearchView: View {
 
     private var resultsTitle: String {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !q.isEmpty { return "Results for \"\(q)\"" }
-        if category != "all" { return categoryLabel(for: category) }
-        return "Thrift finds"
+        if !q.isEmpty { return "results for \"\(q)\"" }
+        if category != "all" { return categoryLabel(for: category).lowercased() }
+        return "thrift finds"
     }
 
     private var emptyState: some View {
@@ -744,6 +673,10 @@ struct SearchView: View {
         case "listing": return "tshirt"
         default: return "magnifyingglass"
         }
+    }
+
+    private func categoryIcon(for id: String) -> String {
+        searchCategoryTiles.first(where: { $0.id == id })?.icon ?? "tag"
     }
 
     private func categoryLabel(for id: String) -> String {

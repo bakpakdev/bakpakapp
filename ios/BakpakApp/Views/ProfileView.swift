@@ -11,6 +11,13 @@ private enum ProfileContentTab: String, CaseIterable {
         case .reviews: return "Reviews"
         }
     }
+
+    var icon: String {
+        switch self {
+        case .shop: return "tshirt"
+        case .reviews: return "star"
+        }
+    }
 }
 
 private struct UserStats {
@@ -32,6 +39,8 @@ struct ProfileView: View {
     @State private var loadingListings = true
     @State private var rankSnapshot: SellerRankSnapshot?
     @State private var loadingRank = false
+    @State private var reviews: [SellerReview] = []
+    @State private var loadingReviews = false
 
     private let feedColumns = 3
 
@@ -109,32 +118,40 @@ struct ProfileView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
                         headerSection
-                            .padding(.top, 56)
+                            .padding(.top, 60)
                             .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 18)
+                            .padding(.bottom, 22)
 
                         identityCard
                             .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 14)
-
-                        shareClosetButton
-                            .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 22)
+                            .padding(.bottom, 12)
 
                         statsRow
                             .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 22)
+                            .padding(.bottom, 12)
 
-                        HStack(spacing: 10) {
+                        shareClosetButton
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 26)
+
+                        sectionTitle("ranking")
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 12)
+
+                        HStack(spacing: 12) {
                             rankingCard
                             sellerTiersComingSoonCard
                         }
                         .padding(.horizontal, horizontalPad)
-                        .padding(.bottom, 22)
+                        .padding(.bottom, 26)
+
+                        sectionTitle("account")
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 12)
 
                         accountActions
                             .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 28)
+                            .padding(.bottom, 26)
 
                         closetSectionHeader
                             .padding(.horizontal, horizontalPad)
@@ -144,7 +161,16 @@ struct ProfileView: View {
                             .padding(.horizontal, horizontalPad)
                             .padding(.bottom, 16)
 
-                        if currentLoading {
+                        if activeTab == .reviews {
+                            SellerReviewsSection(
+                                reviews: reviews,
+                                isLoading: loadingReviews,
+                                isOwnProfile: true,
+                                purchases: [],
+                                onLeaveReview: {}
+                            )
+                            .padding(.horizontal, horizontalPad)
+                        } else if currentLoading {
                             ProgressView()
                                 .tint(campusTheme.primary)
                                 .padding(40)
@@ -174,6 +200,7 @@ struct ProfileView: View {
             await loadProducts()
             await loadStats()
             await loadRank()
+            await loadReviews()
             applyProfileFocus(appState.profileFocusTab)
             openPendingProfileProductIfNeeded()
         }
@@ -184,6 +211,8 @@ struct ProfileView: View {
             Task {
                 await loadProducts()
                 await loadRank()
+                await loadStats()
+                await loadReviews()
                 openPendingProfileProductIfNeeded()
             }
         }
@@ -195,26 +224,49 @@ struct ProfileView: View {
     // MARK: Header
 
     private var headerSection: some View {
-        HStack {
-            Text("Profile")
-                .font(Theme.syne(28, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("profile")
+                    .font(Theme.syne(36, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                Text("your campus closet")
+                    .font(Theme.syne(28, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Button {
                 appState.path.append(.accountSettings)
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(campusTheme.textPrimary)
-                    .frame(width: 38, height: 38)
-                    .background(Color.white.opacity(0.06))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    .frame(width: 62, height: 62)
+                    .background(campusTheme.elevatedSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+            .accessibilityLabel("Account settings")
         }
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(Theme.syne(18, weight: .semibold))
+            .foregroundStyle(campusTheme.textPrimary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func cardBackground(cornerRadius: CGFloat = 26) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(campusTheme.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(campusTheme.border, lineWidth: 1)
+            )
     }
 
     // MARK: Identity
@@ -225,15 +277,14 @@ struct ProfileView: View {
                 img.resizable().scaledToFill()
             } placeholder: {
                 ZStack {
-                    Color.white.opacity(0.08)
+                    campusTheme.elevatedSurface
                     Text(String(displayName.prefix(1)).uppercased())
                         .font(Theme.syne(26, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
                 }
             }
-            .frame(width: 72, height: 72)
-            .clipShape(Circle())
-            .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
+            .frame(width: 76, height: 76)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(displayName)
@@ -251,11 +302,10 @@ struct ProfileView: View {
                             .tracking(0.5)
                     }
                     .foregroundStyle(campusTheme.primary)
-                    .padding(.horizontal, 9)
+                    .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(campusTheme.surface.opacity(0.7))
+                    .background(campusTheme.elevatedSurface)
                     .clipShape(Capsule())
-                    .overlay(Capsule().stroke(campusTheme.primary.opacity(0.22), lineWidth: 1))
 
                     if user?.isVerified == true {
                         Text("Verified")
@@ -276,13 +326,8 @@ struct ProfileView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(16)
-        .background(Color.white.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
+        .padding(12)
+        .background(cardBackground())
     }
 
     private var shareClosetButton: some View {
@@ -296,15 +341,11 @@ struct ProfileView: View {
                 Text("Share your closet")
                     .font(Theme.syne(14, weight: .bold))
             }
-            .foregroundStyle(campusTheme.textPrimary)
+            .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .frame(height: 48)
-            .background(Color.white.opacity(0.04))
+            .frame(height: 58)
+            .background(campusTheme.primary)
             .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(campusTheme.primary.opacity(0.55), lineWidth: 1.5)
-            )
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
     }
@@ -312,26 +353,33 @@ struct ProfileView: View {
     private var statsRow: some View {
         HStack(spacing: 0) {
             profileStat(value: "\(stats.products)", label: "Listings")
+            Rectangle().fill(campusTheme.border).frame(width: 1, height: 36)
             profileStat(value: "\(soldCount)", label: "Sold")
+            Rectangle().fill(campusTheme.border).frame(width: 1, height: 36)
             profileStat(value: "\(stats.followers)", label: "Followers")
+            Rectangle().fill(campusTheme.border).frame(width: 1, height: 36)
+            profileStat(value: "\(stats.following)", label: "Following")
         }
+        .padding(.vertical, 16)
+        .background(cardBackground())
     }
 
     private func profileStat(value: String, label: String) -> some View {
         VStack(spacing: 6) {
             Text(value)
-                .font(Theme.syne(24, weight: .bold))
+                .font(Theme.syne(22, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text(label)
-                .font(Theme.syne(12, weight: .medium))
+                .font(Theme.syne(11, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
     }
 
     private var rankingCard: some View {
-        let stroke = campusTheme.isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
-        return Button {
+        Button {
             Motion.haptic(.light)
             if soldCount == 0 {
                 appState.selectedTab = .sell
@@ -386,22 +434,16 @@ struct ProfileView: View {
                     .foregroundStyle(campusTheme.textPrimary)
                 }
             }
-            .padding(14)
+            .padding(16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(Color.white.opacity(campusTheme.isDark ? 0.06 : 0.55))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(stroke, lineWidth: 1)
-            )
+            .background(cardBackground())
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
         .aspectRatio(1, contentMode: .fit)
     }
 
     private var sellerTiersComingSoonCard: some View {
-        let stroke = campusTheme.isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
-        return VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("Seller ranks")
                 .font(Theme.syne(11, weight: .semibold))
                 .foregroundStyle(campusTheme.textMuted)
@@ -425,14 +467,9 @@ struct ProfileView: View {
                 .background(campusTheme.primary.opacity(0.12))
                 .clipShape(Capsule())
         }
-        .padding(14)
+        .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(Color.white.opacity(campusTheme.isDark ? 0.06 : 0.55))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(stroke, lineWidth: 1)
-        )
+        .background(cardBackground())
         .aspectRatio(1, contentMode: .fit)
     }
 
@@ -451,7 +488,7 @@ struct ProfileView: View {
     }
 
     private var accountActions: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 0) {
             accountRow(
                 icon: "person.crop.circle",
                 title: "Edit profile",
@@ -459,6 +496,7 @@ struct ProfileView: View {
             ) {
                 appState.path.append(.editProfile)
             }
+            accountDivider
             accountRow(
                 icon: "gearshape",
                 title: "Account settings",
@@ -466,6 +504,7 @@ struct ProfileView: View {
             ) {
                 appState.path.append(.accountSettings)
             }
+            accountDivider
             accountRow(
                 icon: "heart",
                 title: "Liked items",
@@ -473,6 +512,7 @@ struct ProfileView: View {
             ) {
                 appState.openProfileLikes()
             }
+            accountDivider
             accountRow(
                 icon: "bookmark",
                 title: "Saved items",
@@ -482,6 +522,7 @@ struct ProfileView: View {
             }
             if let ig = instagramHandle, !ig.isEmpty,
                let igURL = URL(string: "https://instagram.com/\(ig)") {
+                accountDivider
                 Link(destination: igURL) {
                     accountRowContent(
                         icon: "camera",
@@ -492,6 +533,14 @@ struct ProfileView: View {
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
             }
         }
+        .background(cardBackground())
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+    }
+
+    private var accountDivider: some View {
+        Divider()
+            .overlay(campusTheme.border)
+            .padding(.leading, 68)
     }
 
     private func accountRow(
@@ -512,7 +561,7 @@ struct ProfileView: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
                 .frame(width: 40, height: 40)
-                .background(Color.white.opacity(0.08))
+                .background(campusTheme.elevatedSurface)
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 3) {
@@ -531,15 +580,14 @@ struct ProfileView: View {
                 .foregroundStyle(campusTheme.textMuted.opacity(0.7))
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 14)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
     }
 
     private var closetSectionHeader: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Your closet")
-                .font(Theme.syne(20, weight: .bold))
+            Text("your closet")
+                .font(Theme.syne(18, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text("Your listings on campus")
                 .font(Theme.syne(13, weight: .regular))
@@ -557,17 +605,29 @@ struct ProfileView: View {
                     handleTabChange(tab)
                     Motion.haptic(.light)
                 } label: {
-                    Text(tab.title)
-                        .font(Theme.syne(13, weight: .semibold))
-                        .foregroundStyle(activeTab == tab ? Color.white : campusTheme.textMuted)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(activeTab == tab ? campusTheme.primary : Color.white.opacity(0.06))
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(activeTab == tab ? Color.clear : Color.white.opacity(0.1), lineWidth: 1)
-                        )
+                    let isActive = activeTab == tab
+                    HStack(spacing: 10) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
+                            .frame(width: 42, height: 42)
+                            .background(
+                                Circle().fill(isActive ? Color.white.opacity(0.18) : campusTheme.surface)
+                            )
+                            .overlay(
+                                Circle().stroke(isActive ? Color.white.opacity(0.35) : Color.clear, lineWidth: 1)
+                            )
+                        Text(tab.title)
+                            .font(Theme.syne(14, weight: .semibold))
+                            .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.leading, 5)
+                    .padding(.trailing, 14)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(isActive ? campusTheme.primary : campusTheme.elevatedSurface)
+                    .clipShape(Capsule())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
             }
@@ -617,8 +677,8 @@ struct ProfileView: View {
 
                 if !soldShopItems.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Sold")
-                            .font(Theme.syne(18, weight: .bold))
+                        Text("sold")
+                            .font(Theme.syne(18, weight: .semibold))
                             .foregroundStyle(campusTheme.textPrimary)
                             .padding(.horizontal, horizontalPad)
 
@@ -734,6 +794,21 @@ struct ProfileView: View {
                 s.following = 0
                 stats = s
             }
+        }
+        if let counts = try? await FollowReviewService.counts(userId: uid) {
+            await MainActor.run {
+                stats.followers = counts.followers
+                stats.following = counts.following
+            }
+        }
+    }
+
+    private func loadReviews() async {
+        guard let uid = authVM.user?.id else { return }
+        loadingReviews = true
+        defer { loadingReviews = false }
+        if let list = try? await FollowReviewService.reviews(sellerId: uid) {
+            reviews = list
         }
     }
 

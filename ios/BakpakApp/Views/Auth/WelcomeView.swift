@@ -11,23 +11,6 @@ struct WelcomeView: View {
             VStack(spacing: 16) {
                 Spacer()
 
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(PopupBrand.surface)
-                        .frame(width: 88, height: 88)
-                    if let uiImage = UIImage(named: "popup_logo_white_mark") {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .renderingMode(.original)
-                            .scaledToFit()
-                            .frame(width: 58, height: 58)
-                    } else {
-                        Image(systemName: "shippingbox.fill")
-                            .font(.system(size: 36, weight: .bold))
-                            .foregroundStyle(PopupBrand.textPrimary)
-                    }
-                }
-
                 Text("popup")
                     .font(Theme.syne(34, weight: .black))
                     .tracking(1.5)

@@ -117,8 +117,12 @@ struct MainTabView: View {
         }
     }
 
+    private var tabBarFill: Color {
+        campusTheme.isDark ? campusTheme.elevatedSurface : Color(hex: "#232624")
+    }
+
     private var customTabBar: some View {
-        HStack(alignment: .bottom, spacing: 0) {
+        HStack(spacing: 8) {
             tabItem(tab: .home, title: "Home", systemImage: "house")
             tabItem(tab: .search, title: "Search", systemImage: "magnifyingglass")
 
@@ -130,17 +134,22 @@ struct MainTabView: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(campusTheme.primary)
-                        .frame(width: 56, height: 56)
-                        .shadow(color: campusTheme.primary.opacity(0.35), radius: 10, y: 4)
+                        .fill(
+                            LinearGradient(
+                                colors: [campusTheme.primary, campusTheme.secondary],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(Circle().stroke(Color.white.opacity(0.9), lineWidth: 2))
+                        .frame(width: 58, height: 58)
+                        .shadow(color: campusTheme.primary.opacity(0.35), radius: 8, y: 3)
                     Image(systemName: "plus")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(.white)
                 }
-                .offset(y: -10)
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
-            .frame(maxWidth: .infinity)
             .accessibilityLabel("Sell")
 
             tabItem(
@@ -151,19 +160,15 @@ struct MainTabView: View {
             )
             tabItem(tab: .profile, title: "Profile", systemImage: "person")
         }
-        .padding(.horizontal, 10)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
-        .background {
-            Rectangle()
-                .fill(campusTheme.surface.opacity(0.94))
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(campusTheme.isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.08))
-                        .frame(height: 1)
-                }
-                .ignoresSafeArea(edges: .bottom)
-        }
+        .padding(6)
+        .background(
+            Capsule()
+                .fill(tabBarFill)
+                .shadow(color: Color.black.opacity(0.22), radius: 16, y: 6)
+        )
+        .frame(maxWidth: .infinity)
+        .padding(.top, 6)
+        .padding(.bottom, 6)
     }
 
     private func tabItem(
@@ -179,27 +184,27 @@ struct MainTabView: View {
                 appState.selectedTab = tab
             }
         } label: {
-            VStack(spacing: 4) {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 18, weight: isActive ? .semibold : .regular))
-                        .foregroundStyle(isActive ? campusTheme.primary : campusTheme.textMuted)
-                        .frame(height: 22)
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 18, weight: isActive ? .semibold : .regular))
+                    .foregroundStyle(isActive ? Color(hex: "#232624") : Color.white.opacity(0.85))
+                    .frame(width: 52, height: 52)
+                    .background(
+                        Circle().fill(isActive ? Color.white : Color.clear)
+                    )
+                    .overlay(
+                        Circle().stroke(isActive ? Color.clear : Color.white.opacity(0.14), lineWidth: 1)
+                    )
 
-                    if badge {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 7, height: 7)
-                            .offset(x: 4, y: -2)
-                    }
+                if badge {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 8, height: 8)
+                        .offset(x: -12, y: 12)
                 }
-                Text(title)
-                    .font(Theme.syne(10, weight: isActive ? .semibold : .medium))
-                    .foregroundStyle(isActive ? campusTheme.primary : campusTheme.textMuted)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.bottom, 2)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 }

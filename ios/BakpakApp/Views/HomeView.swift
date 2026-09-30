@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Product helpers
 
-private extension Product {
+extension Product {
     var primaryListingImage: ProductImage? {
         images?.first(where: { $0.isPrimary == true }) ?? images?.first
     }
@@ -31,73 +31,86 @@ private func categorySlug(for displayName: String) -> String? {
     }
 }
 
-// MARK: - Grid card
+private func homeCategoryIcon(for displayName: String) -> String {
+    switch displayName {
+    case "All": return "sparkles"
+    case "Tops & Shirts": return "tshirt"
+    case "Bottoms": return "figure.walk"
+    case "Shoes": return "shoeprints.fill"
+    case "Accessories": return "eyeglasses"
+    case "Jackets & Outerwear": return "snowflake"
+    case "Dresses & Skirts": return "hanger"
+    default: return "tag"
+    }
+}
 
-private struct HomeProductCard: View {
+extension Product {
+    var homeSubtitle: String {
+        let brand = brand?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let size = size?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        switch (brand.isEmpty, size.isEmpty) {
+        case (false, false): return "\(brand) · Size \(size.uppercased())"
+        case (false, true): return brand
+        case (true, false): return "Size \(size.uppercased())"
+        case (true, true): return "Campus find"
+        }
+    }
+
+    var homePriceLabel: String { "$\(Int(price))" }
+}
+
+struct HomeProductImage: View {
+    let product: Product
+    let placeholder: Color
+
+    var body: some View {
+        AsyncImage(url: URL(string: product.primaryListingImage?.url ?? "")) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            placeholder
+        }
+    }
+}
+
+// MARK: - Cards
+
+/// Light tile: title + price on top, photo below.
+struct HomeProductCard: View {
     let product: Product
     let onTap: () -> Void
     @Environment(\.campusTheme) private var campusTheme
 
-    private var sizeLabel: String? {
-        guard let size = product.size?.trimmingCharacters(in: .whitespacesAndNewlines), !size.isEmpty else {
-            return nil
-        }
-        return size.uppercased()
-    }
-
-    private var brandLabel: String? {
-        guard let brand = product.brand?.trimmingCharacters(in: .whitespacesAndNewlines), !brand.isEmpty else {
-            return nil
-        }
-        return brand.uppercased()
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Color.clear
-                .aspectRatio(0.82, contentMode: .fit)
-                .overlay {
-                    AsyncImage(url: URL(string: product.primaryListingImage?.url ?? "")) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        Color.white.opacity(0.06)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(alignment: .topTrailing) {
-                    if let sizeLabel {
-                        Text(sizeLabel)
-                            .font(Theme.syne(11, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
-                            .background(Color.black.opacity(0.48))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .padding(10)
-                    }
-                }
-
-            VStack(alignment: .leading, spacing: 3) {
-                if let brandLabel {
-                    Text(brandLabel)
-                        .font(Theme.syne(10, weight: .semibold))
-                        .tracking(0.6)
-                        .foregroundStyle(campusTheme.textMuted)
-                        .lineLimit(1)
-                }
-
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(product.title)
-                    .font(Theme.syne(14, weight: .bold))
+                    .font(Theme.syne(15, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .lineLimit(1)
-
-                Text("$\(Int(product.price))")
+                Spacer(minLength: 4)
+                Text(product.homePriceLabel)
                     .font(Theme.syne(15, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 2)
+
+            Text(product.homeSubtitle)
+                .font(Theme.syne(11, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+                .lineLimit(1)
+                .padding(.top, -6)
+
+            Color.clear
+                .aspectRatio(0.95, contentMode: .fit)
+                .overlay { HomeProductImage(product: product, placeholder: campusTheme.elevatedSurface) }
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
+        .padding(12)
+        .background(campusTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(campusTheme.border, lineWidth: 1)
+        )
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .pressableCard { onTap() }
@@ -118,8 +131,8 @@ struct HomeView: View {
     @State private var notificationUnread = 0
 
     private let columns: [GridItem] = [
-        GridItem(.flexible(), spacing: 14),
-        GridItem(.flexible(), spacing: 14),
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12),
     ]
 
     private var clothingProducts: [Product] {
@@ -150,19 +163,39 @@ struct HomeView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     headerBlock
-                        .padding(.top, 56)
+                        .padding(.top, 60)
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 8)
+                        .padding(.bottom, 22)
 
-                    Text("Browse campus thrift finds near you")
-                        .font(Theme.syne(14, weight: .regular))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 18)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("discover")
+                            .font(Theme.syne(36, weight: .bold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                        Text("campus thrift finds")
+                            .font(Theme.syne(28, weight: .semibold))
+                            .foregroundStyle(campusTheme.textMuted)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 22)
 
                     searchBar
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 14)
+                        .padding(.bottom, 26)
+
+                    HStack {
+                        Text("category")
+                            .font(Theme.syne(18, weight: .semibold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                        Spacer()
+                        Button("see all") {
+                            Motion.haptic(.light)
+                            appState.selectedTab = .search
+                        }
+                        .font(Theme.syne(13, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 12)
 
                     categoryChips
                         .padding(.bottom, 22)
@@ -223,13 +256,25 @@ struct HomeView: View {
 
     private var headerBlock: some View {
         HStack(alignment: .center, spacing: 10) {
-            Text("popup")
-                .font(Theme.syne(28, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
+            HStack(spacing: 6) {
+                Button {
+                    Motion.haptic(.light)
+                    appState.selectedTab = .profile
+                } label: {
+                    avatar
+                        .frame(width: 52, height: 52)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
+                .accessibilityLabel("Profile")
+
+                campusBadge
+            }
+            .padding(5)
+            .background(campusTheme.elevatedSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
 
             Spacer(minLength: 8)
-
-            campusBadge
 
             Button {
                 Motion.haptic(.light)
@@ -237,23 +282,17 @@ struct HomeView: View {
             } label: {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(campusTheme.textPrimary)
-                        .frame(width: 38, height: 38)
-                        .background(Color.white.opacity(campusTheme.isDark ? 0.06 : 0.55))
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle().stroke(
-                                campusTheme.isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.1),
-                                lineWidth: 1
-                            )
-                        )
+                        .frame(width: 62, height: 62)
+                        .background(campusTheme.elevatedSurface)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
 
                     if notificationUnread > 0 {
                         Circle()
                             .fill(campusTheme.primary)
-                            .frame(width: 8, height: 8)
-                            .offset(x: 1, y: 1)
+                            .frame(width: 9, height: 9)
+                            .offset(x: -16, y: 16)
                     }
                 }
             }
@@ -262,32 +301,45 @@ struct HomeView: View {
         }
     }
 
+    @ViewBuilder
+    private var avatar: some View {
+        if let url = URL(string: authVM.user?.avatar ?? ""), !(authVM.user?.avatar ?? "").isEmpty {
+            AsyncImage(url: url) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                campusTheme.surface
+            }
+        } else {
+            ZStack {
+                campusTheme.surface
+                Image(systemName: "person.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+            }
+        }
+    }
+
     private var campusBadge: some View {
-        HStack(spacing: 5) {
+        VStack(spacing: 3) {
             Circle()
                 .fill(campusTheme.secondary)
                 .frame(width: 6, height: 6)
-
             Text(campusTheme.shortName)
-                .font(Theme.syne(10, weight: .black))
+                .font(Theme.syne(13, weight: .black))
                 .tracking(0.6)
+                .foregroundStyle(campusTheme.primary)
         }
-        .foregroundStyle(campusTheme.primary)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background(campusTheme.surface.opacity(0.55))
-        .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .stroke(campusTheme.primary.opacity(0.28), lineWidth: 1)
-        )
+        .frame(width: 52, height: 52)
+        .background(campusTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var searchBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(campusTheme.textMuted)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(campusTheme.textPrimary)
+                .padding(.leading, 6)
 
             TextField("Search thrift, brands, styles…", text: $searchText)
                 .font(Theme.syne(15, weight: .regular))
@@ -309,14 +361,29 @@ struct HomeView: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            Button {
+                Motion.haptic(.light)
+                appState.selectedTab = .search
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .frame(width: 50, height: 50)
+                    .background(campusTheme.elevatedSurface)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+            .accessibilityLabel("Filters")
         }
-        .padding(.horizontal, 16)
-        .frame(height: 48)
-        .background(Color.white.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.leading, 16)
+        .padding(.trailing, 6)
+        .frame(height: 62)
+        .background(campusTheme.surface)
+        .clipShape(Capsule())
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            Capsule()
+                .stroke(campusTheme.border, lineWidth: 1)
         )
     }
 
@@ -331,17 +398,26 @@ struct HomeView: View {
                         }
                         Motion.haptic(.light)
                     } label: {
-                        Text(cat)
-                            .font(Theme.syne(13, weight: .semibold))
-                            .foregroundStyle(isActive ? Color.white : campusTheme.textMuted)
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 16)
-                            .background(isActive ? campusTheme.primary : Color.white.opacity(0.06))
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(isActive ? Color.clear : Color.white.opacity(0.1), lineWidth: 1)
-                            )
+                        HStack(spacing: 10) {
+                            Image(systemName: homeCategoryIcon(for: cat))
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
+                                .frame(width: 42, height: 42)
+                                .background(
+                                    Circle().fill(isActive ? Color.white.opacity(0.18) : campusTheme.surface)
+                                )
+                                .overlay(
+                                    Circle().stroke(isActive ? Color.white.opacity(0.35) : Color.clear, lineWidth: 1)
+                                )
+                            Text(cat)
+                                .font(Theme.syne(14, weight: .semibold))
+                                .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
+                        }
+                        .padding(.leading, 5)
+                        .padding(.trailing, 18)
+                        .frame(height: 52)
+                        .background(isActive ? campusTheme.primary : campusTheme.elevatedSurface)
+                        .clipShape(Capsule())
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
                 }
@@ -372,7 +448,7 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 48)
             } else {
-                LazyVGrid(columns: columns, spacing: 18) {
+                LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(clothingProducts) { product in
                         HomeProductCard(
                             product: product,

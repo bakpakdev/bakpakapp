@@ -82,21 +82,21 @@ private struct MessagesChatRow: View {
                         img.resizable().scaledToFill()
                     } placeholder: {
                         ZStack {
-                            Color.white.opacity(0.08)
+                            campusTheme.elevatedSurface
                             Text(String(chat.participant.name.prefix(1)).uppercased())
-                                .font(Theme.syne(14, weight: .bold))
+                                .font(Theme.syne(16, weight: .bold))
                                 .foregroundStyle(campusTheme.textPrimary)
                         }
                     }
-                    .frame(width: 44, height: 44)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    .frame(width: 52, height: 52)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                     if chat.participant.isOnline {
                         Circle()
                             .fill(campusTheme.primary)
-                            .frame(width: 11, height: 11)
-                            .overlay(Circle().stroke(campusTheme.background, lineWidth: 2))
+                            .frame(width: 12, height: 12)
+                            .overlay(Circle().stroke(campusTheme.surface, lineWidth: 2))
+                            .offset(x: 3, y: 3)
                     }
                 }
 
@@ -121,38 +121,25 @@ private struct MessagesChatRow: View {
                 if chat.unreadCount > 0 {
                     Circle()
                         .fill(campusTheme.primary)
-                        .frame(width: 8, height: 8)
+                        .frame(width: 9, height: 9)
                 }
 
                 if !chat.item.image.isEmpty {
                     AsyncImage(url: URL(string: chat.item.image)) { img in
                         img.resizable().scaledToFill()
                     } placeholder: {
-                        Color.white.opacity(0.08)
+                        campusTheme.elevatedSurface
                     }
-                    .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                    )
+                    .frame(width: 58, height: 58)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
             }
-            .padding(14)
-            .background(
-                isSelected
-                    ? campusTheme.primary.opacity(0.12)
-                    : Color.white.opacity(0.06)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(12)
+            .background(isSelected ? campusTheme.primary.opacity(0.12) : campusTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(
-                        isSelected
-                            ? campusTheme.primary.opacity(0.35)
-                            : (campusTheme.isDark ? Color.white.opacity(0.22) : Color.black.opacity(0.14)),
-                        lineWidth: 1
-                    )
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .stroke(isSelected ? campusTheme.primary.opacity(0.35) : campusTheme.border, lineWidth: 1)
             )
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
@@ -717,16 +704,36 @@ struct MessagesView: View {
 
     private var sidebarView: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Inbox")
-                        .font(Theme.syne(30, weight: .bold))
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("inbox")
+                        .font(Theme.syne(36, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
-                    Text("Buying and selling chats")
-                        .font(Theme.syne(13, weight: .regular))
+                    Text("buying & selling chats")
+                        .font(Theme.syne(28, weight: .semibold))
                         .foregroundStyle(campusTheme.textMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
-                .padding(.top, 50)
+                .padding(.top, 60)
+                .padding(.bottom, 22)
+
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .padding(.leading, 6)
+                    TextField("Search thrift chats…", text: $searchTerm)
+                        .font(Theme.syne(15, weight: .regular))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .tint(campusTheme.primary)
+                }
+                .padding(.horizontal, 16)
+                .frame(height: 62)
+                .background(campusTheme.surface)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+                .padding(.bottom, 22)
 
                 HStack(spacing: 8) {
                     ForEach(["buying", "selling"], id: \.self) { tab in
@@ -736,48 +743,41 @@ struct MessagesView: View {
                             withAnimation(Motion.snappy) { activeTab = tab }
                             Motion.haptic(.light)
                         } label: {
-                            Text(tab == "buying" ? "Buying" : "Selling")
-                                .font(Theme.syne(13, weight: .semibold))
-                                .foregroundStyle(isActive ? Color.white : campusTheme.textMuted)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(isActive ? campusTheme.primary : Color.white.opacity(0.06))
-                                .clipShape(Capsule())
-                                .overlay(
-                                    Capsule()
-                                        .stroke(isActive ? Color.clear : Color.white.opacity(0.1), lineWidth: 1)
-                                )
-                                .overlay(alignment: .topTrailing) {
-                                    if badge > 0 {
-                                        Text(badge > 9 ? "9+" : "\(badge)")
-                                            .font(Theme.syne(9, weight: .bold))
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 5)
-                                            .frame(minWidth: 16, minHeight: 16)
-                                            .background(campusTheme.primary)
-                                            .clipShape(Capsule())
-                                            .offset(x: 6, y: -6)
-                                    }
+                            HStack(spacing: 10) {
+                                Image(systemName: tab == "buying" ? "bag" : "tag")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
+                                    .frame(width: 42, height: 42)
+                                    .background(
+                                        Circle().fill(isActive ? Color.white.opacity(0.18) : campusTheme.surface)
+                                    )
+                                    .overlay(
+                                        Circle().stroke(isActive ? Color.white.opacity(0.35) : Color.clear, lineWidth: 1)
+                                    )
+                                Text(tab == "buying" ? "Buying" : "Selling")
+                                    .font(Theme.syne(14, weight: .semibold))
+                                    .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
+                                Spacer(minLength: 0)
+                                if badge > 0 {
+                                    Text(badge > 9 ? "9+" : "\(badge)")
+                                        .font(Theme.syne(11, weight: .bold))
+                                        .foregroundStyle(isActive ? campusTheme.primary : .white)
+                                        .padding(.horizontal, 7)
+                                        .frame(minWidth: 22, minHeight: 22)
+                                        .background(isActive ? Color.white : campusTheme.primary)
+                                        .clipShape(Capsule())
                                 }
+                            }
+                            .padding(.leading, 5)
+                            .padding(.trailing, 14)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(isActive ? campusTheme.primary : campusTheme.elevatedSurface)
+                            .clipShape(Capsule())
                         }
                         .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                     }
                 }
-
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                    TextField("Search thrift chats…", text: $searchTerm)
-                        .font(Theme.syne(15, weight: .regular))
-                        .foregroundStyle(campusTheme.textPrimary)
-                        .tint(campusTheme.primary)
-                }
-                .padding(.horizontal, 16)
-                .frame(height: 44)
-                .background(Color.white.opacity(0.06))
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 1))
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
@@ -785,6 +785,13 @@ struct MessagesView: View {
             if !meetupChecklist.isEmpty {
                 meetupRemindersBanner
             }
+
+            Text("chats")
+                .font(Theme.syne(18, weight: .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
 
             if vm.isLoadingConversations && vm.conversations.isEmpty {
                 ProgressView()
@@ -837,8 +844,8 @@ struct MessagesView: View {
     private var meetupRemindersBanner: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("Meetup reminders", systemImage: "bell")
-                    .font(Theme.syne(13, weight: .bold))
+                Text("meetup reminders")
+                    .font(Theme.syne(18, weight: .semibold))
                     .foregroundStyle(campusTheme.textPrimary)
                 Spacer()
             }
@@ -857,8 +864,8 @@ struct MessagesView: View {
     }
 
     private func meetupReminderCard(_ item: MeetupChecklistItem) -> some View {
-        let fill = Color.white.opacity(campusTheme.isDark ? 0.07 : 0.55)
-        let stroke = campusTheme.isDark ? Color.white.opacity(0.1) : Color.black.opacity(0.1)
+        let fill = campusTheme.surface
+        let stroke = campusTheme.border
         let itemTitle = item.productTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let safety = item.isPending
             ? "Tap to accept or deny this meetup."
@@ -911,12 +918,12 @@ struct MessagesView: View {
                         .multilineTextAlignment(.leading)
                 }
             }
-            .padding(14)
+            .padding(16)
             .frame(width: 260, alignment: .leading)
             .background(fill)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
                     .stroke(stroke, lineWidth: 1)
             )
         }
