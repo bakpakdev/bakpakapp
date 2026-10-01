@@ -172,6 +172,11 @@ enum Route: Hashable, Identifiable {
     case editListing(String)
     case accountSettings
     case accountDetails
+    case privacySettings
+    case blockedUsers
+    case twoFactorAuth
+    case preferences
+    case helpSupport
     case sellerCashOutSetup
     case meetupPay(MeetupChecklistItem)
     case meetupDetail(MeetupChecklistItem)
@@ -197,6 +202,11 @@ enum Route: Hashable, Identifiable {
         case .editListing(let id): return "edit-listing-\(id)"
         case .accountSettings: return "account-settings"
         case .accountDetails: return "account-details"
+        case .privacySettings: return "privacy-settings"
+        case .blockedUsers: return "blocked-users"
+        case .twoFactorAuth: return "two-factor-auth"
+        case .preferences: return "preferences"
+        case .helpSupport: return "help-support"
         case .sellerCashOutSetup: return "seller-cash-out-setup"
         case .meetupPay(let item): return "meetup-pay-\(item.id)"
         case .meetupDetail(let item): return "meetup-detail-\(item.id)"

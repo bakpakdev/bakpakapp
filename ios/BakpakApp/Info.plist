@@ -84,10 +84,6 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>instagram</string>
-		<string>venmo</string>
-		<string>cashapp</string>
-		<string>squarecash</string>
-		<string>paypal</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>

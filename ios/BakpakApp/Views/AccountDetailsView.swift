@@ -6,7 +6,6 @@ struct AccountDetailsView: View {
     @Environment(\.campusTheme) private var campusTheme
 
     @State private var graduationYear = ""
-    @State private var allowDMs = false
     @State private var isSaving = false
     @State private var comingSoonMessage: String?
 
@@ -70,7 +69,7 @@ struct AccountDetailsView: View {
 
                     EditProfileSectionHeader(
                         title: "Campus",
-                        subtitle: "Tied to your account — badge visibility is controlled in Edit Profile"
+                        subtitle: "Tied to your account — badge visibility is in Privacy settings"
                     )
                     EditProfileCard {
                         EditProfileRow(label: "School") {
@@ -85,13 +84,6 @@ struct AccountDetailsView: View {
                                 .modifier(EditProfileFieldStyle())
                                 .frame(maxWidth: 80)
                                 .keyboardType(.numberPad)
-                        }
-                    }
-
-                    EditProfileSectionHeader(title: "Privacy")
-                    EditProfileCard {
-                        EditProfileRow(label: "Allow DMs from strangers", showDivider: false) {
-                            EditProfileIOSSwitch(isOn: $allowDMs)
                         }
                     }
 
@@ -159,15 +151,11 @@ struct AccountDetailsView: View {
     private func load() {
         let d = UserDefaults.standard
         graduationYear = d.string(forKey: EditProfilePrefs.gradYear) ?? ""
-        if d.object(forKey: EditProfilePrefs.allowDMs) != nil {
-            allowDMs = d.bool(forKey: EditProfilePrefs.allowDMs)
-        }
     }
 
     private func saveLocal() {
         let d = UserDefaults.standard
         d.set(graduationYear, forKey: EditProfilePrefs.gradYear)
-        d.set(allowDMs, forKey: EditProfilePrefs.allowDMs)
     }
 
     private func save() async {

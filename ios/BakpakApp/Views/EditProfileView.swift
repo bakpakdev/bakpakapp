@@ -78,20 +78,19 @@ struct EditProfileSectionHeader: View {
     @Environment(\.campusTheme) private var campusTheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(Theme.syne(15, weight: .bold))
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title.lowercased())
+                .font(Theme.syne(18, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
             if let subtitle {
                 Text(subtitle)
-                    .font(Theme.syne(12))
+                    .font(Theme.syne(13))
                     .foregroundStyle(campusTheme.textMuted)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 4)
-        .padding(.top, 20)
-        .padding(.bottom, 8)
+        .padding(.top, 26)
+        .padding(.bottom, 12)
     }
 }
 
@@ -103,11 +102,11 @@ struct EditProfileCard<Content: View>: View {
         VStack(spacing: 0) {
             content
         }
-        .background(campusTheme.surface.opacity(0.88))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(campusTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(campusTheme.primary.opacity(0.12), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(campusTheme.border, lineWidth: 1)
         )
     }
 }
@@ -127,11 +126,14 @@ struct EditProfileRow<Content: View>: View {
                 Spacer(minLength: 8)
                 content
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
 
             if showDivider {
-                Divider().padding(.leading, 16)
+                Rectangle()
+                    .fill(campusTheme.border)
+                    .frame(height: 1)
+                    .padding(.horizontal, 18)
             }
         }
     }
@@ -148,14 +150,10 @@ private struct EditProfileChip: View {
             Text(label)
                 .font(Theme.syne(13, weight: .semibold))
                 .foregroundStyle(selected ? Color.white : campusTheme.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(selected ? campusTheme.primary : campusTheme.primary.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(campusTheme.primary.opacity(selected ? 0 : 0.16), lineWidth: 1)
-                )
+                .padding(.horizontal, 16)
+                .frame(height: 40)
+                .background(selected ? campusTheme.primary : campusTheme.elevatedSurface)
+                .clipShape(Capsule())
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
     }
@@ -257,27 +255,26 @@ struct EditProfileView: View {
     }
 
     var body: some View {
-        ZStack {
-            campusTheme.wash.ignoresSafeArea()
-
-            Circle()
-                .fill(campusTheme.primary.opacity(0.14))
-                .frame(width: 260, height: 260)
-                .blur(radius: 55)
-                .offset(x: -130, y: -90)
-                .allowsHitTesting(false)
-
-            Circle()
-                .fill(campusTheme.secondary.opacity(0.12))
-                .frame(width: 220, height: 220)
-                .blur(radius: 60)
-                .offset(x: 150, y: 80)
-                .allowsHitTesting(false)
+        ZStack(alignment: .top) {
+            CampusPageBackground()
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("edit profile")
+                            .font(Theme.syne(36, weight: .bold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                        Text("how campus sees you")
+                            .font(Theme.syne(28, weight: .semibold))
+                            .foregroundStyle(campusTheme.textMuted)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 4)
+                    .padding(.bottom, 22)
+
                     photoSection
-                        .padding(.top, 8)
 
                     EditProfileSectionHeader(title: "Basic Info")
                     EditProfileCard {
@@ -437,16 +434,11 @@ struct EditProfileView: View {
                     }
                     .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 20)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text("Edit Profile")
-                    .font(Theme.syne(17, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     Task { await save() }
@@ -454,11 +446,11 @@ struct EditProfileView: View {
                     if isSaving {
                         ProgressView().tint(campusTheme.primary)
                     } else {
-                        Text("Save")
-                            .font(Theme.syne(14, weight: .bold))
+                        Text("save")
+                            .font(Theme.syne(15, weight: .semibold))
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
+                            .padding(.horizontal, 18)
+                            .frame(height: 36)
                             .background(campusTheme.primary)
                             .clipShape(Capsule())
                     }
@@ -467,11 +459,7 @@ struct EditProfileView: View {
                 .disabled(isSaving)
             }
         }
-        .toolbarBackground(campusTheme.surface.opacity(0.9), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarColorScheme(campusTheme.isDark ? .dark : .light, for: .navigationBar)
-        .preferredColorScheme(campusTheme.isDark ? .dark : .light)
-        .tint(campusTheme.primary)
+        .campusPageStyle()
         .alert("Could not save", isPresented: $showSaveError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -512,8 +500,8 @@ struct EditProfileView: View {
                         .foregroundStyle(.white)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Connect Instagram")
-                        .font(Theme.syne(18, weight: .bold))
+                    Text("connect instagram")
+                        .font(Theme.syne(22, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
                     Text("Authorize popup to link your Instagram.")
                         .font(Theme.syne(13))
@@ -533,14 +521,11 @@ struct EditProfileView: View {
                     .autocorrectionDisabled()
                     .tint(campusTheme.primary)
             }
-            .padding(.horizontal, 14)
-            .frame(height: 46)
-            .background(campusTheme.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(campusTheme.primary.opacity(0.18), lineWidth: 1)
-            )
+            .padding(.horizontal, 20)
+            .frame(height: 54)
+            .background(campusTheme.surface)
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
 
             Button {
                 let handle = pendingInstagramHandle
@@ -557,9 +542,9 @@ struct EditProfileView: View {
                     .font(Theme.syne(15, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(height: 54)
                     .background(campusTheme.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(Capsule())
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
             .disabled(pendingInstagramHandle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -580,8 +565,8 @@ struct EditProfileView: View {
 
     private var depopLinkSheet: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Depop handle")
-                .font(Theme.syne(18, weight: .bold))
+            Text("depop handle")
+                .font(Theme.syne(22, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             HStack(spacing: 4) {
                 Text("@").foregroundStyle(campusTheme.textMuted)
@@ -590,14 +575,11 @@ struct EditProfileView: View {
                     .autocorrectionDisabled()
                     .tint(campusTheme.primary)
             }
-            .padding(.horizontal, 14)
-            .frame(height: 46)
-            .background(campusTheme.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(campusTheme.primary.opacity(0.18), lineWidth: 1)
-            )
+            .padding(.horizontal, 20)
+            .frame(height: 54)
+            .background(campusTheme.surface)
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
 
             Button {
                 depop = pendingDepopHandle
@@ -609,9 +591,9 @@ struct EditProfileView: View {
                     .font(Theme.syne(15, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(height: 54)
                     .background(campusTheme.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(Capsule())
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
 
@@ -648,12 +630,12 @@ struct EditProfileView: View {
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(campusTheme.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.vertical, 16)
+            .background(campusTheme.elevatedSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(campusTheme.primary.opacity(connected ? 0.28 : 0.12), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(connected ? campusTheme.primary.opacity(0.35) : Color.clear, lineWidth: 1)
             )
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
@@ -703,8 +685,7 @@ struct EditProfileView: View {
                         }
                     }
                     .frame(width: 104, height: 104)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(campusTheme.primary.opacity(0.22), lineWidth: 2))
+                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
 
                     Button {
                         // Photo picker + storage upload — future
@@ -718,13 +699,20 @@ struct EditProfileView: View {
                             .overlay(Circle().stroke(campusTheme.surface, lineWidth: 2))
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+                    .offset(x: 6, y: 6)
                 }
 
-                Button("Change Photo") {
+                Button {
                     // Photo picker — future
+                } label: {
+                    Text("change photo")
+                        .font(Theme.syne(14, weight: .semibold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .padding(.horizontal, 18)
+                        .frame(height: 40)
+                        .background(campusTheme.elevatedSurface)
+                        .clipShape(Capsule())
                 }
-                .font(Theme.syne(14, weight: .semibold))
-                .foregroundStyle(campusTheme.primary)
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
             }
             .padding(.vertical, 22)

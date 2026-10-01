@@ -137,6 +137,9 @@ struct HomeView: View {
 
     private var clothingProducts: [Product] {
         vm.products.filter { product in
+            if let sellerId = product.user?.id, AccountPrefsStore.isBlocked(sellerId) {
+                return false
+            }
             guard let category = product.category?.lowercased() else { return false }
             return homeClothingCategories.contains(category)
         }

@@ -615,36 +615,32 @@ struct MessagesView: View {
             return
         }
         let width = inboxWidth > 1 ? inboxWidth : UIScreen.main.bounds.width
-        // Mount off-screen first, then spring in on the next frame so the slide is visible.
+        // Mount off-screen first, then slide in on the next frame so the slide is visible.
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             selectedChatId = id
             chatDismissOffset = width
-            showChatMessages = false
+            showChatMessages = true
         }
         DispatchQueue.main.async {
-            withAnimation(Motion.bounce) {
+            withAnimation(Self.chatPush) {
                 chatDismissOffset = 0
-            }
-            // Reveal bubbles after the panel spring settles (~Motion.bounce response).
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                withAnimation(Motion.gentle) {
-                    showChatMessages = true
-                }
             }
         }
     }
 
+    /// Matches the standard navigation push: smooth, no overshoot.
+    private static let chatPush = Animation.spring(response: 0.36, dampingFraction: 1)
+
     private func closeChat() {
         Motion.haptic(.light)
-        showChatMessages = false
         appState.hidesTabBar = false
         let width = inboxWidth > 1 ? inboxWidth : UIScreen.main.bounds.width
-        withAnimation(Motion.bounce) {
+        withAnimation(Self.chatPush) {
             chatDismissOffset = width
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
@@ -693,7 +689,7 @@ struct MessagesView: View {
                 if shouldDismiss {
                     closeChat()
                 } else {
-                    withAnimation(Motion.snappy) {
+                    withAnimation(Self.chatPush) {
                         chatDismissOffset = 0
                     }
                 }

@@ -38,6 +38,8 @@ struct UserProfileView: View {
     @State private var reviewsLoading = false
     @State private var purchases: [ReviewablePurchase] = []
     @State private var showLeaveReview = false
+    @State private var isBlocked = false
+    @State private var showBlockConfirm = false
 
     private let service = ProductService()
     private let feedColumns = 3
@@ -162,8 +164,43 @@ struct UserProfileView: View {
         }
         .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !isOwnProfile {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        if isBlocked {
+                            AccountPrefsStore.unblock(userId: userId)
+                            isBlocked = false
+                            Motion.haptic(.light)
+                        } else {
+                            showBlockConfirm = true
+                        }
+                    } label: {
+                        Text(isBlocked ? "Unblock" : "Block")
+                            .font(Theme.syne(14, weight: .semibold))
+                            .foregroundStyle(isBlocked ? campusTheme.textPrimary : Color(hex: "#E11D48"))
+                    }
+                }
+            }
+        }
+        .confirmationDialog("Block \(displayName)?", isPresented: $showBlockConfirm, titleVisibility: .visible) {
+            Button("Block", role: .destructive) {
+                AccountPrefsStore.block(userId: userId, name: displayName)
+                isBlocked = true
+                if isFollowing {
+                    Task { await toggleFollow() }
+                }
+                Motion.haptic(.medium)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("They won’t show in your inbox, and you can unblock them later in Privacy.")
+        }
         .campusScreenStyle()
-        .task { await reload() }
+        .task {
+            isBlocked = AccountPrefsStore.isBlocked(userId)
+            await reload()
+        }
         .sheet(isPresented: $showLeaveReview) {
             LeaveReviewSheet(
                 sellerId: userId,
@@ -298,6 +335,26 @@ struct UserProfileView: View {
                     .clipShape(Capsule())
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+        } else if isBlocked {
+            VStack(spacing: 10) {
+                Text("you blocked this person")
+                    .font(Theme.syne(14, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+                Button {
+                    AccountPrefsStore.unblock(userId: userId)
+                    isBlocked = false
+                    Motion.haptic(.light)
+                } label: {
+                    Text("unblock")
+                        .font(Theme.syne(15, weight: .semibold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(campusTheme.elevatedSurface)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+            }
         } else {
             HStack(spacing: 10) {
                 Button {

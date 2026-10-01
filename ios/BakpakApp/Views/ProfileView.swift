@@ -41,6 +41,8 @@ struct ProfileView: View {
     @State private var loadingRank = false
     @State private var reviews: [SellerReview] = []
     @State private var loadingReviews = false
+    @State private var squareStatus: SquareConnectStatus?
+    @State private var loadingBalance = false
 
     private let feedColumns = 3
 
@@ -134,6 +136,14 @@ struct ProfileView: View {
                             .padding(.horizontal, horizontalPad)
                             .padding(.bottom, 26)
 
+                        sectionTitle("balance")
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 12)
+
+                        balanceBar
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 26)
+
                         sectionTitle("ranking")
                             .padding(.horizontal, horizontalPad)
                             .padding(.bottom, 12)
@@ -201,6 +211,7 @@ struct ProfileView: View {
             await loadStats()
             await loadRank()
             await loadReviews()
+            await loadBalance()
             applyProfileFocus(appState.profileFocusTab)
             openPendingProfileProductIfNeeded()
         }
@@ -213,6 +224,7 @@ struct ProfileView: View {
                 await loadRank()
                 await loadStats()
                 await loadReviews()
+                await loadBalance()
                 openPendingProfileProductIfNeeded()
             }
         }
@@ -498,14 +510,6 @@ struct ProfileView: View {
             }
             accountDivider
             accountRow(
-                icon: "gearshape",
-                title: "Account settings",
-                subtitle: "Payouts, notifications, and privacy"
-            ) {
-                appState.path.append(.accountSettings)
-            }
-            accountDivider
-            accountRow(
                 icon: "heart",
                 title: "Liked items",
                 subtitle: "Pieces you’ve hearted"
@@ -535,6 +539,77 @@ struct ProfileView: View {
         }
         .background(cardBackground())
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+    }
+
+    private var balanceBar: some View {
+        HStack(spacing: 0) {
+            balanceStat(
+                value: "$\(formattedMoney(squareStatus?.availableDollars ?? 0))",
+                label: "balance",
+                caption: (squareStatus?.availableCents ?? 0) > 0
+                    ? "ready to cash out"
+                    : "from tap to pay",
+                isLoading: loadingBalance
+            )
+            Rectangle()
+                .fill(campusTheme.border)
+                .frame(width: 1, height: 48)
+            balanceStat(
+                value: "$\(formattedMoney(potentialProfit))",
+                label: "potential profit",
+                caption: activeShopItems.isEmpty
+                    ? "no listings yet"
+                    : (activeShopItems.count == 1 ? "1 listing" : "\(activeShopItems.count) listings")
+            )
+        }
+        .padding(.vertical, 16)
+        .background(cardBackground())
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+    }
+
+    private func balanceStat(value: String, label: String, caption: String, isLoading: Bool = false) -> some View {
+        VStack(spacing: 4) {
+            Text(label)
+                .font(Theme.syne(12, weight: .semibold))
+                .foregroundStyle(campusTheme.textMuted)
+            if isLoading {
+                ProgressView()
+                    .tint(campusTheme.primary)
+                    .frame(height: 26)
+            } else {
+                Text(value)
+                    .font(Theme.syne(22, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            Text(caption)
+                .font(Theme.syne(11, weight: .regular))
+                .foregroundStyle(campusTheme.textMuted.opacity(0.85))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var potentialProfit: Double {
+        activeShopItems.reduce(0) { $0 + $1.price }
+    }
+
+    private func formattedMoney(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.2f", value)
+    }
+
+    private func loadBalance() async {
+        loadingBalance = true
+        defer { loadingBalance = false }
+        do {
+            squareStatus = try await SquareConnectService.shared.fetchStatus()
+        } catch {
+            squareStatus = nil
+        }
     }
 
     private var accountDivider: some View {

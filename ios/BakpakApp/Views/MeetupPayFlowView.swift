@@ -22,6 +22,7 @@ struct MeetupPayFlowView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.campusTheme) private var campusTheme
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var appState: AppState
 
     @State private var step: MeetupPayStep = .confirm
     @State private var selectedMethod: String?
@@ -34,6 +35,7 @@ struct MeetupPayFlowView: View {
     @State private var showBuyerPaymentSheet = false
     @State private var sellerWaitingRequestId: String?
     @State private var lastMeetupPayment: CreateMeetupPaymentResponse?
+    @State private var paymentOutcome: PaymentOutcomeKind?
 
     @StateObject private var paymentPresenter = PaymentSheetPresenter()
     @StateObject private var tapToPay = TapToPayCollector()
@@ -54,62 +56,57 @@ struct MeetupPayFlowView: View {
     }
 
     var body: some View {
-        ZStack {
-            campusTheme.wash.ignoresSafeArea()
-
-            Circle()
-                .fill(campusTheme.primary.opacity(0.14))
-                .frame(width: 260, height: 260)
-                .blur(radius: 55)
-                .offset(x: -130, y: -90)
-                .allowsHitTesting(false)
-
-            Circle()
-                .fill(campusTheme.secondary.opacity(0.12))
-                .frame(width: 220, height: 220)
-                .blur(radius: 60)
-                .offset(x: 150, y: 120)
-                .allowsHitTesting(false)
+        ZStack(alignment: .top) {
+            CampusPageBackground()
 
             VStack(spacing: 0) {
-                stepIndicator
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 18)
-
                 ScrollView(showsIndicators: false) {
-                    Group {
-                        switch step {
-                        case .confirm: confirmStep
-                        case .pay: payStep
-                        case .done: doneStep
+                    VStack(alignment: .leading, spacing: 0) {
+                        CampusPageHeader(
+                            title: isCollecting ? "collect" : "pay",
+                            subtitle: isCollecting ? "get paid at your meetup" : "pay at your meetup"
+                        )
+
+                        stepIndicator
+                            .padding(.bottom, 24)
+
+                        Group {
+                            switch step {
+                            case .confirm: confirmStep
+                            case .pay: payStep
+                            case .done: doneStep
+                            }
                         }
+                        .animation(Motion.snappy, value: step)
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 20)
                     .padding(.bottom, 24)
-                    .animation(Motion.snappy, value: step)
                 }
 
-                bottomBar
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
-                    .padding(.bottom, 16)
-                    .background(campusTheme.surface.opacity(0.92))
+                if paymentOutcome == nil {
+                    bottomBar
+                        .padding(.horizontal, 20)
+                        .padding(.top, 10)
+                        .padding(.bottom, 12)
+                }
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(isCollecting ? "Collect payment" : "Pay for meetup")
-                    .font(Theme.syne(17, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
+        .campusPageStyle()
+        .overlay {
+            if let paymentOutcome {
+                PaymentOutcomeOverlay(
+                    kind: paymentOutcome,
+                    isCollecting: isCollecting,
+                    onContinue: { handlePaymentOutcomeContinue(paymentOutcome) }
+                )
+                .ignoresSafeArea()
+                .transition(.opacity)
             }
         }
-        .toolbarBackground(campusTheme.surface.opacity(0.9), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarColorScheme(campusTheme.isDark ? .dark : .light, for: .navigationBar)
-        .preferredColorScheme(campusTheme.isDark ? .dark : .light)
-        .tint(campusTheme.primary)
+        .toolbar(paymentOutcome == nil ? .visible : .hidden, for: .navigationBar)
+        .hidesSystemNavigationBar(paymentOutcome != nil)
+        .onAppear { appState.hidesTabBar = true }
+        .onDisappear { appState.hidesTabBar = false }
         .task { await loadPrice() }
         .sheet(isPresented: $showSellerPaymentSheet) { sellerReceiveSheet }
         .sheet(isPresented: $showBuyerPaymentSheet) { buyerPaySheet }
@@ -119,10 +116,15 @@ struct MeetupPayFlowView: View {
             paymentPresenter.didComplete = false
             selectedMethod = "Apple Pay"
             showBuyerPaymentSheet = false
-            withAnimation(Motion.snappy) { step = .done }
+            presentPaymentOutcome(.success)
+        }
+        .onChange(of: paymentPresenter.errorMessage) { message in
+            guard message != nil, paymentOutcome == nil else { return }
+            showBuyerPaymentSheet = false
+            presentPaymentOutcome(.failure)
         }
         .alert("Payment", isPresented: Binding(
-            get: { paymentError != nil || paymentPresenter.errorMessage != nil },
+            get: { paymentOutcome == nil && (paymentError != nil || paymentPresenter.errorMessage != nil) },
             set: { if !$0 { paymentError = nil; paymentPresenter.errorMessage = nil } }
         )) {
             Button("OK", role: .cancel) {}
@@ -141,19 +143,19 @@ struct MeetupPayFlowView: View {
                     ZStack {
                         Circle()
                             .fill(active ? campusTheme.primary : campusTheme.elevatedSurface)
-                            .frame(width: 28, height: 28)
+                            .frame(width: 36, height: 36)
                         if step.rawValue > s.rawValue {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(.white)
                         } else {
                             Text("\(s.rawValue + 1)")
-                                .font(Theme.syne(12, weight: .bold))
+                                .font(Theme.syne(15, weight: .semibold))
                                 .foregroundStyle(active ? .white : campusTheme.textMuted)
                         }
                     }
-                    Text(s.title(collecting: isCollecting))
-                        .font(Theme.syne(11, weight: .semibold))
+                    Text(s.title(collecting: isCollecting).lowercased())
+                        .font(Theme.syne(13, weight: .semibold))
                         .foregroundStyle(active ? campusTheme.textPrimary : campusTheme.textMuted)
                 }
                 .frame(maxWidth: .infinity)
@@ -162,26 +164,31 @@ struct MeetupPayFlowView: View {
                     Rectangle()
                         .fill(step.rawValue > s.rawValue ? campusTheme.primary : campusTheme.border)
                         .frame(height: 2)
-                        .padding(.bottom, 18)
+                        .clipShape(Capsule())
+                        .padding(.bottom, 22)
                         .offset(y: -10)
                 }
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 18)
+        .background(CampusCardBackground())
     }
 
     // MARK: - Step content
 
     private var confirmStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Confirm your meetup")
-                .font(Theme.syne(24, weight: .bold))
+            Text("confirm your meetup")
+                .font(Theme.syne(18, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
 
             Text(isCollecting
                  ? "Double-check the details before you collect payment from the buyer."
                  : "Double-check the details before you pay the seller.")
-                .font(Theme.syne(15))
+                .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
+                .padding(.top, -8)
 
             detailCard
 
@@ -192,20 +199,29 @@ struct MeetupPayFlowView: View {
 
     private var payStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(isCollecting ? "How you’ll get paid" : "Choose how to pay")
-                .font(Theme.syne(24, weight: .bold))
+            Text(isCollecting ? "how you’ll get paid" : "choose how to pay")
+                .font(Theme.syne(18, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
 
             Text(isCollecting
-                 ? "Receive with Apple Pay in the app, or open another app if you agreed on that."
-                 : "Pay with Apple Pay in the app, or open another app if you agreed on that.")
-                .font(Theme.syne(15))
+                 ? "The buyer pays with Apple Pay on your phone, right in the app."
+                 : "Pay the seller with Apple Pay, right in the app.")
+                .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
+                .padding(.top, -8)
 
             if let priceLabel {
-                Text(priceLabel)
-                    .font(Theme.syne(32, weight: .bold))
-                    .foregroundStyle(campusTheme.primary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("amount")
+                        .font(Theme.syne(13, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                    Text(priceLabel)
+                        .font(Theme.syne(36, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(CampusCardBackground())
             }
 
             ApplePayButton(
@@ -216,35 +232,6 @@ struct MeetupPayFlowView: View {
                 Task { await startApplePayFlow() }
             }
             .disabled(isPaymentBusy || (item.productId ?? "").isEmpty)
-
-            Text("Or use another app")
-                .font(Theme.syne(12, weight: .semibold))
-                .foregroundStyle(campusTheme.textMuted)
-                .padding(.top, 8)
-
-            HStack(spacing: 8) {
-                payMethodBar(
-                    title: "Venmo",
-                    logo: "venmo_logo",
-                    tint: Color(hex: "#008CFF"),
-                    schemes: ["venmo://"],
-                    fallback: ExternalPaymentApps.venmoAppStore
-                )
-                payMethodBar(
-                    title: "Cash App",
-                    logo: "cashapp_logo",
-                    tint: Color(hex: "#00D632"),
-                    schemes: ["cashapp://", "squarecash://"],
-                    fallback: ExternalPaymentApps.cashAppAppStore
-                )
-                payMethodBar(
-                    title: "PayPal",
-                    logo: "paypal_logo",
-                    tint: Color(hex: "#0070BA"),
-                    schemes: ["paypal://"],
-                    fallback: ExternalPaymentApps.paypalWeb
-                )
-            }
 
             Text(isCollecting
                  ? "After you receive payment, continue to confirm."
@@ -258,17 +245,18 @@ struct MeetupPayFlowView: View {
 
     private var doneStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(isCollecting ? "Confirm you were paid" : "Confirm payment")
-                .font(Theme.syne(24, weight: .bold))
+            Text(isCollecting ? "confirm you were paid" : "confirm payment")
+                .font(Theme.syne(18, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
 
             Text(isCollecting
                  ? "Only tap below once the buyer has sent you the money."
                  : "Only tap below once you’ve sent payment to the seller.")
-                .font(Theme.syne(15))
+                .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
+                .padding(.top, -8)
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 summaryRow(label: "Meetup", value: item.spotName)
                 summaryRow(label: isCollecting ? "Buyer" : "Seller", value: item.otherPersonName)
                 if let title = item.productTitle, !title.isEmpty {
@@ -281,14 +269,9 @@ struct MeetupPayFlowView: View {
                     summaryRow(label: "Amount", value: priceLabel)
                 }
             }
-            .padding(16)
+            .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(campusTheme.surface.opacity(0.9))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(campusTheme.primary.opacity(0.12), lineWidth: 1)
-            )
+            .background(CampusCardBackground())
 
             safetyNote
         }
@@ -296,7 +279,7 @@ struct MeetupPayFlowView: View {
     }
 
     private var detailCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             summaryRow(label: "Where", value: item.spotName)
             summaryRow(label: "With", value: item.otherPersonName)
             if let title = item.productTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
@@ -306,76 +289,42 @@ struct MeetupPayFlowView: View {
                 summaryRow(label: "Amount", value: priceLabel)
             }
         }
-        .padding(16)
+        .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(campusTheme.surface.opacity(0.9))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(campusTheme.primary.opacity(0.12), lineWidth: 1)
-        )
+        .background(CampusCardBackground())
     }
 
     private var safetyNote: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .center, spacing: 12) {
             Image(systemName: "shield.checkered")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(campusTheme.primary)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .frame(width: 42, height: 42)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(campusTheme.surface)
+                )
             Text("Meet in a public campus spot. Only confirm after payment actually goes through.")
                 .font(Theme.syne(13))
                 .foregroundStyle(campusTheme.textMuted)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(campusTheme.primary.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(campusTheme.elevatedSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private func summaryRow(label: String, value: String) -> some View {
         HStack(alignment: .top) {
             Text(label)
-                .font(Theme.syne(13, weight: .semibold))
+                .font(Theme.syne(14, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
             Spacer(minLength: 12)
             Text(value)
-                .font(Theme.syne(14, weight: .semibold))
+                .font(Theme.syne(15, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
                 .multilineTextAlignment(.trailing)
         }
-    }
-
-    private func payMethodBar(
-        title: String,
-        logo: String,
-        tint: Color,
-        schemes: [String],
-        fallback: String
-    ) -> some View {
-        let selected = selectedMethod == title
-        return Button {
-            Motion.haptic(.light)
-            selectedMethod = title
-            openExternalPaymentApp(schemes: schemes, webFallback: fallback)
-        } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(tint)
-                Image(logo)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 26, height: 26)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 42)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(selected ? Color.white.opacity(0.9) : Color.clear, lineWidth: 2)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-        .accessibilityLabel(title)
     }
 
     // MARK: - Apple Pay sheets
@@ -384,8 +333,8 @@ struct MeetupPayFlowView: View {
         NavigationStack {
             VStack(spacing: 22) {
                 ZStack {
-                    Circle()
-                        .fill(campusTheme.primary.opacity(0.12))
+                    RoundedRectangle(cornerRadius: 38, style: .continuous)
+                        .fill(campusTheme.elevatedSurface)
                         .frame(width: 120, height: 120)
                     Image(systemName: tapPhaseIcon)
                         .font(.system(size: 44, weight: .semibold))
@@ -406,8 +355,8 @@ struct MeetupPayFlowView: View {
 
                 if let priceLabel {
                     Text(priceLabel)
-                        .font(Theme.syne(32, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
+                        .font(Theme.syne(36, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
                 }
 
                 Spacer()
@@ -420,9 +369,9 @@ struct MeetupPayFlowView: View {
                             .font(Theme.syne(15, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 50)
+                            .frame(height: 56)
                             .background(campusTheme.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .clipShape(Capsule())
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
                 }
@@ -464,8 +413,11 @@ struct MeetupPayFlowView: View {
                         }
                         selectedMethod = "Apple Pay"
                         showSellerPaymentSheet = false
-                        withAnimation(Motion.snappy) { step = .done }
+                        presentPaymentOutcome(.success)
                     }
+                } else if case .failed = phase {
+                    showSellerPaymentSheet = false
+                    presentPaymentOutcome(.failure)
                 }
             }
         }
@@ -477,12 +429,12 @@ struct MeetupPayFlowView: View {
         NavigationStack {
             VStack(spacing: 22) {
                 ZStack {
-                    Circle()
-                        .fill(Color.black.opacity(0.08))
+                    RoundedRectangle(cornerRadius: 38, style: .continuous)
+                        .fill(campusTheme.elevatedSurface)
                         .frame(width: 120, height: 120)
                     Image(systemName: "applelogo")
                         .font(.system(size: 44, weight: .semibold))
-                        .foregroundStyle(.black)
+                        .foregroundStyle(campusTheme.textPrimary)
                 }
                 .padding(.top, 20)
 
@@ -499,8 +451,8 @@ struct MeetupPayFlowView: View {
 
                 if let priceLabel {
                     Text(priceLabel)
-                        .font(Theme.syne(32, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
+                        .font(Theme.syne(36, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
                 }
 
                 Spacer()
@@ -567,9 +519,9 @@ struct MeetupPayFlowView: View {
                         .font(Theme.syne(15, weight: .semibold))
                         .foregroundStyle(campusTheme.textPrimary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 50)
+                        .frame(height: 56)
                         .background(campusTheme.elevatedSurface)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .clipShape(Capsule())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
             }
@@ -579,12 +531,12 @@ struct MeetupPayFlowView: View {
                 advance()
             } label: {
                 Text(primaryButtonTitle)
-                    .font(Theme.syne(15, weight: .bold))
+                    .font(Theme.syne(15, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(height: 56)
                     .background(campusTheme.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(Capsule())
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
             .disabled(step == .pay && selectedMethod == nil)
@@ -613,6 +565,25 @@ struct MeetupPayFlowView: View {
             )
             MeetupChecklistStore.remove(id: item.id)
             dismiss()
+        }
+    }
+
+    private func presentPaymentOutcome(_ kind: PaymentOutcomeKind) {
+        paymentError = nil
+        if kind == .failure {
+            paymentPresenter.errorMessage = nil
+        }
+        withAnimation(.easeInOut(duration: 0.25)) {
+            paymentOutcome = kind
+        }
+    }
+
+    private func handlePaymentOutcomeContinue(_ kind: PaymentOutcomeKind) {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            paymentOutcome = nil
+        }
+        if kind == .success {
+            withAnimation(Motion.snappy) { step = .done }
         }
     }
 
@@ -681,10 +652,6 @@ struct MeetupPayFlowView: View {
         } catch {
             paymentError = error.localizedDescription
         }
-    }
-
-    private func openExternalPaymentApp(schemes: [String], webFallback: String) {
-        ExternalPaymentApps.open(schemes: schemes, fallbackURL: webFallback)
     }
 
     private func loadPrice() async {

@@ -1,0 +1,99 @@
+import SwiftUI
+
+struct PreferencesView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.campusTheme) private var campusTheme
+
+    @State private var notifyMessages = AccountPrefsStore.notifyMessages
+    @State private var notifyMeetups = AccountPrefsStore.notifyMeetups
+    @State private var notifyOffers = AccountPrefsStore.notifyOffers
+    @State private var notifySales = AccountPrefsStore.notifySales
+    @State private var notifyFollows = AccountPrefsStore.notifyFollows
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            CampusPageBackground()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 26) {
+                    CampusPageHeader(title: "preferences", subtitle: "how popup feels")
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        SettingsSectionTitle(title: "appearance", subtitle: "Matches the rest of the app.")
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 8) {
+                                ForEach(PopupAppearance.allCases) { mode in
+                                    Button {
+                                        withAnimation(Motion.snappy) {
+                                            appState.appearance = mode
+                                        }
+                                        Motion.haptic(.light)
+                                    } label: {
+                                        Text(mode.title.lowercased())
+                                            .font(Theme.syne(14, weight: .semibold))
+                                            .foregroundStyle(appState.appearance == mode ? Color.white : campusTheme.textPrimary)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 44)
+                                            .background(
+                                                appState.appearance == mode
+                                                    ? campusTheme.primary
+                                                    : campusTheme.elevatedSurface
+                                            )
+                                            .clipShape(Capsule())
+                                    }
+                                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .background(CampusCardBackground())
+                    }
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        SettingsSectionTitle(
+                            title: "notifications",
+                            subtitle: "Choose what pops up on this phone. You can change this anytime."
+                        )
+                        VStack(spacing: 0) {
+                            SettingsToggleRow(
+                                title: "Messages",
+                                subtitle: "New chats and replies in inbox.",
+                                isOn: $notifyMessages
+                            )
+                            SettingsToggleRow(
+                                title: "Meetup reminders",
+                                subtitle: "Time and place for accepted meetups.",
+                                isOn: $notifyMeetups
+                            )
+                            SettingsToggleRow(
+                                title: "Offers",
+                                subtitle: "When someone offers on one of your listings.",
+                                isOn: $notifyOffers
+                            )
+                            SettingsToggleRow(
+                                title: "Sales",
+                                subtitle: "When a meetup payment goes through.",
+                                isOn: $notifySales
+                            )
+                            SettingsToggleRow(
+                                title: "Follows",
+                                subtitle: "When someone follows your closet.",
+                                isOn: $notifyFollows,
+                                showDivider: false
+                            )
+                        }
+                        .background(CampusCardBackground())
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 40)
+            }
+        }
+        .campusPageStyle()
+        .onChange(of: notifyMessages) { value in AccountPrefsStore.notifyMessages = value }
+        .onChange(of: notifyMeetups) { value in AccountPrefsStore.notifyMeetups = value }
+        .onChange(of: notifyOffers) { value in AccountPrefsStore.notifyOffers = value }
+        .onChange(of: notifySales) { value in AccountPrefsStore.notifySales = value }
+        .onChange(of: notifyFollows) { value in AccountPrefsStore.notifyFollows = value }
+    }
+}

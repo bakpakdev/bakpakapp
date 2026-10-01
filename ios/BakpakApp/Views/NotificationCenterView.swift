@@ -186,69 +186,110 @@ struct NotificationCenterView: View {
     }
 
     var body: some View {
-        Group {
-            if isLoading && notifications.isEmpty {
-                ProgressView()
-                    .tint(campusTheme.primary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if notifications.isEmpty {
-                emptyState
-            } else {
-                ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 10) {
-                        ForEach(notifications) { item in
-                            notificationRow(item)
+        ZStack(alignment: .top) {
+            CampusPageBackground()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                        .padding(.top, 4)
+                        .padding(.bottom, 22)
+
+                    if isLoading && notifications.isEmpty {
+                        ProgressView()
+                            .tint(campusTheme.primary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 60)
+                    } else if notifications.isEmpty {
+                        emptyState
+                    } else {
+                        Text(unreadCount > 0 ? "new · \(unreadCount)" : "recent")
+                            .font(Theme.syne(18, weight: .semibold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                            .padding(.bottom, 12)
+
+                        LazyVStack(spacing: 10) {
+                            ForEach(notifications) { item in
+                                notificationRow(item)
+                            }
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, 28)
                 }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 32)
             }
+            .refreshable { await reload() }
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text("Notifications")
-                    .font(Theme.syne(17, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                if unreadCount > 0 {
-                    Button {
-                        Motion.haptic(.light)
-                        Task { await markAllRead() }
-                    } label: {
-                        Text("Mark all read")
-                            .font(Theme.syne(13, weight: .semibold))
-                            .foregroundStyle(campusTheme.primary)
-                    }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-                }
-            }
-        }
-        .campusScreenStyle()
+        .campusPageStyle()
         .task { await reload() }
-        .refreshable { await reload() }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("notifications")
+                    .font(Theme.syne(36, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text("messages & offers")
+                    .font(Theme.syne(28, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+
+            Spacer(minLength: 8)
+
+            if unreadCount > 0 {
+                Button {
+                    Motion.haptic(.light)
+                    Task { await markAllRead() }
+                } label: {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(width: 62, height: 62)
+                        .background(
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .fill(campusTheme.elevatedSurface)
+                        )
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
+                .accessibilityLabel("Mark all read")
+            }
+        }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
-            Spacer()
+        VStack(spacing: 12) {
             Image(systemName: "bell")
-                .font(.system(size: 34, weight: .medium))
-                .foregroundStyle(campusTheme.primary.opacity(0.7))
-            Text("You're all caught up")
-                .font(Theme.syne(18, weight: .bold))
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .frame(width: 62, height: 62)
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(campusTheme.elevatedSurface)
+                )
+            Text("you're all caught up")
+                .font(Theme.syne(18, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text("New messages and offers will show up here for two weeks.")
                 .font(Theme.syne(14, weight: .regular))
                 .foregroundStyle(campusTheme.textMuted)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 36)
-            Spacer()
+                .padding(.horizontal, 16)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 36)
+        .background(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(campusTheme.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .stroke(campusTheme.border, lineWidth: 1)
+                )
+        )
     }
 
     private func notificationRow(_ item: AppNotification) -> some View {
@@ -256,22 +297,21 @@ struct NotificationCenterView: View {
             Motion.haptic(.light)
             Task { await handleTap(item) }
         } label: {
-            HStack(alignment: .top, spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(campusTheme.primary.opacity(item.isRead ? 0.08 : 0.14))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: item.kind.systemImage)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(campusTheme.primary.opacity(item.isRead ? 0.7 : 1))
-                }
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: item.kind.systemImage)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(item.isRead ? campusTheme.textMuted : campusTheme.primary)
+                    .frame(width: 52, height: 52)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(campusTheme.elevatedSurface)
+                    )
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(item.kind.title)
-                            .font(Theme.syne(11, weight: .bold))
-                            .foregroundStyle(campusTheme.primary.opacity(item.isRead ? 0.75 : 1))
-                            .textCase(.uppercase)
+                        Text(item.kind.title.lowercased())
+                            .font(Theme.syne(12, weight: .semibold))
+                            .foregroundStyle(item.isRead ? campusTheme.textMuted : campusTheme.primary)
                         Spacer(minLength: 8)
                         Text(relativeTime(item.createdAt))
                             .font(Theme.syne(11, weight: .medium))
@@ -300,16 +340,14 @@ struct NotificationCenterView: View {
             }
             .padding(14)
             .background(
-                item.isRead
-                    ? campusTheme.surface.opacity(0.88)
-                    : campusTheme.primary.opacity(0.07)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(
-                        item.isRead ? campusTheme.border : campusTheme.primary.opacity(0.2),
-                        lineWidth: 1
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .fill(campusTheme.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 26, style: .continuous)
+                            .stroke(
+                                item.isRead ? campusTheme.border : campusTheme.primary.opacity(0.28),
+                                lineWidth: 1
+                            )
                     )
             )
         }

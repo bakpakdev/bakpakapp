@@ -30,6 +30,7 @@ struct ProductDetailView: View {
     @State private var isSendingOffer = false
     @State private var isLiked = false
     @State private var isSaved = false
+    @State private var paymentOutcome: PaymentOutcomeKind?
 
     private let productService = ProductService()
     private let socialService = SocialService()
@@ -64,7 +65,7 @@ struct ProductDetailView: View {
                 Button((product?.isSold == true) ? "Mark available" : "Mark as sold") { Task { await toggleSold() } }
                 Button("Cancel", role: .cancel) {}
             }
-            .modifier(ProductDetailAlerts(actionError: $actionError, comingSoonMessage: $comingSoonMessage, paymentPresenter: paymentPresenter))
+            .modifier(ProductDetailAlerts(actionError: $actionError, comingSoonMessage: $comingSoonMessage, paymentPresenter: paymentPresenter, suppressPaymentAlert: paymentOutcome != nil))
             .sheet(isPresented: $showSellerPaymentSheet) { sellerPaymentWaitingSheet }
             .sheet(isPresented: $showOfferSheet) {
                 if let product {
@@ -75,14 +76,39 @@ struct ProductDetailView: View {
             .onChange(of: paymentPresenter.didComplete) { completed in
                 guard completed else { return }
                 paymentPresenter.didComplete = false
+                presentPaymentOutcome(.success)
                 Task {
                     MeetupChecklistStore.completePaid(productId: productId)
                     await load()
                     await refreshActivePayment()
                 }
             }
+            .onChange(of: paymentPresenter.errorMessage) { message in
+                guard message != nil, paymentOutcome == nil else { return }
+                presentPaymentOutcome(.failure)
+            }
             .task(id: productId) { await pollActivePayment() }
             .campusScreenStyle()
+            .overlay {
+                if let paymentOutcome {
+                    PaymentOutcomeOverlay(
+                        kind: paymentOutcome,
+                        isCollecting: isOwner,
+                        onContinue: {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                self.paymentOutcome = nil
+                            }
+                        }
+                    )
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+                }
+            }
+            .toolbar(paymentOutcome == nil ? .visible : .hidden, for: .navigationBar)
+            .hidesSystemNavigationBar(paymentOutcome != nil)
+            .onChange(of: paymentOutcome) { value in
+                appState.hidesTabBar = value != nil
+            }
             .task { await load() }
     }
 
@@ -162,7 +188,6 @@ struct ProductDetailView: View {
 
                 if product.isSold != true {
                     collectPaymentButton(product)
-                    alternatePaymentAppsRow
                 }
 
                 manageList([
@@ -868,71 +893,6 @@ struct ProductDetailView: View {
         .disabled(isPaymentBusy || product.isSold == true)
     }
 
-    private var alternatePaymentAppsRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Or pay with")
-                .font(Theme.syne(12, weight: .bold))
-                .foregroundStyle(campusTheme.textMuted)
-                .padding(.leading, 2)
-
-            HStack(spacing: 8) {
-                paymentAppButton(
-                    title: "Venmo",
-                    logo: "venmo_logo",
-                    tint: Color(hex: "#008CFF"),
-                    appSchemes: ["venmo://"],
-                    webFallback: ExternalPaymentApps.venmoAppStore
-                )
-                paymentAppButton(
-                    title: "Cash App",
-                    logo: "cashapp_logo",
-                    tint: Color(hex: "#00D632"),
-                    appSchemes: ["cashapp://", "squarecash://"],
-                    webFallback: ExternalPaymentApps.cashAppAppStore
-                )
-                paymentAppButton(
-                    title: "PayPal",
-                    logo: "paypal_logo",
-                    tint: Color(hex: "#0070BA"),
-                    appSchemes: ["paypal://"],
-                    webFallback: ExternalPaymentApps.paypalWeb
-                )
-            }
-        }
-    }
-
-    private func paymentAppButton(
-        title: String,
-        logo: String,
-        tint: Color,
-        appSchemes: [String],
-        webFallback: String
-    ) -> some View {
-        Button {
-            openExternalPaymentApp(schemes: appSchemes, webFallback: webFallback)
-        } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(tint)
-                Image(logo)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 26, height: 26)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 42)
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-        .accessibilityLabel(title)
-    }
-
-    private func openExternalPaymentApp(schemes: [String], webFallback: String) {
-        Motion.haptic(.light)
-        ExternalPaymentApps.open(schemes: schemes, fallbackURL: webFallback)
-    }
-
     private var sellerPaymentWaitingSheet: some View {
         NavigationStack {
             VStack(spacing: 22) {
@@ -1016,8 +976,13 @@ struct ProductDetailView: View {
                             )
                         }
                         MeetupChecklistStore.completePaid(productId: productId)
+                        showSellerPaymentSheet = false
+                        presentPaymentOutcome(.success)
                         await load()
                     }
+                } else if case .failed = phase {
+                    showSellerPaymentSheet = false
+                    presentPaymentOutcome(.failure)
                 }
             }
         }
@@ -1042,6 +1007,15 @@ struct ProductDetailView: View {
         case .processing: return "Processing"
         case .connecting, .preparing: return "Getting ready"
         case .idle: return "Tap to Pay"
+        }
+    }
+
+    private func presentPaymentOutcome(_ kind: PaymentOutcomeKind) {
+        if kind == .failure {
+            paymentPresenter.errorMessage = nil
+        }
+        withAnimation(.easeInOut(duration: 0.25)) {
+            paymentOutcome = kind
         }
     }
 
@@ -1263,6 +1237,7 @@ private struct ProductDetailAlerts: ViewModifier {
     @Binding var actionError: String?
     @Binding var comingSoonMessage: String?
     @ObservedObject var paymentPresenter: PaymentSheetPresenter
+    var suppressPaymentAlert: Bool = false
 
     func body(content: Content) -> some View {
         content
@@ -1272,7 +1247,7 @@ private struct ProductDetailAlerts: ViewModifier {
             .alert("Coming soon", isPresented: Binding(get: { comingSoonMessage != nil }, set: { if !$0 { comingSoonMessage = nil } })) {
                 Button("OK", role: .cancel) { comingSoonMessage = nil }
             } message: { Text(comingSoonMessage ?? "") }
-            .alert("Payment", isPresented: Binding(get: { paymentPresenter.errorMessage != nil }, set: { if !$0 { paymentPresenter.errorMessage = nil } })) {
+            .alert("Payment", isPresented: Binding(get: { !suppressPaymentAlert && paymentPresenter.errorMessage != nil }, set: { if !$0 { paymentPresenter.errorMessage = nil } })) {
                 Button("OK", role: .cancel) { paymentPresenter.errorMessage = nil }
             } message: { Text(paymentPresenter.errorMessage ?? "") }
     }

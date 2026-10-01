@@ -22,9 +22,9 @@ struct ApplePayButton: View {
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .frame(height: 52)
+            .frame(height: 56)
             .background(Color.black)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(Capsule())
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
         .accessibilityLabel(receiving ? "Receive with Apple Pay" : title)

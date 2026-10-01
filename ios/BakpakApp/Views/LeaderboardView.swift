@@ -8,15 +8,6 @@ struct LeaderboardView: View {
     @State private var range: LeaderboardTimeRange = .all
     @State private var entries: [SellerRankEntry] = []
     @State private var isLoading = true
-    @State private var scrollToMeToken = UUID()
-
-    private var cardStroke: Color {
-        campusTheme.isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.08)
-    }
-
-    private var glassFill: Color {
-        Color.white.opacity(campusTheme.isDark ? 0.06 : 0.55)
-    }
 
     private var topThree: [SellerRankEntry] {
         Array(entries.prefix(3))
@@ -26,71 +17,97 @@ struct LeaderboardView: View {
         Array(entries.dropFirst(3))
     }
 
+    private var me: SellerRankEntry? {
+        entries.first(where: \.isCurrentUser)
+    }
+
     var body: some View {
-        ZStack {
-            campusTheme.background.ignoresSafeArea()
+        ZStack(alignment: .top) {
+            CampusPageBackground()
 
-            Circle()
-                .fill(campusTheme.primary.opacity(0.14))
-                .frame(width: 260, height: 260)
-                .blur(radius: 55)
-                .offset(x: -130, y: -90)
-                .allowsHitTesting(false)
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        CampusPageHeader(title: "leaderboard", subtitle: "top sellers · \(campusTheme.shortName.lowercased()) grid")
 
-            Circle()
-                .fill(campusTheme.secondary.opacity(0.1))
-                .frame(width: 220, height: 220)
-                .blur(radius: 60)
-                .offset(x: 150, y: 220)
-                .allowsHitTesting(false)
-
-            Group {
-                if isLoading {
-                    ProgressView()
-                        .tint(campusTheme.primary)
-                } else if entries.count < 3 {
-                    emptyState
-                } else {
-                    ScrollViewReader { proxy in
-                        ScrollView(showsIndicators: false) {
+                        if isLoading {
+                            ProgressView()
+                                .tint(campusTheme.primary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 60)
+                        } else if entries.count < 3 {
+                            CampusEmptyCard(
+                                systemImage: "trophy",
+                                title: "grid ranking is warming up",
+                                message: "A few more sellers on the \(campusTheme.shortName) Grid and the leaderboard will light up."
+                            )
+                        } else {
                             VStack(alignment: .leading, spacing: 18) {
+                                if let me {
+                                    yourRankCard(me) { scrollToCurrentUser(proxy) }
+                                }
                                 rangeChips
                                 podium
-                                rankedList
+                                if !listEntries.isEmpty {
+                                    Text("rankings")
+                                        .font(Theme.syne(18, weight: .semibold))
+                                        .foregroundStyle(campusTheme.textPrimary)
+                                        .padding(.top, 8)
+                                    rankedList
+                                }
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 8)
-                            .padding(.bottom, 40)
-                        }
-                        .onAppear {
-                            scrollToCurrentUser(proxy)
-                        }
-                        .onChange(of: scrollToMeToken) { _ in
-                            scrollToCurrentUser(proxy)
                         }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 40)
                 }
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                VStack(spacing: 2) {
-                    Text("Top Sellers")
-                        .font(Theme.syne(17, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                    Text("\(campusTheme.shortName) Grid")
-                        .font(Theme.syne(11, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                }
-            }
-        }
-        .toolbarBackground(campusTheme.surface.opacity(0.9), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .hidesSystemNavigationBar(false)
-        .preferredColorScheme(campusTheme.isDark ? .dark : .light)
-        .tint(campusTheme.primary)
+        .campusPageStyle()
         .task(id: range) { await reload() }
+    }
+
+    // MARK: - Your rank
+
+    private func yourRankCard(_ entry: SellerRankEntry, onTap: @escaping () -> Void) -> some View {
+        Button(action: onTap) {
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("your rank")
+                        .font(Theme.syne(13, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.75))
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("#\(entry.rank)")
+                            .font(Theme.syne(34, weight: .bold))
+                            .foregroundStyle(.white)
+                        Text("of \(entries.count)")
+                            .font(Theme.syne(15, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                    Text("\(entry.soldCount) sold")
+                        .font(Theme.syne(13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.78))
+                }
+                Spacer(minLength: 8)
+                Text("find me")
+                    .font(Theme.syne(14, weight: .semibold))
+                    .foregroundStyle(campusTheme.primary)
+                    .padding(.horizontal, 18)
+                    .frame(height: 44)
+                    .background(Color.white)
+                    .clipShape(Capsule())
+            }
+            .padding(20)
+            .background(
+                LinearGradient(
+                    colors: [campusTheme.primary, campusTheme.bannerEnd],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
     }
 
     // MARK: - Chips
@@ -105,15 +122,12 @@ struct LeaderboardView: View {
                         Motion.haptic(.light)
                     } label: {
                         Text(option.title)
-                            .font(Theme.syne(13, weight: .semibold))
+                            .font(Theme.syne(14, weight: .semibold))
                             .foregroundStyle(active ? Color.white : campusTheme.textPrimary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 9)
-                            .background(active ? campusTheme.primary : glassFill)
+                            .padding(.horizontal, 18)
+                            .frame(height: 44)
+                            .background(active ? campusTheme.primary : campusTheme.elevatedSurface)
                             .clipShape(Capsule())
-                            .overlay(
-                                Capsule().stroke(active ? Color.clear : cardStroke, lineWidth: 1)
-                            )
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                 }
@@ -163,7 +177,7 @@ struct LeaderboardView: View {
             }
 
             Text(entry.leaderboardDisplayName)
-                .font(Theme.syne(12, weight: .bold))
+                .font(Theme.syne(13, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
                 .lineLimit(1)
                 .multilineTextAlignment(.center)
@@ -173,16 +187,13 @@ struct LeaderboardView: View {
                 .foregroundStyle(campusTheme.textMuted)
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 12)
+        .padding(.vertical, 16)
         .frame(maxWidth: .infinity)
-        .background(entry.isCurrentUser ? campusTheme.primary.opacity(0.12) : glassFill)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(
-                    entry.isCurrentUser ? campusTheme.primary.opacity(0.45) : cardStroke,
-                    lineWidth: entry.isCurrentUser ? 1.5 : 1
-                )
+        .background(
+            CampusCardBackground(
+                cornerRadius: 26,
+                stroke: entry.isCurrentUser ? campusTheme.primary.opacity(0.45) : nil
+            )
         )
         .id(entry.isCurrentUser ? "me" : entry.id)
     }
@@ -190,26 +201,26 @@ struct LeaderboardView: View {
     // MARK: - List
 
     private var rankedList: some View {
-        VStack(spacing: 8) {
-            ForEach(Array(listEntries.enumerated()), id: \.element.id) { index, entry in
-                rankRow(entry, zebra: index % 2 == 1)
+        VStack(spacing: 10) {
+            ForEach(listEntries) { entry in
+                rankRow(entry)
                     .id(entry.isCurrentUser ? "me" : entry.id)
             }
         }
     }
 
-    private func rankRow(_ entry: SellerRankEntry, zebra: Bool) -> some View {
+    private func rankRow(_ entry: SellerRankEntry) -> some View {
         HStack(spacing: 12) {
             Text("#\(entry.rank)")
                 .font(Theme.syne(13, weight: .bold))
                 .foregroundStyle(campusTheme.textMuted)
                 .frame(width: 36, alignment: .leading)
 
-            avatarView(entry, size: 40)
+            avatarView(entry, size: 44)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.leaderboardDisplayName)
-                    .font(Theme.syne(14, weight: .bold))
+                    .font(Theme.syne(15, weight: .semibold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .lineLimit(1)
                 Text(String(format: "%.1f rating", entry.rating))
@@ -226,17 +237,10 @@ struct LeaderboardView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(
-            entry.isCurrentUser
-                ? campusTheme.primary.opacity(0.12)
-                : (zebra ? Color.white.opacity(campusTheme.isDark ? 0.04 : 0.35) : glassFill)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(
-                    entry.isCurrentUser ? campusTheme.primary.opacity(0.45) : cardStroke,
-                    lineWidth: entry.isCurrentUser ? 1.5 : 1
-                )
+            CampusCardBackground(
+                cornerRadius: 22,
+                stroke: entry.isCurrentUser ? campusTheme.primary.opacity(0.45) : nil
+            )
         )
     }
 
@@ -250,7 +254,7 @@ struct LeaderboardView: View {
                 }
             } else if entry.hideNameOnLeaderboard {
                 ZStack {
-                    Color.white.opacity(0.08)
+                    campusTheme.elevatedSurface
                     Image(systemName: "person.fill")
                         .font(.system(size: size * 0.35, weight: .semibold))
                         .foregroundStyle(campusTheme.textMuted)
@@ -260,32 +264,15 @@ struct LeaderboardView: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(Circle())
-        .overlay(Circle().stroke(cardStroke, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.32, style: .continuous))
     }
 
     private func initialCircle(_ entry: SellerRankEntry, size: CGFloat) -> some View {
         ZStack {
-            Color.white.opacity(0.08)
+            campusTheme.elevatedSurface
             Text(String(entry.username.prefix(1)).uppercased())
                 .font(Theme.syne(size * 0.38, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
-        }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "trophy")
-                .font(.system(size: 28, weight: .medium))
-                .foregroundStyle(campusTheme.textMuted)
-            Text("Grid ranking is warming up")
-                .font(Theme.syne(18, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-            Text("A few more sellers on the \(campusTheme.shortName) Grid and the leaderboard will light up.")
-                .font(Theme.syne(14, weight: .regular))
-                .foregroundStyle(campusTheme.textMuted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 28)
         }
     }
 
@@ -293,10 +280,7 @@ struct LeaderboardView: View {
 
     private func reload() async {
         isLoading = true
-        defer {
-            isLoading = false
-            scrollToMeToken = UUID()
-        }
+        defer { isLoading = false }
         entries = await SellerRankService.shared.loadLeaderboard(
             schoolID: campusTheme.schoolID,
             schoolName: authVM.user?.country,
@@ -310,11 +294,9 @@ struct LeaderboardView: View {
     }
 
     private func scrollToCurrentUser(_ proxy: ScrollViewProxy) {
-        guard entries.contains(where: \.isCurrentUser) else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            withAnimation(Motion.gentle) {
-                proxy.scrollTo("me", anchor: .center)
-            }
+        Motion.haptic(.light)
+        withAnimation(Motion.gentle) {
+            proxy.scrollTo("me", anchor: .center)
         }
     }
 }

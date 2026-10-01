@@ -12,89 +12,25 @@ struct AccountSettingsView: View {
     @State private var isLoadingSquare = false
     @State private var showLogoutModal = false
     @State private var showDisconnectSquare = false
-    @State private var hideNameOnLeaderboard = SellerRankStore.hideNameOnLeaderboard
 
     private let squareConnect = SquareConnectService.shared
 
     private var user: User? { authVM.user }
 
     var body: some View {
-        ZStack {
-            campusTheme.wash.ignoresSafeArea()
-
-            Circle()
-                .fill(campusTheme.primary.opacity(0.12))
-                .frame(width: 260, height: 260)
-                .blur(radius: 55)
-                .offset(x: -130, y: -100)
-                .allowsHitTesting(false)
-
-            Circle()
-                .fill(campusTheme.secondary.opacity(0.10))
-                .frame(width: 220, height: 220)
-                .blur(radius: 60)
-                .offset(x: 140, y: 160)
-                .allowsHitTesting(false)
+        ZStack(alignment: .top) {
+            CampusPageBackground()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 22) {
-                    balanceCard
-                    settingsGroup(
-                        title: "Account",
-                        rows: [
-                            .init(icon: "person.crop.circle", title: "Account details", subtitle: user?.email) {
-                                appState.path.append(.accountDetails)
-                            },
-                        ]
-                    )
-                    settingsGroup(
-                        title: "Payments",
-                        rows: [
-                            .init(icon: "creditcard", title: paymentSettingsTitle, subtitle: paymentSettingsSubtitle) {
-                                openCashOutSetupOrManage()
-                            },
-                            .init(icon: "building.columns", title: "Payout methods", subtitle: payoutMethodsSubtitle) {
-                                openCashOutSetupOrManage()
-                            },
-                            .init(icon: "link", title: squareSettingsTitle, subtitle: squareSettingsSubtitle) {
-                                Task { await squareConnectTapped() }
-                            },
-                        ]
-                    )
-                    settingsGroup(
-                        title: "Security",
-                        rows: [
-                            .init(icon: "lock.shield", title: "Two-factor authentication", subtitle: "Extra protection for your account") {
-                                comingSoonMessage = "Two-factor authentication is coming soon."
-                            },
-                            .init(icon: "iphone.and.arrow.forward", title: "Devices & sessions", subtitle: "Signed-in devices") {
-                                comingSoonMessage = "Session management is coming soon."
-                            },
-                        ]
-                    )
-                    preferencesGroup
-                    settingsGroup(
-                        title: "Privacy",
-                        rows: [
-                            .init(icon: "hand.raised", title: "Privacy settings", subtitle: "Profile visibility and DMs") {
-                                comingSoonMessage = "Privacy controls are coming soon."
-                            },
-                            .init(icon: "person.slash", title: "Blocked users", subtitle: nil) {
-                                comingSoonMessage = "Blocked users is coming soon."
-                            },
-                        ]
-                    )
-                    leaderboardPrivacyGroup
-                    logoutButton
+                VStack(alignment: .leading, spacing: 0) {
+                    CampusPageHeader(title: "settings", subtitle: "account & payouts")
+                    settingsSections
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 40)
             }
         }
-        .navigationTitle("Settings")
-        .navigationBarTitleDisplayMode(.inline)
-        .campusScreenStyle()
+        .campusPageStyle()
         .task {
             await loadSquareStatus()
         }
@@ -129,12 +65,86 @@ struct AccountSettingsView: View {
         }
     }
 
+    private var settingsSections: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            balanceCard
+            settingsGroup(
+                title: "Account",
+                rows: [
+                    .init(icon: "person.crop.circle", title: "Account details", subtitle: user?.email) {
+                        appState.path.append(.accountDetails)
+                    },
+                ]
+            )
+            settingsGroup(
+                title: "Payments",
+                rows: [
+                    .init(icon: "creditcard", title: paymentSettingsTitle, subtitle: paymentSettingsSubtitle) {
+                        openCashOutSetupOrManage()
+                    },
+                    .init(icon: "building.columns", title: "Payout methods", subtitle: payoutMethodsSubtitle) {
+                        openCashOutSetupOrManage()
+                    },
+                    .init(icon: "link", title: squareSettingsTitle, subtitle: squareSettingsSubtitle) {
+                        Task { await squareConnectTapped() }
+                    },
+                ]
+            )
+            settingsGroup(
+                title: "Security",
+                rows: [
+                    .init(
+                        icon: "lock.shield",
+                        title: "Two-factor authentication",
+                        subtitle: AccountPrefsStore.twoFactorEnabled ? "On · email codes" : "Off · add a sign-in code"
+                    ) {
+                        appState.path.append(.twoFactorAuth)
+                    },
+                ]
+            )
+            settingsGroup(
+                title: "Preferences",
+                rows: [
+                    .init(icon: "slider.horizontal.3", title: "Preferences", subtitle: "Appearance and notifications") {
+                        appState.path.append(.preferences)
+                    },
+                ]
+            )
+            settingsGroup(
+                title: "Privacy",
+                rows: [
+                    .init(icon: "hand.raised", title: "Privacy settings", subtitle: "Profile, messages, and the Grid") {
+                        appState.path.append(.privacySettings)
+                    },
+                    .init(
+                        icon: "person.slash",
+                        title: "Blocked users",
+                        subtitle: AccountPrefsStore.blockedUsers.isEmpty
+                            ? "Nobody blocked"
+                            : "\(AccountPrefsStore.blockedUsers.count) blocked"
+                    ) {
+                        appState.path.append(.blockedUsers)
+                    },
+                ]
+            )
+            settingsGroup(
+                title: "Support",
+                rows: [
+                    .init(icon: "questionmark.circle", title: "Help & support", subtitle: "Safety, FAQs, and contact") {
+                        appState.path.append(.helpSupport)
+                    },
+                ]
+            )
+            logoutButton
+        }
+    }
+
     // MARK: - Balance
 
     private var balanceCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Balance")
+                Text("balance")
                     .font(Theme.syne(13, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.75))
                 Spacer()
@@ -158,14 +168,14 @@ struct AccountSettingsView: View {
                     .font(Theme.syne(14, weight: .bold))
                     .foregroundStyle(campusTheme.primary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 44)
+                    .frame(height: 50)
                     .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .clipShape(Capsule())
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
             .padding(.top, 4)
         }
-        .padding(18)
+        .padding(20)
         .background(
             LinearGradient(
                 colors: [campusTheme.primary, campusTheme.bannerEnd],
@@ -173,7 +183,7 @@ struct AccountSettingsView: View {
                 endPoint: .bottomTrailing
             )
         )
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
 
     // MARK: - Groups
@@ -256,10 +266,9 @@ struct AccountSettingsView: View {
 
     private func settingsGroup(title: String, rows: [SettingsRowModel]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(Theme.syne(15, weight: .bold))
+            Text(title.lowercased())
+                .font(Theme.syne(18, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
-                .padding(.leading, 4)
 
             VStack(spacing: 0) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
@@ -267,10 +276,10 @@ struct AccountSettingsView: View {
                         HStack(spacing: 12) {
                             Image(systemName: row.icon)
                                 .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(campusTheme.primary)
-                                .frame(width: 28, height: 28)
-                                .background(campusTheme.primary.opacity(0.12))
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .foregroundStyle(campusTheme.textPrimary)
+                                .frame(width: 42, height: 42)
+                                .background(campusTheme.elevatedSurface)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(row.title)
@@ -289,7 +298,7 @@ struct AccountSettingsView: View {
                                 .foregroundStyle(campusTheme.textMuted)
                         }
                         .padding(.horizontal, 14)
-                        .padding(.vertical, 13)
+                        .padding(.vertical, 12)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -297,121 +306,11 @@ struct AccountSettingsView: View {
                     if index < rows.count - 1 {
                         Divider()
                             .overlay(campusTheme.border)
-                            .padding(.leading, 54)
+                            .padding(.leading, 70)
                     }
                 }
             }
-            .background(campusTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(campusTheme.border, lineWidth: 1)
-            )
-        }
-    }
-
-    private var preferencesGroup: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Preferences")
-                .font(Theme.syne(15, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-                .padding(.leading, 4)
-
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Appearance")
-                    .font(Theme.syne(15, weight: .semibold))
-                    .foregroundStyle(campusTheme.textPrimary)
-
-                HStack(spacing: 8) {
-                    ForEach(PopupAppearance.allCases) { mode in
-                        Button {
-                            withAnimation(Motion.snappy) {
-                                appState.appearance = mode
-                            }
-                            Motion.haptic(.light)
-                        } label: {
-                            Text(mode.title)
-                                .font(Theme.syne(13, weight: .semibold))
-                                .foregroundStyle(appState.appearance == mode ? Color.white : campusTheme.textPrimary)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(
-                                    appState.appearance == mode
-                                        ? campusTheme.primary
-                                        : campusTheme.elevatedSurface
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        }
-                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-                    }
-                }
-
-                Divider().overlay(campusTheme.border)
-
-                Button {
-                    comingSoonMessage = "Notification preferences are coming soon."
-                } label: {
-                    HStack {
-                        Text("Notifications")
-                            .font(Theme.syne(15, weight: .semibold))
-                            .foregroundStyle(campusTheme.textPrimary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(campusTheme.textMuted)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(14)
-            .background(campusTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(campusTheme.border, lineWidth: 1)
-            )
-        }
-    }
-
-    private var leaderboardPrivacyGroup: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Leaderboard")
-                .font(Theme.syne(15, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-                .padding(.leading, 4)
-
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Hide my name on the leaderboard")
-                        .font(Theme.syne(15, weight: .semibold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                    Text("Show as Anonymous Seller #ID on the \(campusTheme.shortName) Grid")
-                        .font(Theme.syne(12, weight: .regular))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 8)
-                Toggle("", isOn: $hideNameOnLeaderboard)
-                    .labelsHidden()
-                    .tint(campusTheme.primary)
-                    .onChange(of: hideNameOnLeaderboard) { value in
-                        SellerRankStore.hideNameOnLeaderboard = value
-                        if let uid = authVM.user?.id {
-                            _ = SellerRankStore.anonymousSellerId(
-                                userId: uid,
-                                schoolID: campusTheme.schoolID
-                            )
-                        }
-                        Motion.haptic(.light)
-                    }
-            }
-            .padding(14)
-            .background(campusTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(campusTheme.border, lineWidth: 1)
-            )
+            .background(CampusCardBackground())
         }
     }
 
@@ -535,13 +434,10 @@ struct AccountSettingsView: View {
             }
             .foregroundStyle(Color(hex: "#E11D48"))
             .frame(maxWidth: .infinity)
-            .frame(height: 50)
+            .frame(height: 56)
             .background(campusTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color(hex: "#E11D48").opacity(0.25), lineWidth: 1)
-            )
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(Color(hex: "#E11D48").opacity(0.25), lineWidth: 1))
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
         .padding(.top, 4)
