@@ -41,8 +41,7 @@ struct PopupLanding: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.emailAddress)
-                        .foregroundColor(PopupBrand.textMuted)
-                        .tint(PopupBrand.textMuted)
+                        .foregroundColor(PopupBrand.textPrimary)
                         .authFieldStyle()
                     }
 
@@ -53,13 +52,22 @@ struct PopupLanding: View {
                         HStack(spacing: 8) {
                             Group {
                                 if showPassword {
-                                    TextField("Password", text: $password)
+                                    TextField(
+                                        "",
+                                        text: $password,
+                                        prompt: Text("Password").foregroundColor(PopupBrand.textMuted)
+                                    )
                                 } else {
-                                    SecureField("Password", text: $password)
+                                    SecureField(
+                                        "",
+                                        text: $password,
+                                        prompt: Text("Password").foregroundColor(PopupBrand.textMuted)
+                                    )
                                 }
                             }
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                            .foregroundColor(PopupBrand.textPrimary)
 
                             Button {
                                 showPassword.toggle()

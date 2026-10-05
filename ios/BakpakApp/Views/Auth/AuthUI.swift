@@ -14,6 +14,7 @@ struct AuthFieldStyle: ViewModifier {
                     .stroke(PopupBrand.border, lineWidth: 1)
             )
             .foregroundStyle(PopupBrand.textPrimary)
+            .tint(PopupBrand.textPrimary)
     }
 }
 

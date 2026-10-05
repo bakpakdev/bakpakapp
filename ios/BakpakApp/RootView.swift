@@ -92,7 +92,7 @@ struct RootView: View {
             .presentationDetents([.large])
         }
         .environment(\.campusTheme, campusTheme)
-        .tint(authVM.isAuthenticated ? campusTheme.primary : Theme.uoGreen)
+        .tint(authVM.isAuthenticated ? campusTheme.primary : PopupBrand.textPrimary)
         .preferredColorScheme(appState.appearance.colorScheme)
         .onChange(of: appState.appearance) { _ in
             CampusAppearance.apply(campusTheme)

@@ -1,5 +1,100 @@
 import SwiftUI
 
+/// In-app confirm card (replaces system confirmation dialogs): dimmed backdrop,
+/// campus-styled card, a destructive action and a cancel button.
+struct ConfirmActionCard: View {
+    let title: String
+    let message: String
+    let confirmTitle: String
+    var confirmIcon: String? = nil
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+
+    @Environment(\.campusTheme) private var campusTheme
+    @State private var appeared = false
+
+    private let destructiveRed = Color(hex: "#E11D48")
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(appeared ? 0.42 : 0)
+                .ignoresSafeArea()
+                .onTapGesture { dismiss(then: onCancel) }
+
+            VStack(spacing: 20) {
+                Image(systemName: confirmIcon ?? "rectangle.portrait.and.arrow.right")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(destructiveRed)
+                    .frame(width: 56, height: 56)
+                    .background(destructiveRed.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                VStack(spacing: 6) {
+                    Text(title)
+                        .font(Theme.syne(22, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .multilineTextAlignment(.center)
+                    Text(message)
+                        .font(Theme.syne(14))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(spacing: 10) {
+                    Button {
+                        Motion.haptic(.medium)
+                        dismiss(then: onConfirm)
+                    } label: {
+                        Text(confirmTitle)
+                            .font(Theme.syne(15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(destructiveRed)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+
+                    Button {
+                        Motion.haptic(.light)
+                        dismiss(then: onCancel)
+                    } label: {
+                        Text("Cancel")
+                            .font(Theme.syne(15, weight: .semibold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(campusTheme.elevatedSurface)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                }
+            }
+            .padding(24)
+            .frame(maxWidth: 340)
+            .background(campusTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(campusTheme.border, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.18), radius: 30, y: 14)
+            .padding(.horizontal, 28)
+            .scaleEffect(appeared ? 1 : 0.92)
+            .opacity(appeared ? 1 : 0)
+        }
+        .onAppear {
+            withAnimation(Motion.bounce) { appeared = true }
+        }
+    }
+
+    private func dismiss(then action: @escaping () -> Void) {
+        withAnimation(Motion.snappy) { appeared = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { action() }
+    }
+}
+
 struct SettingsSectionTitle: View {
     let title: String
     var subtitle: String? = nil

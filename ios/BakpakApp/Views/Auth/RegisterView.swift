@@ -211,8 +211,7 @@ struct RegisterView: View {
                 )
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
-                .foregroundColor(PopupBrand.textMuted)
-                .tint(PopupBrand.textMuted)
+                .foregroundColor(PopupBrand.textPrimary)
                 .authFieldStyle()
             }
 
@@ -227,8 +226,7 @@ struct RegisterView: View {
                 )
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
-                .foregroundColor(PopupBrand.textMuted)
-                .tint(PopupBrand.textMuted)
+                .foregroundColor(PopupBrand.textPrimary)
                 .authFieldStyle()
             }
         }
@@ -290,8 +288,7 @@ struct RegisterView: View {
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .keyboardType(.emailAddress)
-            .foregroundColor(PopupBrand.textMuted)
-            .tint(PopupBrand.textMuted)
+            .foregroundColor(PopupBrand.textPrimary)
             .authFieldStyle()
         }
     }
@@ -325,13 +322,14 @@ struct RegisterView: View {
                 HStack(spacing: 8) {
                     Group {
                         if showPassword {
-                            TextField("Password", text: $password)
+                            TextField("", text: $password, prompt: Text("Password").foregroundColor(PopupBrand.textMuted))
                         } else {
-                            SecureField("Password", text: $password)
+                            SecureField("", text: $password, prompt: Text("Password").foregroundColor(PopupBrand.textMuted))
                         }
                     }
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .foregroundColor(PopupBrand.textPrimary)
 
                     Button {
                         showPassword.toggle()
@@ -353,13 +351,14 @@ struct RegisterView: View {
                 HStack(spacing: 8) {
                     Group {
                         if showConfirmPassword {
-                            TextField("Confirm password", text: $confirmPassword)
+                            TextField("", text: $confirmPassword, prompt: Text("Confirm password").foregroundColor(PopupBrand.textMuted))
                         } else {
-                            SecureField("Confirm password", text: $confirmPassword)
+                            SecureField("", text: $confirmPassword, prompt: Text("Confirm password").foregroundColor(PopupBrand.textMuted))
                         }
                     }
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .foregroundColor(PopupBrand.textPrimary)
 
                     Button {
                         showConfirmPassword.toggle()

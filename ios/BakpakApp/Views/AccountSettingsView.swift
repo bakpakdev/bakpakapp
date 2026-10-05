@@ -31,6 +31,8 @@ struct AccountSettingsView: View {
             }
         }
         .campusPageStyle()
+        .toolbar(showLogoutModal ? .hidden : .visible, for: .navigationBar)
+        .hidesSystemNavigationBar(showLogoutModal)
         .task {
             await loadSquareStatus()
         }
@@ -53,15 +55,29 @@ struct AccountSettingsView: View {
         } message: {
             Text("You won’t be able to cash out until you connect again.")
         }
-        .confirmationDialog("Log out?", isPresented: $showLogoutModal, titleVisibility: .visible) {
-            Button("Log out", role: .destructive) {
-                if !appState.path.isEmpty { appState.path.removeAll() }
-                appState.resetAccountSessionCaches()
-                authVM.logout()
+        .overlay {
+            if showLogoutModal {
+                ConfirmActionCard(
+                    title: "log out?",
+                    message: "Are you sure you want to log out?",
+                    confirmTitle: "Log out",
+                    onConfirm: {
+                        showLogoutModal = false
+                        if !appState.path.isEmpty { appState.path.removeAll() }
+                        appState.resetAccountSessionCaches()
+                        authVM.logout()
+                    },
+                    onCancel: { showLogoutModal = false }
+                )
+                .ignoresSafeArea()
+                .zIndex(10)
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Are you sure you want to log out?")
+        }
+        .onChange(of: showLogoutModal) { showing in
+            appState.hidesTabBar = showing
+        }
+        .onDisappear {
+            if showLogoutModal { appState.hidesTabBar = false }
         }
     }
 
