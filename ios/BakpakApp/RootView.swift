@@ -42,6 +42,8 @@ struct RootView: View {
                 case .notificationCenter: NotificationCenterView()
                 case .myListings: MyListingsView()
                 case .editListing(let id): EditListingView(productId: id)
+                case .sendOffers(let id): SendOffersView(productId: id)
+                case .setDiscount(let id): SetDiscountView(productId: id)
                 case .accountSettings: AccountSettingsView()
                 case .accountDetails: AccountDetailsView()
                 case .privacySettings: PrivacySettingsView()

@@ -170,6 +170,8 @@ enum Route: Hashable, Identifiable {
     case notificationCenter
     case myListings
     case editListing(String)
+    case sendOffers(String)
+    case setDiscount(String)
     case accountSettings
     case accountDetails
     case privacySettings
@@ -200,6 +202,8 @@ enum Route: Hashable, Identifiable {
         case .notificationCenter: return "notification-center"
         case .myListings: return "my-listings"
         case .editListing(let id): return "edit-listing-\(id)"
+        case .sendOffers(let id): return "send-offers-\(id)"
+        case .setDiscount(let id): return "set-discount-\(id)"
         case .accountSettings: return "account-settings"
         case .accountDetails: return "account-details"
         case .privacySettings: return "privacy-settings"

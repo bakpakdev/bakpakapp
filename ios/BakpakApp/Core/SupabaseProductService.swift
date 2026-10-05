@@ -7,7 +7,7 @@ enum SupabaseProductService {
         "id, username, email, avatar_url, first_name, last_name, bio, shop_name, date_of_birth, country, is_verified"
 
     private static let productSelect =
-        "id, title, description, price, condition, size, brand, category, tags, is_sold, created_at, school, meetup_location, " +
+        "id, title, description, price, original_price, condition, size, brand, category, tags, is_sold, created_at, school, meetup_location, " +
         "images (id, url, is_primary), " +
         "profiles (\(profileSelect))"
 
@@ -178,6 +178,7 @@ struct SupabaseProductRow: Decodable {
     let title: String
     let description: String
     let price: Double
+    let originalPrice: Double?
     let condition: String
     let size: String?
     let brand: String?
@@ -193,6 +194,7 @@ struct SupabaseProductRow: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case id, title, description, price, condition, size, brand, category, tags, school
+        case originalPrice = "original_price"
         case isSold = "is_sold"
         case createdAt = "created_at"
         case meetupLocation = "meetup_location"
@@ -206,6 +208,7 @@ struct SupabaseProductRow: Decodable {
         title = try c.decode(String.self, forKey: .title)
         description = try c.decode(String.self, forKey: .description)
         price = try c.decode(Double.self, forKey: .price)
+        originalPrice = try? c.decodeIfPresent(Double.self, forKey: .originalPrice)
         condition = try c.decode(String.self, forKey: .condition)
         size = try c.decodeIfPresent(String.self, forKey: .size)
         brand = try c.decodeIfPresent(String.self, forKey: .brand)
@@ -236,7 +239,8 @@ struct SupabaseProductRow: Decodable {
             meetupLocation: meetupLocation,
             images: images?.map { ProductImage(id: $0.id, url: $0.url, isPrimary: $0.isPrimary) },
             user: profiles.map { $0.asUser },
-            count: nil
+            count: nil,
+            originalPrice: originalPrice
         )
     }
 }

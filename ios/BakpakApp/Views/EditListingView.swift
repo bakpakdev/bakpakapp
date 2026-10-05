@@ -60,40 +60,27 @@ struct EditListingView: View {
     }
 
     var body: some View {
-        ZStack {
-            campusTheme.wash.ignoresSafeArea()
+        ZStack(alignment: .top) {
+            CampusPageBackground()
 
-            Circle()
-                .fill(campusTheme.primary.opacity(0.12))
-                .frame(width: 240, height: 240)
-                .blur(radius: 50)
-                .offset(x: -120, y: -80)
-                .allowsHitTesting(false)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    CampusPageHeader(title: "edit listing", subtitle: "update the details") {
+                        saveButton
+                    }
 
-            Circle()
-                .fill(campusTheme.secondary.opacity(0.10))
-                .frame(width: 200, height: 200)
-                .blur(radius: 55)
-                .offset(x: 140, y: 120)
-                .allowsHitTesting(false)
-
-            VStack(spacing: 0) {
-                topBar
-
-                if isLoading {
-                    Spacer()
-                    ProgressView().tint(campusTheme.primary)
-                    Spacer()
-                } else if let loadError {
-                    Spacer()
-                    Text(loadError)
-                        .font(Theme.syne(14))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .multilineTextAlignment(.center)
-                        .padding()
-                    Spacer()
-                } else {
-                    ScrollView(showsIndicators: false) {
+                    if isLoading {
+                        ProgressView()
+                            .tint(campusTheme.primary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 60)
+                    } else if let loadError {
+                        CampusEmptyCard(
+                            systemImage: "exclamationmark.triangle",
+                            title: "Couldn’t load listing",
+                            message: loadError
+                        )
+                    } else {
                         VStack(alignment: .leading, spacing: 22) {
                             coverPreview
                             fieldBlock(icon: "tag", title: "Title") {
@@ -119,7 +106,7 @@ struct EditListingView: View {
                                     Spacer(minLength: 0)
                                 }
                                 .editListingFieldChrome()
-                                Text("Price can’t be changed after posting")
+                                Text("Use Set discount on the listing page to lower the price")
                                     .font(Theme.syne(11))
                                     .foregroundStyle(campusTheme.textMuted)
                                     .padding(.leading, 4)
@@ -159,19 +146,18 @@ struct EditListingView: View {
                             if let saveError {
                                 Text(saveError)
                                     .font(Theme.syne(13, weight: .medium))
-                                    .foregroundStyle(Color(hex: "#FF6B6B"))
+                                    .foregroundStyle(Color(hex: "#E11D48"))
                                     .padding(.top, 4)
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 18)
-                        .padding(.bottom, 40)
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 40)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
-        .navigationBarHidden(true)
-        .campusScreenStyle()
+        .campusPageStyle()
         .sheet(isPresented: $showBrandSheet) {
             EditBrandPickerSheet(selectedBrand: $selectedBrand)
                 .environment(\.campusTheme, campusTheme)
@@ -183,47 +169,27 @@ struct EditListingView: View {
 
     // MARK: - Chrome
 
-    private var topBar: some View {
-        HStack {
-            Button {
-                dismissOrPop()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .frame(width: 36, height: 36)
-                    .background(campusTheme.surface.opacity(0.85))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(campusTheme.border, lineWidth: 1))
+    private var saveButton: some View {
+        Button {
+            Task { await save() }
+        } label: {
+            Group {
+                if isSaving {
+                    ProgressView().tint(.white)
+                } else {
+                    Text("Save")
+                        .font(Theme.syne(15, weight: .bold))
+                }
             }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
-
-            Spacer()
-
-            Text("Edit listing")
-                .font(Theme.syne(17, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-
-            Spacer()
-
-            Button {
-                Task { await save() }
-            } label: {
-                Text(isSaving ? "Saving…" : "Save")
-                    .font(Theme.syne(14, weight: .bold))
-                    .foregroundStyle(isFormValid && !isSaving ? Color.white : campusTheme.textMuted)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
-                    .background(isFormValid && !isSaving ? campusTheme.primary : campusTheme.elevatedSurface)
-                    .clipShape(Capsule())
-            }
-            .disabled(!isFormValid || isSaving || isLoading)
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
+            .foregroundStyle(isFormValid && !isSaving ? Color.white : campusTheme.textMuted)
+            .frame(width: 76, height: 62)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(isFormValid && !isSaving ? campusTheme.primary : campusTheme.elevatedSurface)
+            )
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(campusTheme.surface.opacity(0.92))
-        .overlay(alignment: .bottom) { Divider().overlay(campusTheme.border) }
+        .disabled(!isFormValid || isSaving || isLoading)
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
     }
 
     private var coverPreview: some View {
@@ -241,11 +207,11 @@ struct EditListingView: View {
                 }
             }
             .frame(width: 72, height: 72)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Cover photo")
-                    .font(Theme.syne(13, weight: .semibold))
+                    .font(Theme.syne(15, weight: .semibold))
                     .foregroundStyle(campusTheme.textPrimary)
                 Text("Photo edits stay on the sell tab for now — update details below.")
                     .font(Theme.syne(12))
@@ -255,12 +221,7 @@ struct EditListingView: View {
             Spacer(minLength: 0)
         }
         .padding(14)
-        .background(campusTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(campusTheme.border, lineWidth: 1)
-        )
+        .background(CampusCardBackground())
     }
 
     private var conditionBlock: some View {
@@ -502,12 +463,12 @@ private struct EditListingFieldChrome: ViewModifier {
             .font(Theme.syne(15))
             .foregroundStyle(campusTheme.textPrimary)
             .tint(campusTheme.primary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(campusTheme.elevatedSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(campusTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(campusTheme.border, lineWidth: 1)
             )
     }

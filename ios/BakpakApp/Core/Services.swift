@@ -117,6 +117,34 @@ struct ProductService {
         return try await api.request(path: "/products/\(id)", method: "PUT", body: body)
     }
 
+    func setDiscount(id: String, newPrice: Double) async throws -> Product {
+        guard SupabaseConfig.isConfigured, let c = await SupabaseManager.shared.clientWithValidSession() else {
+            throw SupabaseDataError.notAuthenticated
+        }
+        return try await SupabaseListingService.setDiscount(client: c, productId: id, newPrice: newPrice)
+    }
+
+    func clearDiscount(id: String) async throws -> Product {
+        guard SupabaseConfig.isConfigured, let c = await SupabaseManager.shared.clientWithValidSession() else {
+            throw SupabaseDataError.notAuthenticated
+        }
+        return try await SupabaseListingService.clearDiscount(client: c, productId: id)
+    }
+
+    func duplicateListing(id: String) async throws -> Product {
+        guard SupabaseConfig.isConfigured, let c = await SupabaseManager.shared.clientWithValidSession() else {
+            throw SupabaseDataError.notAuthenticated
+        }
+        return try await SupabaseListingService.duplicateListing(client: c, productId: id)
+    }
+
+    func interestedBuyers(id: String) async throws -> [SupabaseListingService.InterestedBuyer] {
+        guard SupabaseConfig.isConfigured, let c = await SupabaseManager.shared.clientWithValidSession() else {
+            throw SupabaseDataError.notAuthenticated
+        }
+        return try await SupabaseListingService.interestedBuyers(client: c, productId: id)
+    }
+
     func listingStats(id: String) async -> SupabaseListingService.ListingStats {
         if SupabaseConfig.isConfigured, let c = SupabaseManager.shared.client() {
             return await SupabaseListingService.fetchListingStats(client: c, productId: id)

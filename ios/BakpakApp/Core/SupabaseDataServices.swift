@@ -691,6 +691,232 @@ enum SupabaseListingService {
         return try await SupabaseProductService.fetchProduct(client: client, id: productId)
     }
 
+    // MARK: Discounts
+
+    /// Lowers the price and remembers the pre-discount price in `original_price`
+    /// so buyers see the savings. Re-applying keeps the first original price.
+    static func setDiscount(client: SupabaseClient, productId: String, newPrice: Double) async throws -> Product {
+        let current = try await SupabaseProductService.fetchProduct(client: client, id: productId)
+        let original = current.originalPrice ?? current.price
+        guard newPrice > 0, newPrice < original else {
+            throw NSError(
+                domain: "PopupListing",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "The discounted price has to be lower than $\(Int(original))."]
+            )
+        }
+        struct Patch: Encodable {
+            let price: Double
+            let original_price: Double
+        }
+        try await client
+            .from("products")
+            .update(Patch(price: newPrice, original_price: original))
+            .eq("id", value: productId)
+            .execute()
+        return try await SupabaseProductService.fetchProduct(client: client, id: productId)
+    }
+
+    /// Restores the pre-discount price and clears `original_price`.
+    static func clearDiscount(client: SupabaseClient, productId: String) async throws -> Product {
+        let current = try await SupabaseProductService.fetchProduct(client: client, id: productId)
+        guard let original = current.originalPrice else { return current }
+        struct Patch: Encodable {
+            let price: Double
+            let original_price: Double?
+        }
+        try await client
+            .from("products")
+            .update(Patch(price: original, original_price: nil))
+            .eq("id", value: productId)
+            .execute()
+        return try await SupabaseProductService.fetchProduct(client: client, id: productId)
+    }
+
+    // MARK: Copy listing
+
+    /// Creates a new live listing with the same details and photos (photo URLs are shared,
+    /// nothing is re-uploaded). Returns the copy so the seller can edit it right away.
+    static func duplicateListing(client: SupabaseClient, productId: String) async throws -> Product {
+        let uid = try await client.auth.session.user.id.uuidString.lowercased()
+
+        struct SourceRow: Decodable {
+            let title: String
+            let description: String
+            let price: Double
+            let original_price: Double?
+            let condition: String
+            let size: String?
+            let brand: String?
+            let category: String
+            let tags: [String]?
+            let color: String?
+            let material: String?
+            let department: String?
+            let school: String?
+            let meetup_location: String?
+            let user_id: String
+        }
+        let sources: [SourceRow] = try await client
+            .from("products")
+            .select("title, description, price, original_price, condition, size, brand, category, tags, color, material, department, school, meetup_location, user_id")
+            .eq("id", value: productId)
+            .limit(1)
+            .execute()
+            .value
+        guard let source = sources.first else { throw SupabaseDataError.notFound }
+        guard source.user_id.lowercased() == uid else { throw SupabaseDataError.notAuthenticated }
+
+        struct Insert: Encodable {
+            let title: String
+            let description: String
+            let price: Double
+            let condition: String
+            let size: String?
+            let brand: String?
+            let category: String
+            let tags: [String]?
+            let color: String?
+            let material: String?
+            let department: String?
+            let school: String?
+            let meetup_location: String?
+            let user_id: String
+        }
+        struct NewId: Decodable { let id: String }
+        let inserted: NewId = try await client
+            .from("products")
+            .insert(Insert(
+                title: source.title,
+                description: source.description,
+                // Copies start at the undiscounted price.
+                price: source.original_price ?? source.price,
+                condition: source.condition,
+                size: source.size,
+                brand: source.brand,
+                category: source.category,
+                tags: source.tags,
+                color: source.color,
+                material: source.material,
+                department: source.department,
+                school: source.school,
+                meetup_location: source.meetup_location,
+                user_id: uid
+            ))
+            .select("id")
+            .single()
+            .execute()
+            .value
+
+        struct ImgRow: Decodable {
+            let url: String
+            let is_primary: Bool?
+            let sort_order: Int?
+        }
+        let images: [ImgRow] = try await client
+            .from("images")
+            .select("url, is_primary, sort_order")
+            .eq("product_id", value: productId)
+            .order("sort_order", ascending: true)
+            .execute()
+            .value
+        struct ImgIns: Encodable {
+            let product_id: String
+            let url: String
+            let is_primary: Bool
+            let sort_order: Int
+        }
+        for (i, img) in images.enumerated() {
+            try await client
+                .from("images")
+                .insert(ImgIns(
+                    product_id: inserted.id,
+                    url: img.url,
+                    is_primary: img.is_primary ?? (i == 0),
+                    sort_order: img.sort_order ?? i
+                ))
+                .execute()
+        }
+        return try await SupabaseProductService.fetchProduct(client: client, id: inserted.id)
+    }
+
+    // MARK: Interested buyers (for seller-sent offers)
+
+    struct InterestedBuyer: Identifiable, Hashable {
+        let user: User
+        var liked: Bool
+        var messaged: Bool
+        var id: String { user.id }
+
+        var interestLabel: String {
+            switch (liked, messaged) {
+            case (true, true): return "Liked & messaged"
+            case (true, false): return "Liked this"
+            case (false, true): return "Messaged you"
+            case (false, false): return "Interested"
+            }
+        }
+    }
+
+    /// Students who liked the listing or have a chat with the seller about it.
+    static func interestedBuyers(client: SupabaseClient, productId: String) async throws -> [InterestedBuyer] {
+        let myId = try await client.auth.session.user.id.uuidString.lowercased()
+        var byUser: [String: InterestedBuyer] = [:]
+
+        struct LikeRow: Decodable {
+            let user_id: String
+            let profiles: SupabaseProfileRow?
+        }
+        let likes: [LikeRow] = (try? await client
+            .from("likes")
+            .select("user_id, profiles (id, username, email, avatar_url, first_name, last_name, bio, shop_name, date_of_birth, country, is_verified)")
+            .eq("product_id", value: productId)
+            .execute()
+            .value) ?? []
+        for row in likes {
+            guard let profile = row.profiles, profile.id.lowercased() != myId else { continue }
+            byUser[profile.id.lowercased()] = InterestedBuyer(user: profile.asUser, liked: true, messaged: false)
+        }
+
+        struct ConvRow: Decodable { let id: String }
+        let convos: [ConvRow] = (try? await client
+            .from("conversations")
+            .select("id")
+            .eq("product_id", value: productId)
+            .execute()
+            .value) ?? []
+        if !convos.isEmpty {
+            struct CPRow: Decodable {
+                let user_id: String
+                let profiles: SupabaseProfileRow?
+            }
+            let participants: [CPRow] = (try? await client
+                .from("conversation_participants")
+                .select("user_id, profiles (id, username, email, avatar_url, first_name, last_name, bio, shop_name, date_of_birth, country, is_verified)")
+                .in("conversation_id", values: convos.map(\.id))
+                .execute()
+                .value) ?? []
+            for row in participants {
+                guard let profile = row.profiles, profile.id.lowercased() != myId else { continue }
+                let key = profile.id.lowercased()
+                if var existing = byUser[key] {
+                    existing.messaged = true
+                    byUser[key] = existing
+                } else {
+                    byUser[key] = InterestedBuyer(user: profile.asUser, liked: false, messaged: true)
+                }
+            }
+        }
+
+        return byUser.values.sorted { a, b in
+            // Most engaged first, then alphabetical.
+            let aScore = (a.liked ? 1 : 0) + (a.messaged ? 2 : 0)
+            let bScore = (b.liked ? 1 : 0) + (b.messaged ? 2 : 0)
+            if aScore != bScore { return aScore > bScore }
+            return a.user.username.localizedCaseInsensitiveCompare(b.user.username) == .orderedAscending
+        }
+    }
+
     struct ListingStats {
         var offers: Int = 0
         var bags: Int = 0

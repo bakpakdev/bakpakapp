@@ -14,6 +14,7 @@ struct ProductDetailView: View {
     @State private var imageIndex = 0
     @State private var showDeleteConfirm = false
     @State private var showMarkSoldConfirm = false
+    @State private var showCopyConfirm = false
     @State private var isBusy = false
     @State private var actionError: String?
     @State private var comingSoonMessage: String?
@@ -50,21 +51,17 @@ struct ProductDetailView: View {
         return sorted.compactMap(\.url).filter { !$0.isEmpty }
     }
 
+    private var isShowingConfirm: Bool {
+        showDeleteConfirm || showMarkSoldConfirm || showCopyConfirm
+    }
+
     var body: some View {
         mainContent
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { navTitle }
-            .confirmationDialog("Delete this listing?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) { Task { await deleteListing() } }
-                Button("Cancel", role: .cancel) {}
-            } message: { Text("This can't be undone. Other students will no longer see it.") }
-            .confirmationDialog(
-                (product?.isSold == true) ? "Mark as available again?" : "Mark as sold?",
-                isPresented: $showMarkSoldConfirm, titleVisibility: .visible
-            ) {
-                Button((product?.isSold == true) ? "Mark available" : "Mark as sold") { Task { await toggleSold() } }
-                Button("Cancel", role: .cancel) {}
+            .toolbar {
+                if !isOwner { navTitle }
             }
+            .overlay { confirmCards }
             .modifier(ProductDetailAlerts(actionError: $actionError, comingSoonMessage: $comingSoonMessage, paymentPresenter: paymentPresenter, suppressPaymentAlert: paymentOutcome != nil))
             .sheet(isPresented: $showSellerPaymentSheet) { sellerPaymentWaitingSheet }
             .sheet(isPresented: $showOfferSheet) {
@@ -88,7 +85,7 @@ struct ProductDetailView: View {
                 presentPaymentOutcome(.failure)
             }
             .task(id: productId) { await pollActivePayment() }
-            .campusScreenStyle()
+            .campusPageStyle()
             .overlay {
                 if let paymentOutcome {
                     PaymentOutcomeOverlay(
@@ -104,12 +101,69 @@ struct ProductDetailView: View {
                     .transition(.opacity)
                 }
             }
-            .toolbar(paymentOutcome == nil ? .visible : .hidden, for: .navigationBar)
-            .hidesSystemNavigationBar(paymentOutcome != nil)
+            .toolbar(paymentOutcome == nil && !isShowingConfirm ? .visible : .hidden, for: .navigationBar)
+            .hidesSystemNavigationBar(paymentOutcome != nil || isShowingConfirm)
             .onChange(of: paymentOutcome) { value in
-                appState.hidesTabBar = value != nil
+                appState.hidesTabBar = value != nil || isShowingConfirm
             }
-            .task { await load() }
+            .onChange(of: isShowingConfirm) { showing in
+                appState.hidesTabBar = showing || paymentOutcome != nil
+            }
+            // onAppear (not .task) so the screen refreshes after Edit / Discount / Offers pop back.
+            .onAppear { Task { await load() } }
+    }
+
+    /// In-app confirm cards (replace system confirmation dialogs).
+    @ViewBuilder
+    private var confirmCards: some View {
+        if showDeleteConfirm {
+            ConfirmActionCard(
+                title: "delete listing?",
+                message: "This can’t be undone. Other students will no longer see it.",
+                confirmTitle: "Delete",
+                confirmIcon: "trash",
+                onConfirm: {
+                    showDeleteConfirm = false
+                    Task { await deleteListing() }
+                },
+                onCancel: { showDeleteConfirm = false }
+            )
+            .ignoresSafeArea()
+            .zIndex(10)
+        } else if showMarkSoldConfirm {
+            let sold = product?.isSold == true
+            ConfirmActionCard(
+                title: sold ? "mark as available?" : "mark as sold?",
+                message: sold
+                    ? "It’ll show up on the Grid again and buyers can message you about it."
+                    : "Use this if you sold it for cash or outside the app. It won’t add to your balance.",
+                confirmTitle: sold ? "Mark available" : "Mark as sold",
+                confirmIcon: sold ? "arrow.uturn.backward" : "checkmark.seal",
+                tone: .primary,
+                onConfirm: {
+                    showMarkSoldConfirm = false
+                    Task { await toggleSold() }
+                },
+                onCancel: { showMarkSoldConfirm = false }
+            )
+            .ignoresSafeArea()
+            .zIndex(10)
+        } else if showCopyConfirm {
+            ConfirmActionCard(
+                title: "copy listing?",
+                message: "A new live listing with the same photos and details will be created. You can edit it right after.",
+                confirmTitle: "Copy listing",
+                confirmIcon: "doc.on.doc",
+                tone: .primary,
+                onConfirm: {
+                    showCopyConfirm = false
+                    Task { await copyListing() }
+                },
+                onCancel: { showCopyConfirm = false }
+            )
+            .ignoresSafeArea()
+            .zIndex(10)
+        }
     }
 
     private var cardStroke: Color {
@@ -121,22 +175,8 @@ struct ProductDetailView: View {
     }
 
     private var mainContent: some View {
-        ZStack {
-            campusTheme.background.ignoresSafeArea()
-
-            Circle()
-                .fill(campusTheme.primary.opacity(0.16))
-                .frame(width: 280, height: 280)
-                .blur(radius: 55)
-                .offset(x: -140, y: -100)
-                .allowsHitTesting(false)
-
-            Circle()
-                .fill(campusTheme.secondary.opacity(0.12))
-                .frame(width: 240, height: 240)
-                .blur(radius: 60)
-                .offset(x: 150, y: 280)
-                .allowsHitTesting(false)
+        ZStack(alignment: .top) {
+            CampusPageBackground()
 
             if let product {
                 if isOwner { ownerManageScroll(product) }
@@ -164,63 +204,94 @@ struct ProductDetailView: View {
         }
     }
 
-    // MARK: - Owner manage layout (Depop-style)
+    // MARK: - Owner manage layout (matches the settings / campus page chrome)
 
     private func ownerManageScroll(_ product: Product) -> some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 26) {
+                CampusPageHeader(
+                    title: "listing",
+                    subtitle: product.isSold == true ? "sold" : "manage & sell"
+                )
+
                 ownerHeroSummary(product)
 
-                statsRow
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 4)
-                    .background(glassFill)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(cardStroke, lineWidth: 1)
-                    )
-
-                Text("Manage listing")
-                    .font(Theme.syne(18, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .padding(.top, 4)
+                statsCard
 
                 if product.isSold != true {
                     collectPaymentButton(product)
                 }
 
-                manageList([
-                    .init(title: "Send offers", badge: "Recommended", badgeTone: .muted) {
-                        comingSoonMessage = "Sending offers is coming soon."
-                    },
-                    .init(title: "Set discount", badge: nil, badgeTone: .none) {
-                        comingSoonMessage = "Discounts are coming soon."
-                    },
-                    .init(title: "Edit listing", badge: nil, badgeTone: .none) {
-                        appState.path.append(.editListing(productId))
-                    },
-                    .init(title: "Copy listing", badge: nil, badgeTone: .none) {
-                        comingSoonMessage = "Copy listing is coming soon."
-                    },
-                    .init(
-                        title: product.isSold == true ? "Mark as available" : "Mark as sold",
-                        badge: nil,
-                        badgeTone: .none
-                    ) {
-                        showMarkSoldConfirm = true
-                    },
-                    .init(title: "Delete", badge: nil, badgeTone: .none, destructive: true) {
-                        showDeleteConfirm = true
-                    },
-                ])
+                VStack(alignment: .leading, spacing: 0) {
+                    SettingsSectionTitle(title: "sell faster")
+                    VStack(spacing: 0) {
+                        SettingsNavRow(
+                            icon: "tag",
+                            title: "Send offers",
+                            subtitle: offersSubtitle
+                        ) {
+                            appState.path.append(.sendOffers(productId))
+                        }
+                        SettingsNavRow(
+                            icon: "percent",
+                            title: product.hasDiscount ? "Change discount" : "Set discount",
+                            subtitle: discountSubtitle(product),
+                            showDivider: false
+                        ) {
+                            appState.path.append(.setDiscount(productId))
+                        }
+                    }
+                    .background(CampusCardBackground())
+                }
 
-                Spacer(minLength: 40)
+                VStack(alignment: .leading, spacing: 0) {
+                    SettingsSectionTitle(title: "listing")
+                    VStack(spacing: 0) {
+                        SettingsNavRow(
+                            icon: "square.and.pencil",
+                            title: "Edit listing",
+                            subtitle: "Title, description, brand, size"
+                        ) {
+                            appState.path.append(.editListing(productId))
+                        }
+                        SettingsNavRow(
+                            icon: "doc.on.doc",
+                            title: "Copy listing",
+                            subtitle: "Relist the same item in one tap"
+                        ) {
+                            showCopyConfirm = true
+                        }
+                        SettingsNavRow(
+                            icon: product.isSold == true ? "arrow.uturn.backward" : "checkmark.seal",
+                            title: product.isSold == true ? "Mark as available" : "Mark as sold",
+                            subtitle: product.isSold == true
+                                ? "Put it back on the Grid"
+                                : "Sold for cash or outside the app",
+                            showDivider: false
+                        ) {
+                            showMarkSoldConfirm = true
+                        }
+                    }
+                    .background(CampusCardBackground())
+                }
+
+                deleteButton
             }
             .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, 24)
+            .padding(.bottom, 40)
         }
+    }
+
+    private var offersSubtitle: String {
+        if stats.likes == 0 { return "Message everyone who’s interested" }
+        return stats.likes == 1 ? "1 person liked this" : "\(stats.likes) people liked this"
+    }
+
+    private func discountSubtitle(_ product: Product) -> String {
+        if let pct = product.discountPercent, let original = product.originalPrice {
+            return "\(pct)% off · was $\(formattedPrice(original))"
+        }
+        return "Lower the price and show the savings"
     }
 
     private func ownerHeroSummary(_ product: Product) -> some View {
@@ -230,147 +301,113 @@ struct ProductDetailView: View {
                 case .success(let image):
                     image.resizable().scaledToFill()
                 default:
-                    Color.white.opacity(0.08)
+                    campusTheme.elevatedSurface
+                        .overlay {
+                            Image(systemName: "photo")
+                                .foregroundStyle(campusTheme.textMuted)
+                        }
                 }
             }
-            .frame(width: 78, height: 78)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(cardStroke, lineWidth: 1)
-            )
+            .frame(width: 84, height: 84)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(product.title)
                     .font(Theme.syne(17, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .lineLimit(2)
-                Text("$\(formattedPrice(product.price))")
-                    .font(Theme.syne(20, weight: .bold))
-                    .foregroundStyle(campusTheme.primary)
-                if product.isSold == true {
-                    Text("Sold")
-                        .font(Theme.syne(11, weight: .bold))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 4)
-                        .background(glassFill)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(cardStroke, lineWidth: 1))
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("$\(formattedPrice(product.price))")
+                        .font(Theme.syne(22, weight: .bold))
+                        .foregroundStyle(campusTheme.primary)
+                    if product.hasDiscount, let original = product.originalPrice {
+                        Text("$\(formattedPrice(original))")
+                            .font(Theme.syne(14, weight: .semibold))
+                            .foregroundStyle(campusTheme.textMuted)
+                            .strikethrough()
+                    }
+                }
+                HStack(spacing: 6) {
+                    statusChip(
+                        product.isSold == true ? "Sold" : "Live",
+                        tint: product.isSold == true ? campusTheme.textMuted : campusTheme.primary
+                    )
+                    if let pct = product.discountPercent {
+                        statusChip("\(pct)% off", tint: campusTheme.primary)
+                    }
                 }
             }
             Spacer(minLength: 0)
         }
         .padding(14)
-        .background(glassFill)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(cardStroke, lineWidth: 1)
-        )
+        .background(CampusCardBackground())
     }
 
-    private var statsRow: some View {
+    private func statusChip(_ text: String, tint: Color) -> some View {
+        Text(text)
+            .font(Theme.syne(11, weight: .bold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(tint.opacity(0.12))
+            .clipShape(Capsule())
+    }
+
+    private var statsCard: some View {
         HStack(alignment: .top, spacing: 0) {
             statCell(icon: "percent", value: "\(stats.offers)", label: "Offers")
+            statDivider
             statCell(icon: "heart", value: "\(stats.likes)", label: "Likes")
-            statCell(
-                icon: "eye",
-                value: stats.views.map(String.init) ?? "–",
-                label: "Views",
-                boostHint: stats.views == nil
-            )
+            statDivider
+            statCell(icon: "eye", value: stats.views.map(String.init) ?? "–", label: "Views")
         }
+        .padding(.vertical, 18)
+        .background(CampusCardBackground())
     }
 
-    private func statCell(icon: String, value: String, label: String, boostHint: Bool = false) -> some View {
-        VStack(spacing: 6) {
+    private var statDivider: some View {
+        Rectangle()
+            .fill(campusTheme.border)
+            .frame(width: 1, height: 44)
+    }
+
+    private func statCell(icon: String, value: String, label: String) -> some View {
+        VStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(campusTheme.textMuted)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .frame(width: 34, height: 34)
+                .background(campusTheme.elevatedSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             Text(value)
                 .font(Theme.syne(18, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text(label)
                 .font(Theme.syne(11, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
-            if boostHint {
-                Button {
-                    comingSoonMessage = "Boosting isn’t available yet."
-                } label: {
-                    Text("Boost to see")
-                        .font(Theme.syne(9, weight: .semibold))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 4)
-                        .background(glassFill)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(cardStroke, lineWidth: 1))
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-            } else {
-                Color.clear.frame(height: 20)
-            }
         }
         .frame(maxWidth: .infinity)
     }
 
-    private struct ManageRowModel {
-        let title: String
-        let badge: String?
-        enum BadgeTone { case none, muted, accent }
-        let badgeTone: BadgeTone
-        var destructive: Bool = false
-        let action: () -> Void
-    }
-
-    private func manageList(_ rows: [ManageRowModel]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                Button(action: row.action) {
-                    HStack(spacing: 10) {
-                        Text(row.title)
-                            .font(Theme.syne(15, weight: .semibold))
-                            .foregroundStyle(row.destructive ? Color(hex: "#FF6B6B") : campusTheme.textPrimary)
-                        Spacer(minLength: 8)
-                        if let badge = row.badge {
-                            Text(badge)
-                                .font(Theme.syne(11, weight: .semibold))
-                                .foregroundStyle(row.badgeTone == .accent ? campusTheme.primary : campusTheme.textMuted)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(
-                                    row.badgeTone == .accent
-                                        ? campusTheme.primary.opacity(0.15)
-                                        : glassFill
-                                )
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(cardStroke, lineWidth: 1))
-                        }
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(campusTheme.textMuted.opacity(0.7))
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 15)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-
-                if index < rows.count - 1 {
-                    Rectangle()
-                        .fill(cardStroke)
-                        .frame(height: 1)
-                        .padding(.leading, 16)
-                }
+    private var deleteButton: some View {
+        Button {
+            showDeleteConfirm = true
+        } label: {
+            HStack {
+                Image(systemName: "trash")
+                    .font(.system(size: 15, weight: .semibold))
+                Text("Delete listing")
+                    .font(Theme.syne(15, weight: .semibold))
             }
+            .foregroundStyle(Color(hex: "#E11D48"))
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background(campusTheme.surface)
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(Color(hex: "#E11D48").opacity(0.25), lineWidth: 1))
         }
-        .background(glassFill)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(cardStroke, lineWidth: 1)
-        )
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+        .padding(.top, 4)
     }
 
     // MARK: - Buyer product layout
@@ -391,9 +428,26 @@ struct ProductDetailView: View {
                         Text(product.title)
                             .font(Theme.syne(24, weight: .bold))
                             .foregroundStyle(campusTheme.textPrimary)
-                        Text("$\(formattedPrice(product.price))")
-                            .font(Theme.syne(26, weight: .bold))
-                            .foregroundStyle(campusTheme.primary)
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text("$\(formattedPrice(product.price))")
+                                .font(Theme.syne(26, weight: .bold))
+                                .foregroundStyle(campusTheme.primary)
+                            if product.hasDiscount, let original = product.originalPrice {
+                                Text("$\(formattedPrice(original))")
+                                    .font(Theme.syne(16, weight: .semibold))
+                                    .foregroundStyle(campusTheme.textMuted)
+                                    .strikethrough()
+                                if let pct = product.discountPercent {
+                                    Text("\(pct)% off")
+                                        .font(Theme.syne(11, weight: .bold))
+                                        .foregroundStyle(campusTheme.primary)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(campusTheme.primary.opacity(0.12))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        }
                     }
 
                     metaChips(product)
@@ -868,9 +922,12 @@ struct ProductDetailView: View {
         Button {
             Task { await startSellerPayment() }
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 14) {
                 Image(systemName: "wave.3.right.circle.fill")
-                    .font(.system(size: 20))
+                    .font(.system(size: 20, weight: .semibold))
+                    .frame(width: 42, height: 42)
+                    .background(Color.white.opacity(0.18))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Collect payment")
                         .font(Theme.syne(15, weight: .bold))
@@ -881,16 +938,32 @@ struct ProductDetailView: View {
                 Spacer()
                 if isPaymentBusy {
                     ProgressView().tint(.white)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .opacity(0.8)
                 }
             }
             .foregroundStyle(.white)
-            .padding(16)
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(campusTheme.primary)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
         .disabled(isPaymentBusy || product.isSold == true)
+    }
+
+    private func copyListing() async {
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let copy = try await productService.duplicateListing(id: productId)
+            Motion.haptic(.medium)
+            appState.path.append(.editListing(copy.id))
+        } catch {
+            actionError = error.localizedDescription
+        }
     }
 
     private var sellerPaymentWaitingSheet: some View {

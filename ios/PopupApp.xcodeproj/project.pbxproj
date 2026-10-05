@@ -81,6 +81,8 @@
 		97998821382301F8C95E070E /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B3588096631F1B3D27E86F7 /* SearchView.swift */; };
 		4EE64166DD79A5FAE601769D /* SellerCashOutSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60D639A5E06B598E4A770E0 /* SellerCashOutSetupView.swift */; };
 		AF62EAC7EAFDCC4B5C041534 /* SellerReviewsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB57B103943356BF8A7B01C /* SellerReviewsSection.swift */; };
+		EDF6EE5D3E5AF8BF2EE7AB7F /* SendOffersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C816A345CB184A8A25D408 /* SendOffersView.swift */; };
+		39D94FA2A520BFCED94D45B8 /* SetDiscountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 374079471D066184256C923E /* SetDiscountView.swift */; };
 		20681F53F5F1DCC79A1E6FAF /* SettingsChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A9B0D26ADDDDAA0DF6E7B7 /* SettingsChrome.swift */; };
 		2B6DF528413E1B3ECEC33E83 /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E59CFF12224C901E90998E /* SharedViews.swift */; };
 		034DA744FD4AEC0AB727248A /* SplashScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 464A80971AD82EE9F23EB8CB /* SplashScreen.swift */; };
@@ -183,6 +185,8 @@
 		8B3588096631F1B3D27E86F7 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SearchView.swift'; sourceTree = "<group>"; };
 		A60D639A5E06B598E4A770E0 /* SellerCashOutSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SellerCashOutSetupView.swift'; sourceTree = "<group>"; };
 		5AB57B103943356BF8A7B01C /* SellerReviewsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SellerReviewsSection.swift'; sourceTree = "<group>"; };
+		F9C816A345CB184A8A25D408 /* SendOffersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SendOffersView.swift'; sourceTree = "<group>"; };
+		374079471D066184256C923E /* SetDiscountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SetDiscountView.swift'; sourceTree = "<group>"; };
 		64A9B0D26ADDDDAA0DF6E7B7 /* SettingsChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SettingsChrome.swift'; sourceTree = "<group>"; };
 		D4E59CFF12224C901E90998E /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SharedViews.swift'; sourceTree = "<group>"; };
 		464A80971AD82EE9F23EB8CB /* SplashScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SplashScreen.swift'; sourceTree = "<group>"; };
@@ -331,6 +335,8 @@
 				8B3588096631F1B3D27E86F7 /* SearchView.swift */,
 				A60D639A5E06B598E4A770E0 /* SellerCashOutSetupView.swift */,
 				5AB57B103943356BF8A7B01C /* SellerReviewsSection.swift */,
+				F9C816A345CB184A8A25D408 /* SendOffersView.swift */,
+				374079471D066184256C923E /* SetDiscountView.swift */,
 				64A9B0D26ADDDDAA0DF6E7B7 /* SettingsChrome.swift */,
 				D4E59CFF12224C901E90998E /* SharedViews.swift */,
 				464A80971AD82EE9F23EB8CB /* SplashScreen.swift */,
@@ -524,6 +530,8 @@
 				97998821382301F8C95E070E /* SearchView.swift in Sources */,
 				4EE64166DD79A5FAE601769D /* SellerCashOutSetupView.swift in Sources */,
 				AF62EAC7EAFDCC4B5C041534 /* SellerReviewsSection.swift in Sources */,
+				EDF6EE5D3E5AF8BF2EE7AB7F /* SendOffersView.swift in Sources */,
+				39D94FA2A520BFCED94D45B8 /* SetDiscountView.swift in Sources */,
 				20681F53F5F1DCC79A1E6FAF /* SettingsChrome.swift in Sources */,
 				2B6DF528413E1B3ECEC33E83 /* SharedViews.swift in Sources */,
 				034DA744FD4AEC0AB727248A /* SplashScreen.swift in Sources */,

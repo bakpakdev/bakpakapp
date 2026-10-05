@@ -88,9 +88,15 @@ struct HomeProductCard: View {
                     .foregroundStyle(campusTheme.textPrimary)
                     .lineLimit(1)
                 Spacer(minLength: 4)
+                if product.hasDiscount, let original = product.originalPrice {
+                    Text("$\(Int(original))")
+                        .font(Theme.syne(11, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .strikethrough()
+                }
                 Text(product.homePriceLabel)
                     .font(Theme.syne(15, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
+                    .foregroundStyle(product.hasDiscount ? campusTheme.primary : campusTheme.textPrimary)
             }
 
             Text(product.homeSubtitle)

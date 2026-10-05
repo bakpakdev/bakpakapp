@@ -3,17 +3,22 @@ import SwiftUI
 /// In-app confirm card (replaces system confirmation dialogs): dimmed backdrop,
 /// campus-styled card, a destructive action and a cancel button.
 struct ConfirmActionCard: View {
+    enum Tone { case destructive, primary }
+
     let title: String
     let message: String
     let confirmTitle: String
     var confirmIcon: String? = nil
+    var tone: Tone = .destructive
     let onConfirm: () -> Void
     let onCancel: () -> Void
 
     @Environment(\.campusTheme) private var campusTheme
     @State private var appeared = false
 
-    private let destructiveRed = Color(hex: "#E11D48")
+    private var destructiveRed: Color {
+        tone == .destructive ? Color(hex: "#E11D48") : campusTheme.primary
+    }
 
     var body: some View {
         ZStack {

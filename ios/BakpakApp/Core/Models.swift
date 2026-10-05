@@ -82,10 +82,24 @@ struct Product: Codable, Identifiable, Hashable {
     let images: [ProductImage]?
     let user: User?
     let count: ProductCounts?
+    /// Price before the seller set a discount. Nil when the listing is not discounted.
+    var originalPrice: Double? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, title, description, price, condition, size, brand, category, tags, isSold, createdAt, school, meetupLocation, images, user
+        case id, title, description, price, condition, size, brand, category, tags, isSold, createdAt, school, meetupLocation, images, user, originalPrice
         case count = "_count"
+    }
+
+    /// True when a seller discount is active (original price recorded and higher than the current price).
+    var hasDiscount: Bool {
+        guard let originalPrice else { return false }
+        return originalPrice > price + 0.009
+    }
+
+    /// Whole-number percent off, e.g. 15 for $100 → $85.
+    var discountPercent: Int? {
+        guard hasDiscount, let originalPrice, originalPrice > 0 else { return nil }
+        return Int(((originalPrice - price) / originalPrice * 100).rounded())
     }
 }
 
