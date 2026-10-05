@@ -10,6 +10,8 @@ What the repo already handles and what still needs a human in a dashboard.
 - `ITSAppUsesNonExemptEncryption = NO` in `Info.plist` (HTTPS only → exempt).
 - `PrivacyInfo.xcprivacy` bundled (UserDefaults reason CA92.1, collected data types, no tracking).
 - Backend deployable with `backend/Dockerfile` / `backend/render.yaml`.
+- Square `setup` run-script is the last build phase, and User Script Sandboxing is off
+  (Apple rejects Square's nested Frameworks + unsigned `setup` without this). Build number is 2.
 
 ## 1. Host the backend
 
@@ -86,6 +88,8 @@ cd ios && python3 generate_xcode_project.py && open PopupApp.xcodeproj
 Xcode: scheme `PopupApp`, destination "Any iOS Device (arm64)" → Product → Archive →
 Distribute App → TestFlight & App Store. Bump `CURRENT_PROJECT_VERSION` in
 `generate_xcode_project.py` for every upload (App Store Connect rejects duplicate build numbers).
+Clean (Shift+Cmd+K) before this Archive if Apple just rejected a Square nested-bundle / unsigned
+`setup` upload — the last-phase Square SDK setup script must have run on that archive.
 
 ## Known caveats
 

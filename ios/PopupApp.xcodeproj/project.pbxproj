@@ -397,6 +397,7 @@
 				D93B3B4B100D17B2EA542107 /* Sources */,
 				925B1DEA3065FCAEB58EA1A3 /* Resources */,
 				FC54A62FB41DD24DDA676A71 /* Frameworks */,
+				A46CD8AB000FFBB4421984B6 /* Square SDK setup */,
 			);
 			buildRules = (
 			);
@@ -559,6 +560,28 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		A46CD8AB000FFBB4421984B6 /* Square SDK setup */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Square SDK setup";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\n# Square's setup re-signs nested frameworks with EXPANDED_CODE_SIGN_IDENTITY.\n# Skip when there is no identity (simulator / CODE_SIGNING_ALLOWED=NO). Archive always has one.\nif [ \"${PLATFORM_NAME}\" != \"iphoneos\" ]; then\n  exit 0\nfi\nif [ -z \"${EXPANDED_CODE_SIGN_IDENTITY}\" ] || [ \"${EXPANDED_CODE_SIGN_IDENTITY}\" = \"-\" ]; then\n  echo \"warning: Square SDK setup skipped (no signing identity)\"\n  exit 0\nfi\nFRAMEWORKS=\"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nfor SDK in SquareMobilePaymentsSDK SquareInAppPaymentsSDK; do\n  SETUP=\"${FRAMEWORKS}/${SDK}.framework/setup\"\n  if [ -f \"$SETUP\" ]; then\n    echo \"Running $SETUP\"\n    \"$SETUP\"\n  fi\ndone\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		14E39AE986549EB5C559BE14 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -616,6 +639,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -626,6 +650,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 			};
 			name = Release;
 		};
@@ -635,9 +660,10 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = BakpakApp/PopupApp.Debug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 38BTDK54M3;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BakpakApp/Info.plist;
@@ -665,9 +691,10 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "BakpakApp/$(POPUP_RELEASE_ENTITLEMENTS:default=PopupApp.entitlements)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 38BTDK54M3;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BakpakApp/Info.plist;

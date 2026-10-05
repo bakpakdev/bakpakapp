@@ -51,6 +51,9 @@ def main() -> None:
     sources_phase = gid("popup:phase:sources")
     resources_phase = gid("popup:phase:resources")
     frameworks_phase = gid("popup:phase:frameworks")
+    # Square's XCFrameworks ship nested Frameworks + an unsigned `setup` binary.
+    # Apple rejects the archive unless this last-phase script runs (Square's iOS guide).
+    square_setup_phase = gid("popup:phase:square-setup")
     project_config_list = gid("popup:cfglist:project")
     target_config_list = gid("popup:cfglist:target")
     product_ref = gid("popup:product:PopupApp.app")
@@ -293,6 +296,7 @@ def main() -> None:
 \t\t\t\t{sources_phase} /* Sources */,
 \t\t\t\t{resources_phase} /* Resources */,
 \t\t\t\t{frameworks_phase} /* Frameworks */,
+\t\t\t\t{square_setup_phase} /* Square SDK setup */,
 \t\t\t);
 \t\t\tbuildRules = (
 \t\t\t);
@@ -371,6 +375,28 @@ def main() -> None:
 \t\t}};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+\t\t{square_setup_phase} /* Square SDK setup */ = {{
+\t\t\tisa = PBXShellScriptBuildPhase;
+\t\t\talwaysOutOfDate = 1;
+\t\t\tbuildActionMask = 2147483647;
+\t\t\tfiles = (
+\t\t\t);
+\t\t\tinputFileListPaths = (
+\t\t\t);
+\t\t\tinputPaths = (
+\t\t\t);
+\t\t\tname = "Square SDK setup";
+\t\t\toutputFileListPaths = (
+\t\t\t);
+\t\t\toutputPaths = (
+\t\t\t);
+\t\t\trunOnlyForDeploymentPostprocessing = 0;
+\t\t\tshellPath = /bin/sh;
+\t\t\tshellScript = "set -e\\n# Square's setup re-signs nested frameworks with EXPANDED_CODE_SIGN_IDENTITY.\\n# Skip when there is no identity (simulator / CODE_SIGNING_ALLOWED=NO). Archive always has one.\\nif [ \\"${{PLATFORM_NAME}}\\" != \\"iphoneos\\" ]; then\\n  exit 0\\nfi\\nif [ -z \\"${{EXPANDED_CODE_SIGN_IDENTITY}}\\" ] || [ \\"${{EXPANDED_CODE_SIGN_IDENTITY}}\\" = \\"-\\" ]; then\\n  echo \\"warning: Square SDK setup skipped (no signing identity)\\"\\n  exit 0\\nfi\\nFRAMEWORKS=\\"${{BUILT_PRODUCTS_DIR}}/${{FRAMEWORKS_FOLDER_PATH}}\\"\\nfor SDK in SquareMobilePaymentsSDK SquareInAppPaymentsSDK; do\\n  SETUP=\\"${{FRAMEWORKS}}/${{SDK}}.framework/setup\\"\\n  if [ -f \\"$SETUP\\" ]; then\\n    echo \\"Running $SETUP\\"\\n    \\"$SETUP\\"\\n  fi\\ndone\\n";
+\t\t}};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 \t\t{spa_remote} /* XCRemoteSwiftPackageReference "supabase-swift" */ = {{
 \t\t\tisa = XCRemoteSwiftPackageReference;
@@ -428,6 +454,7 @@ def main() -> None:
 \t\t\t\tALWAYS_SEARCH_USER_PATHS = NO;
 \t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tCLANG_ENABLE_MODULES = YES;
+\t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;
 \t\t\t\tSWIFT_OPTIMIZATION_LEVEL = "-Onone";
 \t\t\t}};
 \t\t\tname = Debug;
@@ -438,6 +465,7 @@ def main() -> None:
 \t\t\t\tALWAYS_SEARCH_USER_PATHS = NO;
 \t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tCLANG_ENABLE_MODULES = YES;
+\t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;
 \t\t\t}};
 \t\t\tname = Release;
 \t\t}};
@@ -447,9 +475,10 @@ def main() -> None:
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = BakpakApp/PopupApp.Debug.entitlements;
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 1;
+\t\t\t\tCURRENT_PROJECT_VERSION = 2;
 \t\t\t\tDEVELOPMENT_TEAM = {development_team};
 \t\t\t\tENABLE_PREVIEWS = YES;
+\t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;
 \t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tGENERATE_INFOPLIST_FILE = NO;
 \t\t\t\tINFOPLIST_FILE = BakpakApp/Info.plist;
@@ -477,9 +506,10 @@ def main() -> None:
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = "BakpakApp/$(POPUP_RELEASE_ENTITLEMENTS:default=PopupApp.entitlements)";
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 1;
+\t\t\t\tCURRENT_PROJECT_VERSION = 2;
 \t\t\t\tDEVELOPMENT_TEAM = {development_team};
 \t\t\t\tENABLE_PREVIEWS = YES;
+\t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;
 \t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tGENERATE_INFOPLIST_FILE = NO;
 \t\t\t\tINFOPLIST_FILE = BakpakApp/Info.plist;
