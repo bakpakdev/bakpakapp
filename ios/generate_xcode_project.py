@@ -12,9 +12,15 @@ def gid(seed: str) -> str:
     return hashlib.sha256(seed.encode()).hexdigest()[:24].upper()
 
 
+# Apple Developer team used for automatic signing (not a secret). Override with
+# POPUP_DEVELOPMENT_TEAM=XXXXXXXXXX when generating for another team.
+DEFAULT_DEVELOPMENT_TEAM = "38BTDK54M3"
+
+
 def main() -> None:
     ios_root = os.path.dirname(os.path.abspath(__file__))
     popup = os.path.join(ios_root, "BakpakApp")
+    development_team = os.environ.get("POPUP_DEVELOPMENT_TEAM", DEFAULT_DEVELOPMENT_TEAM)
 
     swift_files = []
     resource_files = []
@@ -70,6 +76,10 @@ def main() -> None:
     square_iap_build = gid("popup:swiftpkg:square-iap-buildfile")
     debug_entitlements_ref = gid("popup:fileref:PopupApp.Debug.entitlements")
     release_entitlements_ref = gid("popup:fileref:PopupApp.entitlements")
+    applepay_entitlements_ref = gid("popup:fileref:PopupApp.ApplePay.entitlements")
+    payments_entitlements_ref = gid("popup:fileref:PopupApp.Payments.entitlements")
+    privacy_ref = gid("popup:fileref:PrivacyInfo.xcprivacy")
+    privacy_build = gid("popup:build:PrivacyInfo.xcprivacy")
 
     # path -> (file_ref_id, build_file_id)
     refs: dict[str, tuple[str, str]] = {
@@ -141,6 +151,7 @@ def main() -> None:
 /* Begin PBXBuildFile section */
 {chr(10).join(build_file_lines)}
 \t\t{assets_build} /* Assets.xcassets in Resources */ = {{isa = PBXBuildFile; fileRef = {assets_ref} /* Assets.xcassets */; }};
+\t\t{privacy_build} /* PrivacyInfo.xcprivacy in Resources */ = {{isa = PBXBuildFile; fileRef = {privacy_ref} /* PrivacyInfo.xcprivacy */; }};
 \t\t{spa_build} /* Supabase in Frameworks */ = {{isa = PBXBuildFile; productRef = {spa_product} /* Supabase */; }};
 \t\t{square_build} /* SquareMobilePaymentsSDK in Frameworks */ = {{isa = PBXBuildFile; productRef = {square_product} /* SquareMobilePaymentsSDK */; }};
 \t\t{square_mock_build} /* MockReaderUI in Frameworks */ = {{isa = PBXBuildFile; productRef = {square_mock_product} /* MockReaderUI */; }};
@@ -152,6 +163,9 @@ def main() -> None:
 \t\t{infoplist_ref} /* Info.plist */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; }};
 \t\t{debug_entitlements_ref} /* PopupApp.Debug.entitlements */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PopupApp.Debug.entitlements; sourceTree = "<group>"; }};
 \t\t{release_entitlements_ref} /* PopupApp.entitlements */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PopupApp.entitlements; sourceTree = "<group>"; }};
+\t\t{applepay_entitlements_ref} /* PopupApp.ApplePay.entitlements */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PopupApp.ApplePay.entitlements; sourceTree = "<group>"; }};
+\t\t{payments_entitlements_ref} /* PopupApp.Payments.entitlements */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PopupApp.Payments.entitlements; sourceTree = "<group>"; }};
+\t\t{privacy_ref} /* PrivacyInfo.xcprivacy */ = {{isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; }};
 \t\t{xcconfig_ref} /* SupabaseProject.xcconfig */ = {{isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = SupabaseProject.xcconfig; sourceTree = "<group>"; }};
 \t\t{assets_ref} /* Assets.xcassets */ = {{isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; }};
 {"".join(ref_block(p) for p in swift_files)}{"".join(
@@ -207,6 +221,9 @@ def main() -> None:
 \t\t\t\t{infoplist_ref} /* Info.plist */,
 \t\t\t\t{debug_entitlements_ref} /* PopupApp.Debug.entitlements */,
 \t\t\t\t{release_entitlements_ref} /* PopupApp.entitlements */,
+\t\t\t\t{applepay_entitlements_ref} /* PopupApp.ApplePay.entitlements */,
+\t\t\t\t{payments_entitlements_ref} /* PopupApp.Payments.entitlements */,
+\t\t\t\t{privacy_ref} /* PrivacyInfo.xcprivacy */,
 \t\t\t\t{assets_ref} /* Assets.xcassets */,
 {group_child_lines(root_swifts)}
 \t\t\t\t{core_group} /* Core */,
@@ -348,6 +365,7 @@ def main() -> None:
 \t\t\tfiles = (
 {resources_phase_block}
 \t\t\t\t{assets_build} /* Assets.xcassets in Resources */,
+\t\t\t\t{privacy_build} /* PrivacyInfo.xcprivacy in Resources */,
 \t\t\t);
 \t\t\trunOnlyForDeploymentPostprocessing = 0;
 \t\t}};
@@ -430,7 +448,7 @@ def main() -> None:
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = BakpakApp/PopupApp.Debug.entitlements;
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
-\t\t\t\tDEVELOPMENT_TEAM = "";
+\t\t\t\tDEVELOPMENT_TEAM = {development_team};
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tGENERATE_INFOPLIST_FILE = NO;
@@ -457,10 +475,10 @@ def main() -> None:
 \t\t\tisa = XCBuildConfiguration;
 \t\t\tbaseConfigurationReference = {xcconfig_ref} /* SupabaseProject.xcconfig */;
 \t\t\tbuildSettings = {{
-\t\t\t\tCODE_SIGN_ENTITLEMENTS = BakpakApp/PopupApp.entitlements;
+\t\t\t\tCODE_SIGN_ENTITLEMENTS = "BakpakApp/$(POPUP_RELEASE_ENTITLEMENTS:default=PopupApp.entitlements)";
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
 \t\t\t\tCURRENT_PROJECT_VERSION = 1;
-\t\t\t\tDEVELOPMENT_TEAM = "";
+\t\t\t\tDEVELOPMENT_TEAM = {development_team};
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 \t\t\t\tGENERATE_INFOPLIST_FILE = NO;

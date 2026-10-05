@@ -6,9 +6,24 @@ SUPABASE_URL = https:/$()/mmmiywxemxwyikbysdop.supabase.co
 // Also add this exact URL under Supabase → Authentication → URL Configuration → Redirect URLs:
 //   popup://auth-callback
 SUPABASE_AUTH_REDIRECT_URL = popup:/$()/auth-callback
-// Payments API (Node backend with Square). Use your machine IP for device testing.
-API_BASE_URL = http:/$()/127.0.0.1:5001/api
+// Payments API (Node backend with Square).
+// Debug (simulator / Xcode run): local server. Use your Mac's LAN IP for a physical device.
+// Release (Archive → TestFlight / App Store): the hosted HTTPS backend. Localhost is never
+// reachable from a tester's phone, and Release builds refuse non-HTTPS URLs.
+API_BASE_URL[config=Debug] = http:/$()/127.0.0.1:5001/api
+API_BASE_URL[config=Release] = $(API_BASE_URL_RELEASE)
+// Fill in once the backend is deployed (see backend/render.yaml), e.g.
+//   API_BASE_URL_RELEASE = https:/$()/popup-api.onrender.com/api
+API_BASE_URL_RELEASE =
+
+// Release entitlements. Switch as Apple approves capabilities for team 38BTDK54M3:
+//   PopupApp.entitlements          no payment entitlements (TestFlight-safe default)
+//   PopupApp.ApplePay.entitlements Apple Pay (needs APPLE_PAY_MERCHANT_ID + Merchant ID in the portal)
+//   PopupApp.Payments.entitlements Apple Pay + Tap to Pay on iPhone (needs Apple's entitlement approval)
+POPUP_RELEASE_ENTITLEMENTS = PopupApp.entitlements
+
 // Square application ID (sandbox-sq0idb-... or sq0idp-...). Secret stays in backend/.env.
 SQUARE_APPLICATION_ID =
+// Apple Pay merchant ID registered in the developer portal, e.g. merchant.com.popup.app
 APPLE_PAY_MERCHANT_ID =
 #include? "Secrets.xcconfig"

@@ -1,0 +1,47 @@
+# Render blueprint for the popup backend (https://render.com/docs/blueprint-spec).
+# Deploy: Render dashboard → New → Blueprint → pick this repo. Render reads this file,
+# builds backend/Dockerfile, and gives you an HTTPS URL like https://popup-api.onrender.com.
+# Put that URL + "/api" into ios/Config: API_BASE_URL_RELEASE = https:/$()/popup-api.onrender.com/api
+services:
+  - type: web
+    name: popup-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Set these in the Render dashboard (sync: false = never stored in git).
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SQUARE_ENVIRONMENT
+        sync: false
+      - key: SQUARE_APPLICATION_ID
+        sync: false
+      - key: SQUARE_APPLICATION_SECRET
+        sync: false
+      - key: SQUARE_ACCESS_TOKEN
+        sync: false
+      - key: SQUARE_LOCATION_ID
+        sync: false
+      - key: SQUARE_WEBHOOK_SIGNATURE_KEY
+        sync: false
+      # Must be this service's public HTTPS URL; also register the OAuth redirect and
+      # webhook URLs in the Square developer dashboard.
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: SQUARE_OAUTH_REDIRECT_URI
+        sync: false
+      - key: SQUARE_WEBHOOK_NOTIFICATION_URL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false

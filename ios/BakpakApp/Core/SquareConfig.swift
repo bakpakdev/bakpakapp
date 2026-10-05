@@ -21,11 +21,29 @@ enum SquareConfig {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Payments backend base URL (ends in /api). Comes from API_BASE_URL in
+    /// Config/SupabaseProject.xcconfig: Debug points at the local Node server,
+    /// Release must point at the hosted HTTPS backend. Only Debug falls back to localhost.
     static var apiBaseURL: String {
         let raw = (Bundle.main.object(forInfoDictionaryKey: apiBaseKey) as? String ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if !raw.isEmpty, !raw.contains("$(") { return raw }
+        #if DEBUG
         return "http://127.0.0.1:5001/api"
+        #else
+        return ""
+        #endif
+    }
+
+    /// True when a usable backend URL is configured. In Release this requires HTTPS so
+    /// TestFlight builds never silently talk to localhost.
+    static var isAPIConfigured: Bool {
+        guard let url = URL(string: apiBaseURL), let host = url.host, !host.isEmpty else { return false }
+        #if DEBUG
+        return true
+        #else
+        return url.scheme == "https"
+        #endif
     }
 
     static var isConfigured: Bool {

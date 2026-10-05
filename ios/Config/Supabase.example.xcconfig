@@ -8,13 +8,21 @@
 //
 // Create `Secrets.xcconfig` in this folder (gitignored) with:
 //   SUPABASE_ANON_KEY = eyJ...your_anon_key...
-//   SQUARE_APPLICATION_ID = sandbox-sq0idb-...
-//   APPLE_PAY_MERCHANT_ID = merchant.com.your.app
+//   SQUARE_APPLICATION_ID = sandbox-sq0idb-...        (sq0idp-... for production)
+//   APPLE_PAY_MERCHANT_ID = merchant.com.popup.app
+//
+// TestFlight / App Store (Release) builds, also in Secrets.xcconfig or SupabaseProject.xcconfig:
+//   API_BASE_URL_RELEASE = https:/$()/your-backend.example.com/api
+//   POPUP_RELEASE_ENTITLEMENTS = PopupApp.ApplePay.entitlements
+//     PopupApp.entitlements          -> no payment entitlements (default, always archives)
+//     PopupApp.ApplePay.entitlements -> Apple Pay; requires the Merchant ID above to exist in the portal
+//     PopupApp.Payments.entitlements -> Apple Pay + Tap to Pay; requires Apple's approval of the
+//                                        Tap to Pay on iPhone entitlement for your team
 //
 // Notes:
 // - Square application ID goes in iOS Secrets.xcconfig; access token and secret stay in backend/.env
-// - API_BASE_URL defaults to http://127.0.0.1:5001/api (match backend PORT)
-// - Apple Pay merchant ID is optional until Apple Developer Program is set up.
-//   Card entry still works. Tap to Pay needs an Organization team and a physical iPhone XS+.
+// - Debug builds default API_BASE_URL to http://127.0.0.1:5001/api (match backend PORT)
+// - Release builds have no localhost fallback and require an HTTPS API_BASE_URL_RELEASE
+// - Tap to Pay needs an Organization team and a physical iPhone XS+.
 //
 // SupabaseProject.xcconfig includes Secrets.xcconfig when present.

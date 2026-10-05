@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Backend API for thrift app",
   "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",

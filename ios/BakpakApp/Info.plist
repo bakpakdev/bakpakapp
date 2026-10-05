@@ -35,6 +35,8 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>InstagramAppID</key>
 	<string>$(INSTAGRAM_APP_ID)</string>
 	<key>LSApplicationQueriesSchemes</key>

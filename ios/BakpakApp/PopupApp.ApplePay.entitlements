@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Apple Pay only. APPLE_PAY_MERCHANT_ID must be set (Secrets.xcconfig) and the
+	     Merchant ID must exist under Certificates, Identifiers & Profiles → Merchant IDs,
+	     with Apple Pay enabled on the com.popup.app App ID. -->
+	<key>com.apple.developer.in-app-payments</key>
+	<array>
+		<string>$(APPLE_PAY_MERCHANT_ID)</string>
+	</array>
+</dict>
+</plist>

@@ -17,7 +17,7 @@ final class AuthViewModel: ObservableObject {
     /// First-time signup only — profile setup before home.
     @Published var needsOnboarding = false
     /// Legacy Express API base URL (used only when Supabase is not configured).
-    @Published var baseURL = "http://127.0.0.1:5001/api"
+    @Published var baseURL = SquareConfig.apiBaseURL
 
     private let legacyAuth = AuthService()
     private static let baseURLDefaultsKey = "popup.apiBaseURL"
@@ -29,7 +29,11 @@ final class AuthViewModel: ObservableObject {
     var usesSupabase: Bool { SupabaseConfig.isConfigured }
 
     init() {
-        if let saved = UserDefaults.standard.string(forKey: Self.baseURLDefaultsKey),
+        // The editable "API server" override only exists for the legacy Express auth path.
+        // With Supabase configured, always use the build's API_BASE_URL so a saved
+        // localhost override can't hijack TestFlight / App Store builds.
+        if !usesSupabase,
+           let saved = UserDefaults.standard.string(forKey: Self.baseURLDefaultsKey),
            !saved.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             baseURL = saved
         }
