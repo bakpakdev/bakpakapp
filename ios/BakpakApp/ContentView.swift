@@ -4,7 +4,9 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var meetupStore: MeetupStore
     @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var meetupNotifications = MeetupNotificationScheduler.shared
 
     @State private var showSplash = true
 
@@ -31,6 +33,24 @@ struct ContentView: View {
         }
         .background(Color.black.ignoresSafeArea())
         .animation(nil, value: showSplash)
+        .overlay {
+            if meetupNotifications.showPrePrompt {
+                ConfirmActionCard(
+                    title: "Meetup reminders",
+                    message: "Popup can remind you before a meetup so you don’t miss it. We’ll ask iOS for permission next.",
+                    confirmTitle: "Allow reminders",
+                    confirmIcon: "bell",
+                    tone: .primary,
+                    onConfirm: {
+                        Task { await MeetupNotificationScheduler.shared.confirmPrePrompt() }
+                    },
+                    onCancel: {
+                        MeetupNotificationScheduler.shared.dismissPrePrompt()
+                    }
+                )
+                .zIndex(2)
+            }
+        }
         .onChange(of: scenePhase) { phase in
             switch phase {
             case .background:
@@ -45,6 +65,9 @@ struct ContentView: View {
             appState.resetAccountSessionCaches()
             if isAuth {
                 appState.resetToHome(reload: true)
+                if !authVM.needsOnboarding {
+                    DispatchQueue.main.async { appState.consumePendingShareProfile() }
+                }
             } else {
                 appState.resetToHome(reload: false)
             }
@@ -55,6 +78,14 @@ struct ContentView: View {
         .onChange(of: authVM.needsOnboarding) { needs in
             if !needs, authVM.isAuthenticated {
                 appState.resetToHome(reload: true)
+                DispatchQueue.main.async { appState.consumePendingShareProfile() }
+            }
+        }
+        .task(id: authVM.isAuthenticated ? (authVM.user?.id ?? "auth") : "out") {
+            if authVM.isAuthenticated {
+                await meetupStore.start()
+            } else {
+                meetupStore.stop()
             }
         }
     }
@@ -65,4 +96,5 @@ struct ContentView: View {
     return ContentView()
         .environmentObject(state)
         .environmentObject(state.authVM)
+        .environmentObject(MeetupStore())
 }

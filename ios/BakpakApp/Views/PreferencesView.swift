@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PreferencesView: View {
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var meetupStore: MeetupStore
     @Environment(\.campusTheme) private var campusTheme
 
     @State private var notifyMessages = AccountPrefsStore.notifyMessages
@@ -63,8 +64,44 @@ struct PreferencesView: View {
                             SettingsToggleRow(
                                 title: "Meetup reminders",
                                 subtitle: "Time and place for accepted meetups.",
-                                isOn: $notifyMeetups
+                                isOn: $notifyMeetups,
+                                showDivider: {
+                                    #if DEBUG
+                                    return false
+                                    #else
+                                    return true
+                                    #endif
+                                }()
                             )
+                            #if DEBUG
+                            Button {
+                                Motion.haptic(.light)
+                                Task { await sendTestReminder() }
+                            } label: {
+                                HStack(alignment: .center, spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Send test reminder")
+                                            .font(Theme.syne(15, weight: .semibold))
+                                            .foregroundStyle(campusTheme.textPrimary)
+                                        Text("Fires a meetup notification in 5 seconds.")
+                                            .font(Theme.syne(12))
+                                            .foregroundStyle(campusTheme.textMuted)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer(minLength: 8)
+                                    Image(systemName: "bell.badge")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundStyle(campusTheme.primary)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                            }
+                            .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+                            Rectangle()
+                                .fill(campusTheme.border)
+                                .frame(height: 1)
+                                .padding(.horizontal, 16)
+                            #endif
                             SettingsToggleRow(
                                 title: "Offers",
                                 subtitle: "When someone offers on one of your listings.",
@@ -91,9 +128,31 @@ struct PreferencesView: View {
         }
         .campusPageStyle()
         .onChange(of: notifyMessages) { value in AccountPrefsStore.notifyMessages = value }
-        .onChange(of: notifyMeetups) { value in AccountPrefsStore.notifyMeetups = value }
+        .onChange(of: notifyMeetups) { value in
+            AccountPrefsStore.notifyMeetups = value
+            Task {
+                if value {
+                    await MeetupNotificationScheduler.shared.requestAuthorizationIfNeeded()
+                    meetupStore.pushSchedule()
+                } else {
+                    MeetupNotificationScheduler.shared.clearAll()
+                }
+            }
+        }
         .onChange(of: notifyOffers) { value in AccountPrefsStore.notifyOffers = value }
         .onChange(of: notifySales) { value in AccountPrefsStore.notifySales = value }
         .onChange(of: notifyFollows) { value in AccountPrefsStore.notifyFollows = value }
     }
+
+    #if DEBUG
+    private func sendTestReminder() async {
+        let meetup = meetupStore.heroMeetup ?? meetupStore.meetups.first
+        await MeetupNotificationScheduler.shared.sendTestReminder(
+            meetup: meetup,
+            meId: meetupStore.meId,
+            peer: meetup.map { meetupStore.peer(for: $0) },
+            listing: meetup.flatMap { meetupStore.listing(for: $0) }
+        )
+    }
+    #endif
 }

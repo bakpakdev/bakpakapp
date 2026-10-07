@@ -76,6 +76,15 @@ async function fulfillMeetupPayment({
 
   await creditSellerSale(supabase, sellerId, requestRow.amount_cents);
 
+  const { error: meetupError } = await supabase
+    .from('meetups')
+    .update({ status: 'completed' })
+    .eq('product_id', productId)
+    .eq('status', 'confirmed');
+  if (meetupError) {
+    console.error('Meetup complete error:', meetupError);
+  }
+
   return { paid: true };
 }
 

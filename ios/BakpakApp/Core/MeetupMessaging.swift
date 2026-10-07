@@ -30,9 +30,32 @@ enum OfferMessageCodec {
         return parts.joined(separator: "|")
     }
 
+    static let decisionPrefix = "OfferStatus:"
+
+    enum Decision: String {
+        case accepted
+        case declined
+    }
+
     static func isOffer(_ content: String) -> Bool {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix(decisionPrefix) { return false }
         return trimmed.hasPrefix(prefix) || trimmed.hasPrefix(legacyPrefix)
+    }
+
+    static func encodeDecision(_ decision: Decision, amount: String) -> String {
+        let trimmed = amount.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = trimmed.hasPrefix("$") ? trimmed : "$\(trimmed)"
+        return "\(decisionPrefix)\(decision.rawValue)|\(value)"
+    }
+
+    static func parseDecision(_ content: String) -> (Decision, String)? {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix(decisionPrefix) else { return nil }
+        let rest = String(trimmed.dropFirst(decisionPrefix.count))
+        let parts = rest.split(separator: "|", maxSplits: 1).map(String.init)
+        guard parts.count == 2, let decision = Decision(rawValue: parts[0]) else { return nil }
+        return (decision, parts[1].trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     static func displayAmount(_ content: String) -> String {
@@ -319,9 +342,20 @@ struct MeetupChecklistItem: Identifiable, Hashable, Codable {
     }
 }
 
+/// Local UserDefaults reminders. Meetups now live in Supabase; this store is only
+/// read once to migrate, then cleared.
+@available(*, deprecated, message: "Meetups are stored on the server. Use MeetupStore / MeetupService.")
 enum MeetupChecklistStore {
     private static let legacyKey = "meetup.reminders.v1"
     private static var key: String { AccountScopedDefaults.key(legacyKey) }
+
+    static func loadForServerMigration() -> [MeetupChecklistItem] {
+        load()
+    }
+
+    static func clearAfterServerMigration() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
 
     static func load() -> [MeetupChecklistItem] {
         migrateLegacyIfNeeded()
@@ -490,6 +524,17 @@ enum MeetupChecklistStore {
 }
 
 // MARK: - Maps
+
+enum MeetupChatActions {
+    static func send(_ kind: MeetupMessageKind, meetup: Meetup, spots: [CampusMeetupSpot]) async {
+        let spot = spots.first(where: { $0.id == meetup.spotId })
+            ?? CampusMeetupSpot(id: meetup.spotId, name: meetup.spotName, latitude: 0, longitude: 0)
+        _ = try? await MessageService().send(
+            conversationId: meetup.conversationId,
+            content: MeetupMessageCodec.encode(kind: kind, spot: spot, proposedAt: meetup.scheduledAt)
+        )
+    }
+}
 
 enum MeetupMaps {
     static func open(spot: CampusMeetupSpot) {

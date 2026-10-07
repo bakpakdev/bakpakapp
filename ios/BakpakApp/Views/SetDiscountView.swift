@@ -171,7 +171,9 @@ struct SetDiscountView: View {
                     .tint(campusTheme.primary)
                     .focused($customFocused)
                     .onChange(of: customPriceText) { value in
-                        if !value.isEmpty { selectedPercent = nil } else if selectedPercent == nil { selectedPercent = 15 }
+                        let cleaned = MoneyAmount.sanitized(value)
+                        if cleaned != value { customPriceText = cleaned }
+                        if !cleaned.isEmpty { selectedPercent = nil } else if selectedPercent == nil { selectedPercent = 15 }
                     }
                 if !customPriceText.isEmpty {
                     Button {

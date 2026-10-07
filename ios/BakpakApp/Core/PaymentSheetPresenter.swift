@@ -19,6 +19,10 @@ final class PaymentSheetPresenter: ObservableObject {
         didComplete = false
         self.checkout = checkout
         SquareConfig.initializeSDKIfNeeded()
+        if let blocker = SquareConfig.userFacingBlocker {
+            errorMessage = blocker
+            return
+        }
         guard SquareConfig.isConfigured else {
             errorMessage = "Square is not configured."
             return
@@ -167,7 +171,11 @@ struct PaymentSheetHost: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
         guard presenter.isPresenting, presenter.errorMessage == nil else { return }
         DispatchQueue.main.async {
-            presenter.present(from: uiViewController)
+            var host = uiViewController
+            while let presented = host.presentedViewController {
+                host = presented
+            }
+            presenter.present(from: host)
         }
     }
 }

@@ -70,6 +70,12 @@ final class TapToPayCollector: NSObject, ObservableObject {
         phase = .preparing
         statusMessage = "Preparing Tap to Pay…"
 
+        #if targetEnvironment(simulator)
+        phase = .failed("Tap to Pay needs a physical iPhone. Buyers can still pay with Apple Pay or card.")
+        statusMessage = "Use a physical iPhone to collect, or have the buyer pay in the app."
+        return
+        #endif
+
         #if !canImport(SquareMobilePaymentsSDK)
         phase = .failed("Tap to Pay isn’t available in this build.")
         statusMessage = "Update the app and try again"

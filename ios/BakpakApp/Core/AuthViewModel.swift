@@ -57,7 +57,14 @@ final class AuthViewModel: ObservableObject {
     private func restoreSupabaseSession() async {
         guard let client = SupabaseManager.shared.client() else { return }
         do {
-            _ = try await client.auth.session
+            let session = try await client.auth.session
+            guard session.user.emailConfirmedAt != nil else {
+                try? await client.auth.signOut()
+                isAuthenticated = false
+                user = nil
+                needsOnboarding = false
+                return
+            }
             user = try await Self.fetchProfile(client: client)
             isAuthenticated = true
             refreshOnboardingFlag()
@@ -136,7 +143,17 @@ final class AuthViewModel: ObservableObject {
                 return
             }
             do {
-                try await client.auth.signIn(email: email, password: password)
+                let session = try await client.auth.signIn(email: email, password: password)
+                if session.user.emailConfirmedAt == nil {
+                    try? await client.auth.signOut()
+                    errorMessage = "Confirm your campus email first. Open the popup link we sent, then sign in."
+                    isAuthenticated = false
+                    user = nil
+                    needsOnboarding = false
+                    isAwaitingEmailVerification = true
+                    pendingSignupEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    return
+                }
                 user = try await Self.fetchProfile(client: client)
                 isAuthenticated = true
                 refreshOnboardingFlag()
@@ -409,7 +426,15 @@ final class AuthViewModel: ObservableObject {
         guard usesSupabase, let client = SupabaseManager.shared.client() else { return }
 
         do {
-            _ = try await client.auth.session(from: url)
+            let session = try await client.auth.session(from: url)
+            guard session.user.emailConfirmedAt != nil else {
+                try? await client.auth.signOut()
+                errorMessage = "That link didn’t confirm your email. Request a new popup email and try again."
+                hasVerifiedSignupEmail = false
+                isAuthenticated = false
+                user = nil
+                return
+            }
             if isAwaitingEmailVerification {
                 hasVerifiedSignupEmail = true
                 isAuthenticated = false
@@ -420,13 +445,6 @@ final class AuthViewModel: ObservableObject {
                 KeychainManager.shared.clearToken()
             }
         } catch {
-            if isAwaitingEmailVerification {
-                // Link opened the app — treat as verified even if token parse fails.
-                hasVerifiedSignupEmail = true
-                isAuthenticated = false
-                user = nil
-                return
-            }
             errorMessage = error.localizedDescription
         }
     }
@@ -438,7 +456,11 @@ final class AuthViewModel: ObservableObject {
         guard let email = pendingSignupEmail, let temp = pendingTempPassword else { return }
 
         do {
-            try await client.auth.signIn(email: email, password: temp)
+            let session = try await client.auth.signIn(email: email, password: temp)
+            guard session.user.emailConfirmedAt != nil else {
+                try? await client.auth.signOut()
+                return
+            }
             hasVerifiedSignupEmail = true
             isAuthenticated = false
             user = nil
@@ -504,6 +526,14 @@ final class AuthViewModel: ObservableObject {
             )
 
             let session = try await client.auth.session
+            guard session.user.emailConfirmedAt != nil else {
+                try? await client.auth.signOut()
+                errorMessage = "Confirm your campus email before creating a password."
+                isAuthenticated = false
+                user = nil
+                hasVerifiedSignupEmail = false
+                return
+            }
             let uid = session.user.id.uuidString.lowercased()
             struct ProfilePatch: Encodable {
                 let first_name: String
@@ -581,16 +611,16 @@ final class AuthViewModel: ObservableObject {
                     data: ["username": .string(trimmedUser)]
                 )
 
-                if signupResult.session == nil {
-                    do {
-                        try await client.auth.signIn(email: trimmedEmail, password: password)
-                    } catch {
-                        errorMessage =
-                            "We created your account, but you’re not signed in yet. In Supabase: Authentication → Providers → Email → turn off “Confirm email” for development, or open the confirmation link in your email. Details: \(error.localizedDescription)"
-                        isAuthenticated = false
-                        user = nil
-                        return
-                    }
+                let session = signupResult.session
+                if session == nil || session?.user.emailConfirmedAt == nil {
+                    try? await client.auth.signOut()
+                    pendingSignupEmail = trimmedEmail
+                    isAwaitingEmailVerification = true
+                    hasVerifiedSignupEmail = false
+                    isAuthenticated = false
+                    user = nil
+                    errorMessage = "Confirm your campus email first. Open the popup link we sent, then sign in."
+                    return
                 }
 
                 user = try await Self.fetchProfileWithRetry(client: client)
@@ -620,6 +650,13 @@ final class AuthViewModel: ObservableObject {
     func refreshMe() async {
         if usesSupabase, let client = SupabaseManager.shared.client() {
             do {
+                let session = try await client.auth.session
+                guard session.user.emailConfirmedAt != nil else {
+                    try? await client.auth.signOut()
+                    isAuthenticated = false
+                    user = nil
+                    return
+                }
                 user = try await Self.fetchProfile(client: client)
                 isAuthenticated = true
             } catch {

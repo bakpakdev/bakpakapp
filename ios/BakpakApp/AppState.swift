@@ -26,6 +26,12 @@ final class AppState: ObservableObject {
     /// Unread inbound messages in buying vs selling inbox tabs.
     @Published var inboxUnreadBuying: Int = 0
     @Published var inboxUnreadSelling: Int = 0
+    /// Open this inbox thread (universal chat UI) instead of pushing ConversationView.
+    @Published var pendingInboxConversationId: String?
+    @Published var pendingInboxOtherUserId: String?
+    @Published var pendingInboxProductId: String?
+    /// Closet share deep link waiting until the student is signed in.
+    @Published var pendingShareProfileId: String?
 
     var inboxUnreadTotal: Int { inboxUnreadBuying + inboxUnreadSelling }
 
@@ -71,6 +77,67 @@ final class AppState: ObservableObject {
         pendingProfileProductId = productId
     }
 
+    func openMeetupDetail(_ meetupId: String) {
+        selectedTab = .messages
+        hidesTabBar = false
+        path.removeAll { route in
+            if case .notificationCenter = route { return true }
+            return false
+        }
+        if path.last != .meetupDetail(meetupId) {
+            path.append(.meetupDetail(meetupId))
+        }
+    }
+
+    func openSharedCloset(userId: String? = nil, username: String? = nil) {
+        Task { await resolveAndOpenSharedCloset(userId: userId, username: username) }
+    }
+
+    func consumePendingShareProfile() {
+        guard let id = pendingShareProfileId, !id.isEmpty else { return }
+        pendingShareProfileId = nil
+        presentSharedProfile(id)
+    }
+
+    private func resolveAndOpenSharedCloset(userId: String?, username: String?) async {
+        var id = (userId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let handle = (username ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "@", with: "")
+        if id.isEmpty, !handle.isEmpty {
+            id = (try? await ProductService().publicProfile(username: handle))?.id ?? ""
+        }
+        guard !id.isEmpty else { return }
+        if !authVM.isAuthenticated || authVM.needsOnboarding {
+            pendingShareProfileId = id
+            return
+        }
+        presentSharedProfile(id)
+    }
+
+    private func presentSharedProfile(_ id: String) {
+        hidesTabBar = false
+        if authVM.user?.id.lowercased() == id.lowercased() {
+            selectedTab = .profile
+            path.removeAll()
+            return
+        }
+        selectedTab = .home
+        if path.last != .userProfile(id) {
+            path.append(.userProfile(id))
+        }
+    }
+
+    /// One chat UI (Inbox). Drops any pushed ConversationView and opens the thread there.
+    func openInboxChat(conversationId: String, otherUserId: String?, productId: String?) {
+        pendingInboxConversationId = conversationId
+        pendingInboxOtherUserId = otherUserId
+        pendingInboxProductId = productId
+        path.removeAll()
+        selectedTab = .messages
+        hidesTabBar = !conversationId.isEmpty
+    }
+
     /// Login, cold session restore, or long background → Home with product loading.
     func resetToHome(reload: Bool = true) {
         selectedTab = .home
@@ -91,6 +158,9 @@ final class AppState: ObservableObject {
         hidesTabBar = false
         profileFocusTab = nil
         pendingProfileProductId = nil
+        pendingInboxConversationId = nil
+        pendingInboxOtherUserId = nil
+        pendingInboxProductId = nil
         profileReloadToken += 1
         homeEntryToken += 1
     }
@@ -180,8 +250,9 @@ enum Route: Hashable, Identifiable {
     case preferences
     case helpSupport
     case sellerCashOutSetup
-    case meetupPay(MeetupChecklistItem)
-    case meetupDetail(MeetupChecklistItem)
+    case meetupsHub
+    case meetupPay(String)
+    case meetupDetail(String)
     case leaderboard
     case badgeCollection
 
@@ -212,8 +283,9 @@ enum Route: Hashable, Identifiable {
         case .preferences: return "preferences"
         case .helpSupport: return "help-support"
         case .sellerCashOutSetup: return "seller-cash-out-setup"
-        case .meetupPay(let item): return "meetup-pay-\(item.id)"
-        case .meetupDetail(let item): return "meetup-detail-\(item.id)"
+        case .meetupsHub: return "meetups-hub"
+        case .meetupPay(let id): return "meetup-pay-\(id)"
+        case .meetupDetail(let id): return "meetup-detail-\(id)"
         case .leaderboard: return "leaderboard"
         case .badgeCollection: return "badge-collection"
         }

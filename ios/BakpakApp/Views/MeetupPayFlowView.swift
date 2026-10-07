@@ -17,18 +17,19 @@ private enum MeetupPayStep: Int, CaseIterable {
 }
 
 struct MeetupPayFlowView: View {
-    let item: MeetupChecklistItem
+    let meetupId: String
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.campusTheme) private var campusTheme
     @EnvironmentObject private var authVM: AuthViewModel
     @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var meetupStore: MeetupStore
 
     @State private var step: MeetupPayStep = .confirm
     @State private var selectedMethod: String?
     @State private var productPrice: Double?
     @State private var isLoadingPrice = false
-    @State private var isCollecting: Bool
+    @State private var isCollecting = false
     @State private var isPaymentBusy = false
     @State private var paymentError: String?
     @State private var showSellerPaymentSheet = false
@@ -42,9 +43,33 @@ struct MeetupPayFlowView: View {
 
     private let paymentService = MeetupPaymentService.shared
 
-    init(item: MeetupChecklistItem) {
-        self.item = item
-        _isCollecting = State(initialValue: item.isSeller == true)
+    init(meetupId: String) {
+        self.meetupId = meetupId
+    }
+
+    private var meetup: Meetup? { meetupStore.meetup(id: meetupId) }
+
+    private var item: MeetupChecklistItem {
+        guard let meetup else {
+            return MeetupChecklistItem(
+                id: meetupId,
+                conversationId: "",
+                otherUserId: nil,
+                productId: nil,
+                productTitle: nil,
+                spotId: "",
+                spotName: "",
+                otherPersonName: "Them",
+                createdAt: Date(),
+                proposedAt: nil
+            )
+        }
+        let peer = meetupStore.peer(for: meetup)
+        return meetup.asChecklistItem(
+            meId: meetupStore.meId,
+            otherPersonName: peer.name,
+            productTitle: meetupStore.listing(for: meetup)?.title
+        )
     }
 
     private var priceLabel: String? {
@@ -107,7 +132,12 @@ struct MeetupPayFlowView: View {
         .hidesSystemNavigationBar(paymentOutcome != nil)
         .onAppear { appState.hidesTabBar = true }
         .onDisappear { appState.hidesTabBar = false }
-        .task { await loadPrice() }
+        .task {
+            if let meetup {
+                isCollecting = meetup.amISeller(meId: meetupStore.meId)
+            }
+            await loadPrice()
+        }
         .sheet(isPresented: $showSellerPaymentSheet) { sellerReceiveSheet }
         .sheet(isPresented: $showBuyerPaymentSheet) { buyerPaySheet }
         .background(PaymentSheetHost(presenter: paymentPresenter))
@@ -559,11 +589,9 @@ struct MeetupPayFlowView: View {
         case .pay:
             withAnimation(Motion.snappy) { step = .done }
         case .done:
-            MeetupChecklistStore.completePaid(
-                productId: item.productId,
-                conversationId: item.conversationId
-            )
-            MeetupChecklistStore.remove(id: item.id)
+            if let productId = item.productId {
+                Task { await meetupStore.markCompleted(productId: productId) }
+            }
             dismiss()
         }
     }
@@ -590,6 +618,10 @@ struct MeetupPayFlowView: View {
     // MARK: - Payments
 
     private func startApplePayFlow() async {
+        if let blocker = SquareConfig.userFacingBlocker {
+            paymentError = blocker
+            return
+        }
         guard let productId = item.productId?.trimmingCharacters(in: .whitespacesAndNewlines),
               !productId.isEmpty else {
             paymentError = "This meetup isn’t linked to a listing."
@@ -638,6 +670,10 @@ struct MeetupPayFlowView: View {
     }
 
     private func presentBuyerCheckout() async {
+        if let blocker = SquareConfig.userFacingBlocker {
+            paymentError = blocker
+            return
+        }
         guard let productId = item.productId?.trimmingCharacters(in: .whitespacesAndNewlines),
               !productId.isEmpty else {
             paymentError = "This meetup isn’t linked to a listing."

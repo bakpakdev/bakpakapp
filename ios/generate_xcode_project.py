@@ -45,6 +45,7 @@ def main() -> None:
     core_group = gid("popup:group:Core")
     views_group = gid("popup:group:Views")
     auth_group = gid("popup:group:Auth")
+    meetups_group = gid("popup:group:Meetups")
     resources_group = gid("popup:group:Resources")
     fonts_group = gid("popup:group:Fonts")
     images_group = gid("popup:group:Images")
@@ -119,6 +120,7 @@ def main() -> None:
     core_swifts = [p for p in swift_files if os.path.dirname(p) == "BakpakApp/Core"]
     views_root_swifts = [p for p in swift_files if os.path.dirname(p) == "BakpakApp/Views"]
     auth_swifts = [p for p in swift_files if os.path.dirname(p) == "BakpakApp/Views/Auth"]
+    meetups_swifts = [p for p in swift_files if os.path.dirname(p) == "BakpakApp/Views/Meetups"]
     font_resources = [p for p in resource_files if os.path.dirname(p) == "BakpakApp/Resources/Fonts"]
     image_resources = [p for p in resource_files if os.path.dirname(p) == "BakpakApp/Resources/Images"]
 
@@ -249,6 +251,7 @@ def main() -> None:
 \t\t\tchildren = (
 {group_child_lines(views_root_swifts)}
 \t\t\t\t{auth_group} /* Auth */,
+\t\t\t\t{meetups_group} /* Meetups */,
 \t\t\t);
 \t\t\tpath = Views;
 \t\t\tsourceTree = "<group>";
@@ -259,6 +262,14 @@ def main() -> None:
 {group_child_lines(auth_swifts)}
 \t\t\t);
 \t\t\tpath = Auth;
+\t\t\tsourceTree = "<group>";
+\t\t}};
+\t\t{meetups_group} /* Meetups */ = {{
+\t\t\tisa = PBXGroup;
+\t\t\tchildren = (
+{group_child_lines(meetups_swifts)}
+\t\t\t);
+\t\t\tpath = Meetups;
 \t\t\tsourceTree = "<group>";
 \t\t}};
 \t\t{resources_group} /* Resources */ = {{

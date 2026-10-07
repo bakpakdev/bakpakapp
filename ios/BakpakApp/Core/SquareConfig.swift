@@ -61,6 +61,17 @@ enum SquareConfig {
         return !merchant.isEmpty && !merchant.contains("$(") && merchant.hasPrefix("merchant.")
     }
 
+    /// Shown when the buyer/seller tries to pay before Square or the API is ready.
+    static var userFacingBlocker: String? {
+        if !isConfigured {
+            return "Square isn’t set up on this build. Add SQUARE_APPLICATION_ID in Secrets.xcconfig and rebuild."
+        }
+        if !isAPIConfigured {
+            return "The payments server isn’t reachable. In Debug, run the Node API on port 5001. For TestFlight, set API_BASE_URL_RELEASE to your hosted HTTPS backend."
+        }
+        return nil
+    }
+
     static func initializeSDKIfNeeded() {
         guard isConfigured else { return }
         #if canImport(SquareMobilePaymentsSDK)

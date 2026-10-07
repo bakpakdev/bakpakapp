@@ -30,7 +30,7 @@ struct HelpSupportView: View {
                             faqRow(
                                 id: "pay",
                                 question: "How do I pay for a meetup?",
-                                answer: "Open the meetup from Inbox, tap Pay, and use Apple Pay. The seller collects on their phone. Don’t pay outside the app."
+                                answer: "Open the meetup from Inbox or Meetups, then tap Pay or Collect. Use Apple Pay. Don’t pay outside the app."
                             )
                             faqRow(
                                 id: "cashout",
@@ -40,7 +40,7 @@ struct HelpSupportView: View {
                             faqRow(
                                 id: "meetup",
                                 question: "How do meetups work?",
-                                answer: "Propose a campus spot and time in chat. When both people accept, it shows under meetup reminders. Meet in public and complete payment in-app."
+                                answer: "Propose a campus spot and time in chat. They’ll get an invite to accept. Open meetups from Inbox to see what’s next, check in when you arrive, and pay in-app once you’re both there."
                             )
                             faqRow(
                                 id: "sold",

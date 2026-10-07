@@ -5,7 +5,7 @@ struct AccountDetailsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.campusTheme) private var campusTheme
 
-    @State private var graduationYear = ""
+    @State private var graduationDate = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 15)) ?? Date()
     @State private var isSaving = false
     @State private var comingSoonMessage: String?
 
@@ -79,12 +79,24 @@ struct AccountDetailsView: View {
                                 .multilineTextAlignment(.trailing)
                                 .frame(maxWidth: 200, alignment: .trailing)
                         }
-                        EditProfileRow(label: "Graduation Year", showDivider: false) {
-                            TextField("2026", text: $graduationYear)
-                                .modifier(EditProfileFieldStyle())
-                                .frame(maxWidth: 80)
-                                .keyboardType(.numberPad)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Graduation")
+                                .font(Theme.syne(15, weight: .medium))
+                                .foregroundStyle(campusTheme.textPrimary)
+                            DatePicker(
+                                "Graduation date",
+                                selection: $graduationDate,
+                                in: graduationRange,
+                                displayedComponents: .date
+                            )
+                            .datePickerStyle(.wheel)
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 140)
+                            .clipped()
                         }
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
                     }
 
                     Button {
@@ -148,14 +160,34 @@ struct AccountDetailsView: View {
         }
     }
 
+    private var graduationRange: ClosedRange<Date> {
+        let cal = Calendar.current
+        let start = cal.date(from: DateComponents(year: 2020, month: 1, day: 1)) ?? Date()
+        let end = cal.date(from: DateComponents(year: 2034, month: 12, day: 31)) ?? Date()
+        return start...end
+    }
+
     private func load() {
         let d = UserDefaults.standard
-        graduationYear = d.string(forKey: EditProfilePrefs.gradYear) ?? ""
+        if let stored = d.string(forKey: EditProfilePrefs.gradYear), !stored.isEmpty {
+            let formatter = DateFormatter()
+            formatter.calendar = Calendar(identifier: .gregorian)
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyy-MM-dd"
+            if let parsed = formatter.date(from: stored) {
+                graduationDate = parsed
+            } else if let year = Int(stored), year >= 2020, year <= 2034 {
+                graduationDate = Calendar.current.date(from: DateComponents(year: year, month: 6, day: 15)) ?? graduationDate
+            }
+        }
     }
 
     private func saveLocal() {
-        let d = UserDefaults.standard
-        d.set(graduationYear, forKey: EditProfilePrefs.gradYear)
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        UserDefaults.standard.set(formatter.string(from: graduationDate), forKey: EditProfilePrefs.gradYear)
     }
 
     private func save() async {

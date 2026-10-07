@@ -112,7 +112,7 @@ struct AccountSettingsView: View {
                     .init(
                         icon: "lock.shield",
                         title: "Two-factor authentication",
-                        subtitle: AccountPrefsStore.twoFactorEnabled ? "On · email codes" : "Off · add a sign-in code"
+                        subtitle: AccountPrefsStore.twoFactorEnabled ? "On · SMS codes" : "Off · required to cash out"
                     ) {
                         appState.path.append(.twoFactorAuth)
                     },
@@ -380,8 +380,13 @@ struct AccountSettingsView: View {
     }
 
     private func cashOutTapped() async {
-        guard SquareConfig.isConfigured else {
-            comingSoonMessage = "Add Square application ID and backend Square env vars first."
+        guard AccountPrefsStore.twoFactorEnabled else {
+            comingSoonMessage = "Turn on SMS two-factor, then cash out."
+            appState.path.append(.twoFactorAuth)
+            return
+        }
+        if let blocker = SquareConfig.userFacingBlocker {
+            comingSoonMessage = blocker
             return
         }
 

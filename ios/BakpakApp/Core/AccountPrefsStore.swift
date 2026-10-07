@@ -79,6 +79,11 @@ enum AccountPrefsStore {
         set { setBool("popup.security.twoFactor", newValue) }
     }
 
+    static var twoFactorPhone: String {
+        get { UserDefaults.standard.string(forKey: AccountScopedDefaults.key("popup.security.twoFactorPhone")) ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: AccountScopedDefaults.key("popup.security.twoFactorPhone")) }
+    }
+
     static var twoFactorBackupCodes: [String] {
         get {
             UserDefaults.standard.stringArray(forKey: AccountScopedDefaults.key("popup.security.backupCodes")) ?? []

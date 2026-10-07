@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 
 // Load environment variables
@@ -61,10 +62,15 @@ app.use('/api/social', require('./routes/social'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/payments/square', require('./routes/square'));
 app.use('/api/identify-clothing', require('./routes/identify'));
+app.use('/api/auth/sms-2fa', require('./routes/sms2fa'));
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'popup API is running' });
+});
+
+app.get('/u/:username', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'share.html'));
 });
 
 // Serve index page at root

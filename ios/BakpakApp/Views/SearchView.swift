@@ -25,7 +25,7 @@ private let popularSearchBrands = [
 ]
 
 private var recentSearchesKey: String { AccountScopedDefaults.key("popup.recent_searches") }
-private let maxRecentSearches = 4
+private let maxRecentSearches = 24
 
 // MARK: - Search tab
 
@@ -86,39 +86,41 @@ struct SearchView: View {
                 .offset(x: 170, y: 40)
                 .allowsHitTesting(false)
 
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                if !searchFieldFocused {
                     headerBlock
                         .padding(.top, 60)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 22)
-
-                    searchBar
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 26)
-
-                    if showResults && !searchFieldFocused {
-                        resultsFilterRow
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 18)
-                    }
-
-                    Group {
-                        if searchFieldFocused {
-                            predictionContent
-                                .transition(.opacity)
-                        } else if showResults {
-                            resultsContent
-                                .transition(.opacity)
-                        } else {
-                            idleContent
-                                .transition(.opacity)
-                        }
-                    }
-                    .animation(.easeInOut(duration: 0.22), value: searchFieldFocused)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-                .padding(.bottom, 110)
+
+                searchBarRow
+                    .padding(.top, searchFieldFocused ? 56 : 0)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, searchFieldFocused ? 16 : 26)
+
+                if searchFieldFocused {
+                    focusedSearchScreen
+                        .transition(.opacity)
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            if showResults {
+                                resultsFilterRow
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 18)
+                                resultsContent
+                            } else {
+                                idleContent
+                            }
+                        }
+                        .padding(.bottom, 110)
+                    }
+                    .transition(.opacity)
+                }
             }
+            .animation(.easeInOut(duration: 0.22), value: searchFieldFocused)
         }
         .background(campusTheme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
@@ -208,6 +210,25 @@ struct SearchView: View {
         }
     }
 
+    private var searchBarRow: some View {
+        HStack(spacing: 10) {
+            searchBar
+            if searchFieldFocused {
+                Button {
+                    Motion.haptic(.light)
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        searchFieldFocused = false
+                    }
+                } label: {
+                    Text("Cancel")
+                        .font(Theme.syne(14, weight: .semibold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     private var searchBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
@@ -231,12 +252,19 @@ struct SearchView: View {
                 let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
                     saveRecentSearch(trimmed)
+                    searchFieldFocused = false
                     Task { await performSearch() }
                 }
             }
 
-            if showResults {
-                Button(action: clearAll) {
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                    products = []
+                    liveSuggestions = []
+                    Motion.haptic(.light)
+                    scheduleSuggestions()
+                } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(campusTheme.textPrimary)
@@ -249,7 +277,7 @@ struct SearchView: View {
             }
         }
         .padding(.leading, 16)
-        .padding(.trailing, showResults ? 6 : 16)
+        .padding(.trailing, query.isEmpty ? 16 : 6)
         .frame(height: 62)
         .background(campusTheme.surface)
         .clipShape(Capsule())
@@ -338,28 +366,81 @@ struct SearchView: View {
         }
     }
 
-    // MARK: Focused predictions
+    // MARK: Focused search session
+
+    private var focusedSearchScreen: some View {
+        Group {
+            if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                recentsFullScreen
+            } else {
+                predictionContent
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var recentsFullScreen: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                sectionTitle("recent searches")
+                Spacer()
+                if !recentSearches.isEmpty {
+                    Button("Clear") {
+                        Motion.haptic(.light)
+                        recentSearches = []
+                        UserDefaults.standard.removeObject(forKey: recentSearchesKey)
+                    }
+                    .font(Theme.syne(13, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+                }
+            }
+            .padding(.horizontal, 20)
+
+            if recentSearches.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                    Text("No recent searches")
+                        .font(Theme.syne(16, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                    Text("Terms you search for will show up here.")
+                        .font(Theme.syne(14))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 32)
+            } else {
+                GeometryReader { geo in
+                    ScrollView(showsIndicators: false) {
+                        recentSearchesList
+                            .frame(minHeight: geo.size.height, alignment: .top)
+                            .padding(.bottom, 110)
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                }
+            }
+        }
+        .padding(.top, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
 
     private var predictionContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                sectionTitle(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? "popular searches"
-                    : "search suggestions")
+                sectionTitle("search suggestions")
                 Spacer()
-                if !query.isEmpty {
-                    Text("\(liveSuggestions.count) suggestions")
-                        .font(Theme.syne(11, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                }
+                Text("\(liveSuggestions.count) suggestions")
+                    .font(Theme.syne(11, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
             }
             .padding(.horizontal, 20)
 
             if suggestionsLoading && liveSuggestions.isEmpty {
                 ProgressView()
                     .tint(campusTheme.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 36)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if liveSuggestions.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
@@ -369,42 +450,45 @@ struct SearchView: View {
                         .font(Theme.syne(14, weight: .medium))
                         .foregroundStyle(campusTheme.textMuted)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                listCard {
-                    ForEach(liveSuggestions) { suggestion in
-                        Button {
-                            selectPrediction(suggestion)
-                        } label: {
-                            HStack(spacing: 12) {
-                                rowIcon(predictionIcon(for: suggestion))
+                ScrollView(showsIndicators: false) {
+                    listCard {
+                        ForEach(liveSuggestions) { suggestion in
+                            Button {
+                                selectPrediction(suggestion)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    rowIcon(predictionIcon(for: suggestion))
 
-                                highlightedPrediction(suggestion.text)
+                                    highlightedPrediction(suggestion.text)
 
-                                Spacer()
+                                    Spacer()
 
-                                Image(systemName: "arrow.up.left")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(campusTheme.textMuted)
+                                    Image(systemName: "arrow.up.left")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(campusTheme.textMuted)
+                                }
+                                .padding(.horizontal, 12)
+                                .frame(height: 56)
+                                .contentShape(Rectangle())
                             }
-                            .padding(.horizontal, 12)
-                            .frame(height: 56)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+                            .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
 
-                        if suggestion.id != liveSuggestions.last?.id {
-                            Divider()
-                                .overlay(campusTheme.border)
-                                .padding(.leading, 60)
+                            if suggestion.id != liveSuggestions.last?.id {
+                                Divider()
+                                    .overlay(campusTheme.border)
+                                    .padding(.leading, 60)
+                            }
                         }
                     }
+                    .padding(.bottom, 110)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
         }
         .padding(.top, 4)
-        .frame(maxWidth: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     @ViewBuilder
@@ -430,21 +514,12 @@ struct SearchView: View {
 
     private var idleContent: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if !recentSearches.isEmpty {
-                trendingSection(
-                    title: "recent searches",
-                    terms: recentSearches,
-                    icon: "clock"
-                )
-                .padding(.top, 8)
-            }
-
             trendingSection(
                 title: "trending searches",
                 terms: trendingSearchTerms,
                 icon: "arrow.up.right"
             )
-            .padding(.top, recentSearches.isEmpty ? 8 : 24)
+            .padding(.top, 8)
 
             categoryTiles
                 .padding(.top, 28)
@@ -452,6 +527,58 @@ struct SearchView: View {
             brandScroller
                 .padding(.top, 28)
         }
+    }
+
+    private var recentSearchesList: some View {
+        VStack(spacing: 0) {
+            ForEach(recentSearches, id: \.self) { term in
+                HStack(spacing: 4) {
+                    Button {
+                        selectPrediction(SearchSuggestion(text: term, type: "recent", score: 1))
+                    } label: {
+                        HStack(spacing: 12) {
+                            rowIcon("clock")
+                            Text(term)
+                                .font(Theme.syne(14, weight: .medium))
+                                .foregroundStyle(campusTheme.textPrimary)
+                            Spacer()
+                        }
+                        .padding(.leading, 4)
+                        .frame(height: 58)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+
+                    Button {
+                        Motion.haptic(.light)
+                        deleteRecentSearch(term)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(campusTheme.textMuted)
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Delete \(term)")
+                }
+                .padding(.horizontal, 12)
+
+                if term != recentSearches.last {
+                    Divider()
+                        .overlay(campusTheme.border)
+                        .padding(.leading, 64)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(campusTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(campusTheme.border, lineWidth: 1)
+        )
+        .padding(.horizontal, 20)
     }
 
     private func trendingSection(title: String, terms: [String], icon: String) -> some View {
@@ -641,6 +768,7 @@ struct SearchView: View {
         category = "all"
         products = []
         liveSuggestions = []
+        searchFieldFocused = false
         Motion.haptic(.light)
         scheduleSuggestions()
     }
@@ -771,11 +899,7 @@ struct SearchView: View {
             else { likedProductIDs.insert(productId) }
         }
         do {
-            if isLiked {
-                try await SocialService().unlike(productId: productId)
-            } else {
-                try await SocialService().like(productId: productId)
-            }
+            try await SocialService().setLiked(productId: productId, liked: !isLiked)
         } catch {
             await MainActor.run {
                 if isLiked { likedProductIDs.insert(productId) }
@@ -791,11 +915,7 @@ struct SearchView: View {
             else { savedProductIDs.insert(productId) }
         }
         do {
-            if isSaved {
-                try await SocialService().unsave(productId: productId)
-            } else {
-                try await SocialService().save(productId: productId)
-            }
+            try await SocialService().setSaved(productId: productId, saved: !isSaved)
         } catch {
             await MainActor.run {
                 if isSaved { savedProductIDs.insert(productId) }
@@ -815,6 +935,12 @@ struct SearchView: View {
         guard !trimmed.isEmpty else { return }
         var updated = [trimmed] + recentSearches.filter { $0 != trimmed }
         updated = Array(updated.prefix(maxRecentSearches))
+        recentSearches = updated
+        UserDefaults.standard.set(updated, forKey: recentSearchesKey)
+    }
+
+    private func deleteRecentSearch(_ text: String) {
+        let updated = recentSearches.filter { $0 != text }
         recentSearches = updated
         UserDefaults.standard.set(updated, forKey: recentSearchesKey)
     }

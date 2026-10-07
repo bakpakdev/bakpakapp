@@ -1,4 +1,7 @@
 import SwiftUI
+import PhotosUI
+import Supabase
+import UIKit
 
 // MARK: - Options
 
@@ -244,6 +247,9 @@ struct EditProfileView: View {
     @State private var showSaveError = false
     @State private var saveErrorMessage = ""
     @State private var isSaving = false
+    @State private var photoItem: PhotosPickerItem?
+    @State private var pickedPhoto: UIImage?
+    @State private var isUploadingPhoto = false
 
     private let bioLimit = 150
     private let maxTags = 10
@@ -460,6 +466,9 @@ struct EditProfileView: View {
             }
         }
         .campusPageStyle()
+        .onChange(of: photoItem) { item in
+            Task { await loadAndUploadPhoto(item) }
+        }
         .alert("Could not save", isPresented: $showSaveError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -674,23 +683,25 @@ struct EditProfileView: View {
         EditProfileCard {
             VStack(spacing: 14) {
                 ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: URL(string: avatarURL)) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        ZStack {
-                            campusTheme.elevatedSurface
-                            Text(String((name.isEmpty ? "U" : name).prefix(1)).uppercased())
-                                .font(Theme.syne(32, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
+                    Group {
+                        if let pickedPhoto {
+                            Image(uiImage: pickedPhoto)
+                                .resizable()
+                                .scaledToFill()
+                        } else {
+                            AvatarView(
+                                urlString: avatarURL,
+                                size: 104,
+                                cornerRadius: 30,
+                                initials: name.isEmpty ? "U" : name
+                            )
                         }
                     }
                     .frame(width: 104, height: 104)
                     .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
 
-                    Button {
-                        // Photo picker + storage upload — future
-                    } label: {
-                        Image(systemName: "camera.fill")
+                    PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+                        Image(systemName: isUploadingPhoto ? "hourglass" : "camera.fill")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white)
                             .frame(width: 34, height: 34)
@@ -698,14 +709,12 @@ struct EditProfileView: View {
                             .clipShape(Circle())
                             .overlay(Circle().stroke(campusTheme.surface, lineWidth: 2))
                     }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+                    .disabled(isUploadingPhoto)
                     .offset(x: 6, y: 6)
                 }
 
-                Button {
-                    // Photo picker — future
-                } label: {
-                    Text("change photo")
+                PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+                    Text(isUploadingPhoto ? "uploading…" : "change photo")
                         .font(Theme.syne(14, weight: .semibold))
                         .foregroundStyle(campusTheme.textPrimary)
                         .padding(.horizontal, 18)
@@ -713,7 +722,7 @@ struct EditProfileView: View {
                         .background(campusTheme.elevatedSurface)
                         .clipShape(Capsule())
                 }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                .disabled(isUploadingPhoto)
             }
             .padding(.vertical, 22)
             .frame(maxWidth: .infinity)
@@ -797,6 +806,41 @@ struct EditProfileView: View {
         username
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "@", with: "")
+    }
+
+    private func loadAndUploadPhoto(_ item: PhotosPickerItem?) async {
+        guard let item else { return }
+        isUploadingPhoto = true
+        defer { isUploadingPhoto = false }
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data),
+              let jpeg = image.jpegData(compressionQuality: 0.82) else {
+            saveErrorMessage = "Couldn’t read that photo. Try another."
+            showSaveError = true
+            return
+        }
+        pickedPhoto = image
+        guard let client = await SupabaseManager.shared.clientWithValidSession() else {
+            saveErrorMessage = "Sign in to change your photo."
+            showSaveError = true
+            return
+        }
+        do {
+            let uid = try await client.auth.session.user.id.uuidString.lowercased()
+            let path = "\(uid)/avatar-\(UUID().uuidString.lowercased()).jpg"
+            let opts = FileOptions(contentType: "image/jpeg", upsert: true)
+            try await client.storage.from("product-images").upload(path, data: jpeg, options: opts)
+            let url = try client.storage.from("product-images").getPublicURL(path: path)
+            let updated = try await SupabaseProfileService.updateProfile(
+                client: client,
+                patch: .init(avatar_url: url.absoluteString)
+            )
+            authVM.user = updated
+            Motion.haptic(.medium)
+        } catch {
+            saveErrorMessage = "Couldn’t upload that photo. Check your connection and try again."
+            showSaveError = true
+        }
     }
 
     private func save() async {

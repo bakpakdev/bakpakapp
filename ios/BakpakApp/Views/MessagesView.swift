@@ -78,18 +78,12 @@ private struct MessagesChatRow: View {
         Button(action: onTap) {
             HStack(alignment: .center, spacing: 12) {
                 ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: URL(string: chat.participant.avatar)) { img in
-                        img.resizable().scaledToFill()
-                    } placeholder: {
-                        ZStack {
-                            campusTheme.elevatedSurface
-                            Text(String(chat.participant.name.prefix(1)).uppercased())
-                                .font(Theme.syne(16, weight: .bold))
-                                .foregroundStyle(campusTheme.textPrimary)
-                        }
-                    }
-                    .frame(width: 52, height: 52)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    AvatarView(
+                        urlString: chat.participant.avatar,
+                        size: 52,
+                        cornerRadius: 18,
+                        initials: chat.participant.name
+                    )
 
                     if chat.participant.isOnline {
                         Circle()
@@ -157,6 +151,11 @@ private struct MessageBubbleView: View {
     var onOpenMeetupMaps: (() -> Void)? = nil
     var onCancelMeetup: (() -> Void)? = nil
     var onRescheduleMeetup: (() -> Void)? = nil
+    var offerDecision: OfferMessageCodec.Decision? = nil
+    var canRespondToOffer: Bool = false
+    var onAcceptOffer: (() -> Void)? = nil
+    var onDeclineOffer: (() -> Void)? = nil
+    var onOpenListing: ((ListingRefPayload) -> Void)? = nil
     @Environment(\.campusTheme) private var campusTheme
 
     var body: some View {
@@ -185,169 +184,161 @@ private struct MessageBubbleView: View {
                     onCancelMeetup: { onCancelMeetup?() },
                     onRescheduleMeetup: { onRescheduleMeetup?() }
                 )
+            } else if let decision = OfferMessageCodec.parseDecision(message.text) {
+                offerDecisionChip(decision)
             } else if OfferMessageCodec.isOffer(message.text) {
-                offerBubble(message.text, isMe: message.isMe)
+                offerBubble(message.text, isMe: message.isMe, decision: offerDecision, canRespond: canRespondToOffer)
             } else if let listing = ListingRefMessageCodec.parse(message.text) {
                 listingRefBubble(listing, isMe: message.isMe)
             } else {
-                HStack {
-                    if message.isMe { Spacer(minLength: 60) }
+                HStack(alignment: .bottom, spacing: 0) {
+                    if message.isMe { Spacer(minLength: 64) }
                     Text(message.text)
-                        .font(Theme.syne(14))
+                        .font(Theme.syne(15))
                         .foregroundStyle(message.isMe ? Color.white : campusTheme.textPrimary)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .padding(message.isMe ? .trailing : .leading, 2)
-                        .background {
-                            ChatBubbleTail(
-                                isFromMe: message.isMe,
-                                fill: message.isMe ? campusTheme.primary : campusTheme.elevatedSurface,
-                                stroke: message.isMe ? nil : campusTheme.border
-                            )
-                        }
-                    if !message.isMe { Spacer(minLength: 60) }
+                        .background(message.isMe ? campusTheme.primary : campusTheme.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .stroke(message.isMe ? Color.clear : campusTheme.border, lineWidth: 1)
+                        )
+                    if !message.isMe { Spacer(minLength: 64) }
                 }
-            }
-
-            if let offerAmount = message.offerAmount {
-                VStack(alignment: .leading, spacing: 0) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("CUSTOM OFFER")
-                            .font(Theme.syne(10, weight: .bold))
-                            .foregroundStyle(campusTheme.textMuted)
-                        Text("$\(offerAmount, specifier: "%.2f")")
-                            .font(Theme.syne(18, weight: .bold))
-                            .foregroundStyle(campusTheme.textPrimary)
-                    }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(campusTheme.elevatedSurface)
-
-                    Divider()
-
-                    HStack(spacing: 8) {
-                        Button {
-                            // Offer flow — hook when API supports offers
-                        } label: {
-                            Text("Accept Offer")
-                                .font(Theme.syne(12, weight: .bold))
-                                .foregroundStyle(Color.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 6)
-                                .background(campusTheme.primary)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            // Decline offer
-                        } label: {
-                            Text("Decline")
-                                .font(Theme.syne(12, weight: .bold))
-                                .foregroundStyle(campusTheme.textMuted)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 6)
-                                .background(campusTheme.elevatedSurface)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(8)
-                }
-                .background(campusTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(campusTheme.border, lineWidth: 1)
-                )
-                .frame(maxWidth: 300, alignment: message.isMe ? .trailing : .leading)
-            }
-
-            if message.offerStatus == "accepted" {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
-                    Text("OFFER ACCEPTED")
-                        .font(Theme.syne(10, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(campusTheme.primary.opacity(0.14))
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(campusTheme.primary.opacity(0.28), lineWidth: 1))
             }
 
             if showTime {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     Text(message.timestamp)
-                        .font(Theme.syne(10, weight: .medium))
+                        .font(Theme.syne(11, weight: .medium))
                         .foregroundStyle(campusTheme.textMuted)
                     if message.isMe {
-                        Image(systemName: message.isRead ? "checkmark.message.fill" : "checkmark")
-                            .font(.system(size: 11))
+                        Image(systemName: message.isRead ? "checkmark.circle.fill" : "checkmark.circle")
+                            .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(message.isRead ? campusTheme.primary : campusTheme.textMuted)
                     }
                 }
-                .padding(.horizontal, message.isMe ? 10 : 12)
+                .padding(.horizontal, 6)
             }
         }
         .frame(maxWidth: .infinity, alignment: message.isMe ? .trailing : .leading)
-        .padding(.bottom, 4)
+        .padding(.bottom, 8)
     }
 
-    private func offerBubble(_ text: String, isMe: Bool) -> some View {
+    private func offerBubble(_ text: String, isMe: Bool, decision: OfferMessageCodec.Decision?, canRespond: Bool) -> some View {
         let listing = OfferMessageCodec.listing(from: text)
         return HStack {
-            if isMe { Spacer(minLength: 60) }
-            VStack(alignment: .leading, spacing: 10) {
+            if isMe { Spacer(minLength: 48) }
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "tag.fill")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("offer")
+                        .font(Theme.syne(11, weight: .bold))
+                }
+                .foregroundStyle(campusTheme.primary)
+
                 if let listing {
-                    listingCardContent(listing)
+                    Button {
+                        onOpenListing?(listing)
+                    } label: {
+                        listingCardContent(listing)
+                    }
+                    .buttonStyle(.plain)
                 }
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Offer", systemImage: "tag.fill")
-                        .font(Theme.syne(10, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
-                    Text(OfferMessageCodec.displayAmount(text))
-                        .font(Theme.syne(16, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
+
+                Text(OfferMessageCodec.displayAmount(text))
+                    .font(Theme.syne(28, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+
+                if let decision {
+                    Text(decision == .accepted ? "accepted" : "declined")
+                        .font(Theme.syne(12, weight: .bold))
+                        .foregroundStyle(decision == .accepted ? campusTheme.primary : campusTheme.textMuted)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background((decision == .accepted ? campusTheme.primary : campusTheme.textMuted).opacity(0.12))
+                        .clipShape(Capsule())
+                } else if canRespond {
+                    HStack(spacing: 8) {
+                        Button {
+                            onAcceptOffer?()
+                        } label: {
+                            Text("Accept")
+                                .font(Theme.syne(13, weight: .bold))
+                                .foregroundStyle(Color.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(campusTheme.primary)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            onDeclineOffer?()
+                        } label: {
+                            Text("Decline")
+                                .font(Theme.syne(13, weight: .bold))
+                                .foregroundStyle(campusTheme.textPrimary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(campusTheme.elevatedSurface)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
-            .padding(14)
-            .padding(isMe ? .trailing : .leading, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                ChatBubbleTail(
-                    isFromMe: isMe,
-                    fill: campusTheme.primary.opacity(0.1),
-                    stroke: campusTheme.primary.opacity(0.22)
-                )
+            .padding(16)
+            .frame(maxWidth: 280, alignment: .leading)
+            .background(campusTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(campusTheme.primary.opacity(0.22), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.06), radius: 10, y: 4)
+            if !isMe { Spacer(minLength: 48) }
+        }
+    }
+
+    private func offerDecisionChip(_ decision: (OfferMessageCodec.Decision, String)) -> some View {
+        HStack {
+            if message.isMe { Spacer(minLength: 48) }
+            HStack(spacing: 6) {
+                Image(systemName: decision.0 == .accepted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(decision.0 == .accepted ? "Offer accepted · \(decision.1)" : "Offer declined · \(decision.1)")
+                    .font(Theme.syne(12, weight: .semibold))
             }
-            if !isMe { Spacer(minLength: 60) }
+            .foregroundStyle(decision.0 == .accepted ? campusTheme.primary : campusTheme.textMuted)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(campusTheme.elevatedSurface)
+            .clipShape(Capsule())
+            if !message.isMe { Spacer(minLength: 48) }
         }
     }
 
     private func listingRefBubble(_ listing: ListingRefPayload, isMe: Bool) -> some View {
         HStack {
-            if isMe { Spacer(minLength: 60) }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("About this listing")
-                    .font(Theme.syne(10, weight: .bold))
-                    .foregroundStyle(campusTheme.primary)
+            if isMe { Spacer(minLength: 64) }
+            Button {
+                onOpenListing?(listing)
+            } label: {
                 listingCardContent(listing)
+                    .padding(14)
+                    .frame(maxWidth: 280, alignment: .leading)
+                    .background(campusTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(campusTheme.border, lineWidth: 1)
+                    )
             }
-            .padding(14)
-            .padding(isMe ? .trailing : .leading, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                ChatBubbleTail(
-                    isFromMe: isMe,
-                    fill: campusTheme.elevatedSurface,
-                    stroke: campusTheme.border
-                )
-            }
-            if !isMe { Spacer(minLength: 60) }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+            if !isMe { Spacer(minLength: 64) }
         }
     }
 
@@ -388,13 +379,13 @@ struct MessagesView: View {
     @StateObject private var vm = MessagesViewModel()
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var meetupStore: MeetupStore
     @Environment(\.campusTheme) private var campusTheme
 
     @State private var selectedChatId: String?
     @State private var activeTab: String = "buying"
     @State private var searchTerm: String = ""
     @State private var inputValue: String = ""
-    @State private var meetupChecklist: [MeetupChecklistItem] = []
     @State private var showMeetupPicker = false
     @State private var meetupDraft: MeetupComposeDraft = .suggest
     @State private var showCancelMeetupConfirm = false
@@ -403,6 +394,12 @@ struct MessagesView: View {
     @State private var inboxWidth: CGFloat = 0
     /// Hide thread bubbles until the chat panel has finished sliding in.
     @State private var showChatMessages = false
+    @State private var showOfferComposer = false
+    @State private var offerDraft = ""
+    @State private var headerMenuChat: Chat?
+    @State private var pendingAnnounceProductId: String?
+
+    private let messageService = MessageService()
 
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -432,7 +429,7 @@ struct MessagesView: View {
         }
     }
 
-    private var selectedChat: Chat? { filteredChats.first { $0.id == selectedChatId } }
+    private var selectedChat: Chat? { chats.first { $0.id == selectedChatId } }
 
     private var uiMessages: [ChatMessageUI] {
         let me = authVM.user?.id ?? ""
@@ -479,11 +476,11 @@ struct MessagesView: View {
         .preferredColorScheme(campusTheme.isDark ? .dark : .light)
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
-        .ignoresSafeArea(edges: selectedChatId != nil ? [.top, .bottom] : .top)
+        .ignoresSafeArea(edges: .top)
         .task {
             await vm.loadConversations()
             appState.applyInboxUnread(from: vm.conversations, meId: authVM.user?.id)
-            syncRemindersFromInboxPreviews()
+            await consumePendingInboxChat()
         }
         .task(id: appState.selectedTab) {
             guard appState.selectedTab == .messages else { return }
@@ -493,18 +490,15 @@ struct MessagesView: View {
                 await vm.loadConversations()
                 if selectedChatId == nil {
                     appState.applyInboxUnread(from: vm.conversations, meId: authVM.user?.id)
-                    syncRemindersFromInboxPreviews()
                 }
             }
         }
         .onChange(of: authVM.user?.id) { _ in
             vm.resetForAccountChange()
-            meetupChecklist = MeetupChecklistStore.load()
             selectedChatId = nil
             appState.hidesTabBar = false
             Task {
                 await vm.loadConversations()
-                syncRemindersFromInboxPreviews()
             }
         }
         .onChange(of: selectedChatId) { newId in
@@ -513,7 +507,6 @@ struct MessagesView: View {
                 Task {
                     await vm.loadConversations()
                     appState.applyInboxUnread(from: vm.conversations, meId: authVM.user?.id)
-                    syncRemindersFromInboxPreviews()
                 }
             }
             guard let newId, !newId.isEmpty else {
@@ -524,8 +517,16 @@ struct MessagesView: View {
                 await vm.markRead(conversationId: newId)
                 appState.applyInboxUnread(from: vm.conversations, meId: authVM.user?.id)
                 await vm.loadMessages(conversationId: newId)
-                syncChecklistFromLoadedMessages()
+                await announceListingIfNeeded()
                 vm.startLiveUpdates(conversationId: newId)
+            }
+        }
+        .onChange(of: appState.pendingInboxConversationId) { _ in
+            Task { await consumePendingInboxChat() }
+        }
+        .onChange(of: appState.selectedTab) { tab in
+            if tab == .messages {
+                Task { await consumePendingInboxChat() }
             }
         }
         .fullScreenCover(isPresented: $showMeetupPicker) {
@@ -561,14 +562,36 @@ struct MessagesView: View {
         } message: {
             Text("They’ll be notified in chat and the reminder will be removed.")
         }
+        .sheet(isPresented: $showOfferComposer) {
+            offerComposerSheet
+                .environment(\.campusTheme, campusTheme)
+                .presentationDetents([.medium])
+        }
+        .confirmationDialog("Chat options", isPresented: Binding(
+            get: { headerMenuChat != nil },
+            set: { if !$0 { headerMenuChat = nil } }
+        ), titleVisibility: .visible) {
+            Button("View profile") {
+                if let id = headerMenuChat?.participant.id {
+                    appState.path.append(.userProfile(id))
+                }
+                headerMenuChat = nil
+            }
+            Button("View listing") {
+                let id = lastListingInThread()?.productId ?? headerMenuChat?.item.id
+                if let id, !id.isEmpty {
+                    appState.path.append(.productDetail(id))
+                }
+                headerMenuChat = nil
+            }
+            Button("Report", role: .destructive) {
+                headerMenuChat = nil
+                appState.path.append(.helpSupport)
+            }
+            Button("Cancel", role: .cancel) { headerMenuChat = nil }
+        }
         .onChange(of: vm.conversations) { convs in
             appState.applyInboxUnread(from: convs, meId: authVM.user?.id)
-        }
-        .onChange(of: vm.messages.count) { _ in
-            syncChecklistFromLoadedMessages()
-        }
-        .onChange(of: appState.path.count) { _ in
-            meetupChecklist = MeetupChecklistStore.load()
         }
         .onDisappear {
             vm.stopLiveUpdates()
@@ -628,6 +651,27 @@ struct MessagesView: View {
                 chatDismissOffset = 0
             }
         }
+    }
+
+    private func consumePendingInboxChat() async {
+        let pendingId = appState.pendingInboxConversationId
+        let otherId = appState.pendingInboxOtherUserId
+        let productId = appState.pendingInboxProductId
+        guard pendingId != nil || otherId != nil else { return }
+        appState.pendingInboxConversationId = nil
+        appState.pendingInboxOtherUserId = nil
+        appState.pendingInboxProductId = nil
+        pendingAnnounceProductId = productId
+
+        var conversationId = (pendingId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if conversationId.isEmpty, let otherId {
+            if let convo = try? await messageService.openOrCreate(otherUserId: otherId, productId: productId) {
+                conversationId = convo.id
+                await vm.loadConversations()
+            }
+        }
+        guard !conversationId.isEmpty else { return }
+        await MainActor.run { openChat(conversationId) }
     }
 
     /// Matches the standard navigation push: smooth, no overshoot.
@@ -699,7 +743,7 @@ struct MessagesView: View {
     // MARK: Sidebar
 
     private var sidebarView: some View {
-        VStack(spacing: 0) {
+        ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("inbox")
@@ -774,51 +818,45 @@ struct MessagesView: View {
                         .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                     }
                 }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
+                .padding(.bottom, 16)
 
-            if !meetupChecklist.isEmpty {
-                meetupRemindersBanner
-            }
+                if meetupStore.heroMeetup != nil {
+                    nextMeetupHero
+                }
 
-            Text("chats")
-                .font(Theme.syne(18, weight: .semibold))
-                .foregroundStyle(campusTheme.textPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
+                Text("chats")
+                    .font(Theme.syne(18, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
 
-            if vm.isLoadingConversations && vm.conversations.isEmpty {
-                ProgressView()
-                    .tint(campusTheme.primary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if filteredChats.isEmpty {
-                emptyInboxView
-            } else {
-                ScrollView(showsIndicators: false) {
+                if vm.isLoadingConversations && vm.conversations.isEmpty {
+                    ProgressView()
+                        .tint(campusTheme.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 48)
+                } else if filteredChats.isEmpty {
+                    emptyInboxView
+                } else {
                     LazyVStack(spacing: 12) {
                         ForEach(filteredChats) { chat in
                             MessagesChatRow(
                                 chat: chat,
                                 isSelected: selectedChatId == chat.id,
-                                onTap: {
-                                    openChat(chat.id)
-                                }
+                                onTap: { openChat(chat.id) }
                             )
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-                    .padding(.bottom, 100)
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 120)
         }
     }
 
     private var emptyInboxView: some View {
         VStack(spacing: 12) {
-            Spacer()
             Image(systemName: "bubble.left.and.bubble.right")
                 .font(.system(size: 28, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
@@ -831,112 +869,52 @@ struct MessagesView: View {
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            Spacer()
+                .padding(.horizontal, 12)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 48)
+        .padding(.bottom, 24)
     }
 
-    private var meetupRemindersBanner: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var nextMeetupHero: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("meetup reminders")
+                Text("next meetup")
                     .font(Theme.syne(18, weight: .semibold))
                     .foregroundStyle(campusTheme.textPrimary)
                 Spacer()
-            }
-            .padding(.horizontal, 20)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(meetupChecklist) { item in
-                        meetupReminderCard(item)
-                    }
+                Button {
+                    Motion.haptic(.light)
+                    appState.path.append(.meetupsHub)
+                } label: {
+                    Text("see all")
+                        .font(Theme.syne(13, weight: .bold))
+                        .foregroundStyle(campusTheme.primary)
                 }
-                .padding(.horizontal, 20)
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+            }
+
+            if let meetup = meetupStore.heroMeetup {
+                MeetupCard(
+                    meetup: meetup,
+                    onTap: {
+                        appState.path.append(.meetupDetail(meetup.id))
+                    },
+                    onAccept: { Task { await respondToStoredMeetup(meetup, accept: true) } },
+                    onDeny: { Task { await respondToStoredMeetup(meetup, accept: false) } }
+                )
             }
         }
-        .padding(.vertical, 12)
+        .padding(.bottom, 8)
     }
 
-    private func meetupReminderCard(_ item: MeetupChecklistItem) -> some View {
-        let fill = campusTheme.surface
-        let stroke = campusTheme.border
-        let itemTitle = item.productTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let safety = item.isPending
-            ? "Tap to accept or deny this meetup."
-            : "Don’t forget — meet in public and pay in-app."
-
-        return Button {
-            Motion.haptic(.light)
-            var routed = item
-            if routed.isSeller == nil {
-                routed.isSeller = chats.first(where: { $0.id == item.conversationId })?.isMyListing
-            }
-            appState.path.append(.meetupDetail(routed))
-        } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .center, spacing: 8) {
-                    Text(item.spotName)
-                        .font(Theme.syne(15, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                        .lineLimit(1)
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(campusTheme.textMuted.opacity(0.8))
-                }
-
-                VStack(alignment: .leading, spacing: 7) {
-                    meetupInfoRow(icon: "person", text: "with \(item.otherPersonName)")
-                    if !itemTitle.isEmpty {
-                        meetupInfoRow(icon: "tag", text: itemTitle)
-                    }
-                    if let time = item.formattedProposedTime {
-                        meetupInfoRow(icon: "clock", text: time, accentTime: true)
-                    }
-                }
-
-                Rectangle()
-                    .fill(stroke)
-                    .frame(height: 1)
-                    .padding(.vertical, 2)
-
-                HStack(alignment: .top, spacing: 7) {
-                    Image(systemName: "shield")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted.opacity(0.7))
-                        .padding(.top, 1)
-                    Text(safety)
-                        .font(Theme.syne(11, weight: .regular))
-                        .foregroundStyle(campusTheme.textMuted.opacity(0.72))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .multilineTextAlignment(.leading)
-                }
-            }
-            .padding(16)
-            .frame(width: 260, alignment: .leading)
-            .background(fill)
-            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .stroke(stroke, lineWidth: 1)
-            )
-        }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-    }
-
-    private func meetupInfoRow(icon: String, text: String, accentTime: Bool = false) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(accentTime ? campusTheme.primary : campusTheme.textMuted)
-                .frame(width: 14, alignment: .center)
-            Text(text)
-                .font(Theme.syne(12, weight: .medium))
-                .foregroundStyle(campusTheme.textMuted)
-                .lineLimit(1)
-        }
+    private func respondToStoredMeetup(_ meetup: Meetup, accept: Bool) async {
+        do {
+            let updated = try await MeetupService.respond(id: meetup.id, accept: accept)
+            meetupStore.apply(updated)
+            await MeetupChatActions.send(accept ? .accepted : .declined, meetup: meetup, spots: campusTheme.meetupLocations)
+            Motion.haptic(.medium)
+        } catch {}
     }
 
     @ViewBuilder
@@ -949,167 +927,73 @@ struct MessagesView: View {
     }
 
     private func activeChatView(chat: Chat) -> some View {
-        let glassStroke = campusTheme.isDark ? Color.white.opacity(0.18) : Color.black.opacity(0.1)
-        let glassFill = Color.white.opacity(campusTheme.isDark ? 0.08 : 0.28)
-
-        return VStack(spacing: 0) {
-            HStack {
-                HStack(spacing: 12) {
-                    if !isTablet {
-                        Button {
-                            closeChat()
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(campusTheme.textPrimary)
-                                .frame(width: 36, height: 36)
-                                .background(glassFill)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(glassStroke, lineWidth: 1))
-                        }
-                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                if !isTablet {
+                    Button {
+                        closeChat()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                            .frame(width: 40, height: 40)
+                            .background(campusTheme.elevatedSurface)
+                            .clipShape(Circle())
                     }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+                }
 
-                    AsyncImage(url: URL(string: chat.participant.avatar)) { img in
-                        img.resizable().scaledToFill()
-                    } placeholder: {
-                        ZStack {
-                            Color.white.opacity(0.08)
-                            Text(String(chat.participant.name.prefix(1)).uppercased())
-                                .font(Theme.syne(14, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
-                        }
+                Button {
+                    if !chat.participant.id.isEmpty {
+                        appState.path.append(.userProfile(chat.participant.id))
                     }
-                    .frame(width: 40, height: 40)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(glassStroke, lineWidth: 1))
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
-                            Text(chat.participant.name)
-                                .font(Theme.syne(15, weight: .bold))
-                                .foregroundStyle(campusTheme.textPrimary)
-                            if chat.participant.isVerified {
-                                Image(systemName: "checkmark.seal.fill")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(campusTheme.primary)
+                } label: {
+                    HStack(spacing: 12) {
+                        AvatarView(urlString: chat.participant.avatar, size: 44, initials: chat.participant.name)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 4) {
+                                Text(chat.participant.name)
+                                    .font(Theme.syne(16, weight: .bold))
+                                    .foregroundStyle(campusTheme.textPrimary)
+                                    .lineLimit(1)
+                                if chat.participant.isVerified {
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(campusTheme.primary)
+                                }
                             }
                         }
-                        Text(chat.participant.college.isEmpty
-                             ? "Campus seller"
-                             : chat.participant.college)
-                            .font(Theme.syne(11, weight: .medium))
-                            .foregroundStyle(campusTheme.textMuted)
                     }
                 }
+                .buttonStyle(.plain)
 
-                Spacer()
+                Spacer(minLength: 8)
 
-                HStack(spacing: 6) {
-                    headerActionButton(icon: "flag")
-                    headerActionButton(icon: "ellipsis")
+                headerActionButton(icon: "ellipsis") {
+                    headerMenuChat = chat
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .padding(.top, 52)
-            .background {
-                ZStack {
-                    Rectangle().fill(.ultraThinMaterial).opacity(0.55)
-                    LinearGradient(
-                        colors: [
-                            campusTheme.primary.opacity(campusTheme.isDark ? 0.1 : 0.06),
-                            Color.white.opacity(campusTheme.isDark ? 0.04 : 0.18),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                }
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(glassStroke)
-                        .frame(height: 1)
-                }
-            }
-
-            HStack(spacing: 12) {
-                AsyncImage(url: URL(string: chat.item.image)) { img in
-                    img.resizable().scaledToFill()
-                } placeholder: {
-                    Color.white.opacity(0.08)
-                }
-                .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(glassStroke, lineWidth: 1)
-                )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(chat.item.name)
-                        .font(Theme.syne(13, weight: .semibold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                        .lineLimit(1)
-                    if chat.item.price > 0 {
-                        Text("$\(chat.item.price, specifier: "%.0f")")
-                            .font(Theme.syne(14, weight: .bold))
-                            .foregroundStyle(campusTheme.primary)
-                    }
-                }
-
-                Spacer()
-
-                if !chat.item.id.isEmpty {
-                    Button {
-                        appState.path.append(.productDetail(chat.item.id))
-                    } label: {
-                        Text("View")
-                            .font(Theme.syne(12, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(campusTheme.primary)
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background {
-                ZStack {
-                    Rectangle().fill(.ultraThinMaterial).opacity(0.4)
-                    Color.white.opacity(campusTheme.isDark ? 0.04 : 0.16)
-                }
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(glassStroke)
-                        .frame(height: 1)
-                }
+            .padding(.horizontal, 16)
+            .padding(.top, 54)
+            .padding(.bottom, 12)
+            .background(campusTheme.background)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(campusTheme.border)
+                    .frame(height: 1)
             }
 
             ScrollViewReader { proxy in
                 GeometryReader { geo in
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 0) {
-                            VStack(spacing: 8) {
-                                Text("Campus safety")
-                                    .font(Theme.syne(11, weight: .bold))
-                                    .foregroundStyle(campusTheme.primary)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 5)
-                                    .background(campusTheme.primary.opacity(0.12))
-                                    .clipShape(Capsule())
-
-                                Text("Meet in public campus spots. Don’t share payment info or personal numbers.")
-                                    .font(Theme.syne(12))
-                                    .foregroundStyle(campusTheme.textMuted)
-                                    .multilineTextAlignment(.center)
-                                    .frame(maxWidth: 280)
-                                    .lineSpacing(3)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 20)
+                            Text("Meet in public campus spots. Don’t share numbers or payment info.")
+                                .font(Theme.syne(12, weight: .medium))
+                                .foregroundStyle(campusTheme.textMuted)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: 260)
+                                .padding(.vertical, 18)
+                                .frame(maxWidth: .infinity)
 
                             if showChatMessages {
                                 if vm.isLoadingMessages && uiMessages.isEmpty {
@@ -1127,6 +1011,9 @@ struct MessagesView: View {
                                             guard let meetup else { return nil }
                                             return meetup.kind.isProposal ? (status ?? meetup.kind) : meetup.kind
                                         }()
+                                        let offerDecision = OfferMessageCodec.isOffer(msg.text)
+                                            ? offerDecision(for: msg.id)
+                                            : nil
                                         MessageBubbleView(
                                             message: msg,
                                             showTime: msg.id == latestMine || msg.id == latestTheirs,
@@ -1168,6 +1055,20 @@ struct MessagesView: View {
                                                     previousSpotId: meetup.spotId
                                                 )
                                                 showMeetupPicker = true
+                                            },
+                                            offerDecision: offerDecision,
+                                            canRespondToOffer: OfferMessageCodec.isOffer(msg.text) && !msg.isMe && offerDecision == nil,
+                                            onAcceptOffer: {
+                                                Motion.haptic(.medium)
+                                                Task { await respondToOffer(msg.text, accepted: true) }
+                                            },
+                                            onDeclineOffer: {
+                                                Motion.haptic(.light)
+                                                Task { await respondToOffer(msg.text, accepted: false) }
+                                            },
+                                            onOpenListing: { listing in
+                                                Motion.haptic(.light)
+                                                appState.path.append(.productDetail(listing.productId))
                                             }
                                         )
                                         .id(msg.id)
@@ -1215,94 +1116,89 @@ struct MessagesView: View {
                 }
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    Button {
-                        meetupDraft = .suggest
-                        showMeetupPicker = true
-                        Motion.haptic(.light)
-                    } label: {
-                        Label("Meetup", systemImage: "mappin.and.ellipse")
-                            .font(Theme.syne(12, weight: .semibold))
-                            .foregroundStyle(campusTheme.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(campusTheme.primary.opacity(0.1))
-                            .clipShape(Capsule())
-                            .overlay(Capsule().stroke(campusTheme.primary.opacity(0.22), lineWidth: 1))
-                    }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-
-                    ForEach(quickActions, id: \.self) { action in
-                        Button {
-                            inputValue = action
-                            Motion.haptic(.light)
-                        } label: {
-                            Text(action)
-                                .font(Theme.syne(12, weight: .semibold))
-                                .foregroundStyle(campusTheme.textPrimary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(campusTheme.surface.opacity(0.85))
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(campusTheme.primary.opacity(0.16), lineWidth: 1))
+            VStack(spacing: 10) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        composerActionChip(title: "Meetup", icon: "mappin.and.ellipse") {
+                            meetupDraft = .suggest
+                            showMeetupPicker = true
                         }
-                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+                        composerActionChip(title: "Offer", icon: "tag") {
+                            offerDraft = ""
+                            showOfferComposer = true
+                        }
+                        ForEach(quickActions, id: \.self) { action in
+                            Button {
+                                inputValue = action
+                                Motion.haptic(.light)
+                            } label: {
+                                Text(action)
+                                    .font(Theme.syne(12, weight: .semibold))
+                                    .foregroundStyle(campusTheme.textPrimary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(campusTheme.surface)
+                                    .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+                            }
+                            .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+                        }
                     }
+                    .padding(.horizontal, 16)
                 }
+
+                HStack(alignment: .bottom, spacing: 10) {
+                    TextField("Message", text: $inputValue, axis: .vertical)
+                        .font(Theme.syne(15, weight: .regular))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .tint(campusTheme.primary)
+                        .lineLimit(1 ... 5)
+                        .padding(.leading, 4)
+                        .padding(.vertical, 8)
+
+                    Button {
+                        handleSendMessage()
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(
+                                inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    ? campusTheme.textMuted
+                                    : Color.white
+                            )
+                            .frame(width: 36, height: 36)
+                            .background(
+                                inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    ? campusTheme.elevatedSurface
+                                    : campusTheme.primary
+                            )
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+                    .disabled(inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                .padding(.leading, 16)
+                .padding(.trailing, 6)
+                .padding(.vertical, 4)
+                .background(campusTheme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(campusTheme.border, lineWidth: 1)
+                )
                 .padding(.horizontal, 16)
-                .padding(.vertical, 8)
             }
-
-            HStack(alignment: .bottom, spacing: 10) {
-                TextField("Type a message…", text: $inputValue, axis: .vertical)
-                    .font(Theme.syne(15, weight: .regular))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .tint(campusTheme.primary)
-                    .lineLimit(1 ... 5)
-                    .padding(.leading, 4)
-                    .padding(.vertical, 6)
-
-                Button {
-                    handleSendMessage()
-                } label: {
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(
-                            inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                ? campusTheme.textMuted
-                                : Color.white
-                        )
-                        .frame(width: 36, height: 36)
-                        .background(
-                            inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                ? Color.white.opacity(campusTheme.isDark ? 0.08 : 0.55)
-                                : campusTheme.primary
-                        )
-                        .clipShape(Circle())
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
-                .disabled(inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
+            .background(campusTheme.background)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(campusTheme.border)
+                    .frame(height: 1)
             }
-            .padding(.leading, 18)
-            .padding(.trailing, 6)
-            .padding(.vertical, 6)
-            .background(Color.white.opacity(campusTheme.isDark ? 0.08 : 0.72))
-            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .stroke(
-                        campusTheme.isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.08),
-                        lineWidth: 1
-                    )
-            )
-            .padding(.horizontal, 16)
-            .padding(.top, 2)
-            .padding(.bottom, 10)
         }
-        .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(campusTheme.background.ignoresSafeArea(edges: .bottom))
+        .background(campusTheme.background)
     }
 
     private var emptyChatView: some View {
@@ -1324,19 +1220,33 @@ struct MessagesView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func headerActionButton(icon: String) -> some View {
-        let glassStroke = campusTheme.isDark ? Color.white.opacity(0.18) : Color.black.opacity(0.1)
-        let glassFill = Color.white.opacity(campusTheme.isDark ? 0.08 : 0.28)
-        return Button {
-            // Report / more — future
+    private func composerActionChip(title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button {
+            Motion.haptic(.light)
+            action()
+        } label: {
+            Label(title, systemImage: icon)
+                .font(Theme.syne(12, weight: .semibold))
+                .foregroundStyle(campusTheme.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(campusTheme.primary.opacity(0.1))
+                .clipShape(Capsule())
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+    }
+
+    private func headerActionButton(icon: String, action: @escaping () -> Void) -> some View {
+        Button {
+            Motion.haptic(.light)
+            action()
         } label: {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
-                .frame(width: 36, height: 36)
-                .background(glassFill)
+                .frame(width: 40, height: 40)
+                .background(campusTheme.elevatedSurface)
                 .clipShape(Circle())
-                .overlay(Circle().stroke(glassStroke, lineWidth: 1))
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
     }
@@ -1350,11 +1260,98 @@ struct MessagesView: View {
         }
     }
 
+    private var offerComposerSheet: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("make an offer")
+                .font(Theme.syne(26, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+            if let name = selectedChat?.item.name, !name.isEmpty {
+                Text(name)
+                    .font(Theme.syne(14))
+                    .foregroundStyle(campusTheme.textMuted)
+            }
+            HStack(spacing: 8) {
+                Text("$")
+                    .font(Theme.syne(28, weight: .bold))
+                    .foregroundStyle(campusTheme.primary)
+                TextField("0.00", text: $offerDraft)
+                    .keyboardType(.decimalPad)
+                    .font(Theme.syne(28, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .onChange(of: offerDraft) { value in
+                        let cleaned = MoneyAmount.sanitized(value)
+                        if cleaned != value { offerDraft = cleaned }
+                    }
+            }
+            .padding(16)
+            .background(campusTheme.elevatedSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            Button {
+                Task { await sendOfferFromComposer() }
+            } label: {
+                Text("Send offer")
+                    .font(Theme.syne(15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(MoneyAmount.parse(offerDraft) != nil ? campusTheme.primary : campusTheme.textMuted)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+            .disabled(MoneyAmount.parse(offerDraft) == nil)
+
+            Spacer(minLength: 0)
+        }
+        .padding(24)
+        .background(campusTheme.background.ignoresSafeArea())
+    }
+
+    private func sendOfferFromComposer() async {
+        guard let chatId = selectedChatId,
+              let amount = MoneyAmount.parse(offerDraft) else { return }
+        let listing = lastListingInThread()
+        let formatted = String(format: "%.2f", amount)
+        showOfferComposer = false
+        offerDraft = ""
+        await vm.send(
+            conversationId: chatId,
+            content: OfferMessageCodec.encode(
+                amount: formatted,
+                productId: listing?.productId ?? selectedChat?.item.id,
+                title: listing?.title ?? selectedChat?.item.name,
+                price: listing?.price ?? selectedChat?.item.price,
+                imageURL: listing?.imageURL ?? selectedChat?.item.image
+            ),
+            senderId: authVM.user?.id
+        )
+    }
+
+    private func offerDecision(for messageId: String) -> OfferMessageCodec.Decision? {
+        let idx = vm.messages.firstIndex(where: { $0.id == messageId }) ?? -1
+        for later in vm.messages.dropFirst(idx + 1) {
+            if let parsed = OfferMessageCodec.parseDecision(later.content) {
+                return parsed.0
+            }
+            if OfferMessageCodec.isOffer(later.content) { return nil }
+        }
+        return nil
+    }
+
+    private func respondToOffer(_ text: String, accepted: Bool) async {
+        guard let chatId = selectedChatId else { return }
+        let amount = OfferMessageCodec.displayAmount(text)
+        await vm.send(
+            conversationId: chatId,
+            content: OfferMessageCodec.encodeDecision(accepted ? .accepted : .declined, amount: amount),
+            senderId: authVM.user?.id
+        )
+    }
+
     private func sendMeetupProposal(spot: CampusMeetupSpot, proposedAt: Date, draft: MeetupComposeDraft) async {
         guard let chatId = selectedChatId else { return }
-        if case .reschedule(_, _, _, let previousSpotId) = draft {
-            MeetupChecklistStore.remove(conversationId: chatId, spotId: previousSpotId)
-            meetupChecklist = MeetupChecklistStore.load()
+        await persistMeetup(spot: spot, proposedAt: proposedAt, conversationId: chatId, draft: draft)
+        if case .reschedule = draft {
             await vm.send(
                 conversationId: chatId,
                 content: MeetupMessageCodec.encode(kind: .rescheduled, spot: spot, proposedAt: proposedAt),
@@ -1366,8 +1363,6 @@ struct MessagesView: View {
                 content: MeetupMessageCodec.encode(kind: .invite, spot: spot, proposedAt: proposedAt),
                 senderId: authVM.user?.id
             )
-            MeetupChecklistStore.remove(conversationId: chatId, spotId: spot.id)
-            meetupChecklist = MeetupChecklistStore.load()
         }
     }
 
@@ -1407,38 +1402,27 @@ struct MessagesView: View {
 
     private func respondToMeetup(_ invite: MeetupMessagePayload, accepted: Bool) async {
         let chatId = selectedChatId
-            ?? meetupChecklist.first(where: { $0.spotId == invite.spotId })?.conversationId
+            ?? meetupStore.meetups.first(where: { $0.spotId == invite.spotId })?.conversationId
         guard let chatId else { return }
         let kind: MeetupMessageKind = accepted ? .accepted : .declined
         let spot = campusTheme.meetupLocations.first(where: { $0.id == invite.spotId })
             ?? CampusMeetupSpot(id: invite.spotId, name: invite.spotName, latitude: 0, longitude: 0)
+        if let meetup = meetupStore.openMeetup(conversationId: chatId) {
+            do {
+                let updated = try await MeetupService.respond(id: meetup.id, accept: accepted)
+                meetupStore.apply(updated)
+            } catch {}
+        }
         await vm.send(
             conversationId: chatId,
             content: MeetupMessageCodec.encode(kind: kind, spot: spot, proposedAt: invite.proposedAt),
             senderId: authVM.user?.id
         )
-        if accepted {
-            let chat = chats.first(where: { $0.id == chatId }) ?? selectedChat
-            MeetupChecklistStore.applyStatus(
-                MeetupMessagePayload(kind: .accepted, spotId: invite.spotId, spotName: invite.spotName, proposedAt: invite.proposedAt),
-                conversationId: chatId,
-                otherUserId: chat?.participant.id,
-                productId: chat?.item.id,
-                productTitle: chat?.item.name,
-                otherPersonName: chat?.participant.name ?? "Them",
-                spots: campusTheme.meetupLocations,
-                isIncoming: false,
-                isSeller: chat?.isMyListing
-            )
-        } else {
-            MeetupChecklistStore.remove(conversationId: chatId, spotId: invite.spotId)
-        }
-        meetupChecklist = MeetupChecklistStore.load()
     }
 
     private func cancelMeetup(_ invite: MeetupMessagePayload) async {
         let resolvedChatId = selectedChatId
-            ?? meetupChecklist.first(where: { $0.spotId == invite.spotId })?.conversationId
+            ?? meetupStore.meetups.first(where: { $0.spotId == invite.spotId })?.conversationId
         guard let resolvedChatId else { return }
         if selectedChatId == nil {
             openChat(resolvedChatId)
@@ -1450,68 +1434,96 @@ struct MessagesView: View {
         }
         let spot = campusTheme.meetupLocations.first(where: { $0.id == invite.spotId })
             ?? CampusMeetupSpot(id: invite.spotId, name: invite.spotName, latitude: 0, longitude: 0)
+        if let meetup = meetupStore.openMeetup(conversationId: resolvedChatId) {
+            do {
+                let updated = try await MeetupService.cancel(id: meetup.id, reason: nil)
+                meetupStore.apply(updated)
+            } catch {}
+        }
         await vm.send(
             conversationId: resolvedChatId,
             content: MeetupMessageCodec.encode(kind: .cancelled, spot: spot, proposedAt: invite.proposedAt),
             senderId: authVM.user?.id
         )
-        MeetupChecklistStore.remove(conversationId: resolvedChatId, spotId: invite.spotId)
-        meetupChecklist = MeetupChecklistStore.load()
     }
 
-    private func syncRemindersFromInboxPreviews() {
-        for conv in vm.conversations {
-            guard let raw = conv.messages?.first?.content,
-                  let parsed = MeetupMessageCodec.parse(raw) else { continue }
-            let chat = chats.first(where: { $0.id == conv.id })
-            MeetupChecklistStore.applyStatus(
-                parsed,
-                conversationId: conv.id,
-                otherUserId: chat?.participant.id,
-                productId: conv.productId ?? conv.product?.id ?? chat?.item.id,
-                productTitle: conv.product?.title ?? chat?.item.name,
-                otherPersonName: chat?.participant.name ?? "Them",
-                spots: campusTheme.meetupLocations,
-                isIncoming: {
-                    let me = (authVM.user?.id ?? "").lowercased()
-                    let sender = (conv.messages?.first?.senderId ?? "").lowercased()
-                    return !me.isEmpty && !sender.isEmpty && sender != me
-                }(),
-                isSeller: chat?.isMyListing
-            )
+    private func persistMeetup(
+        spot: CampusMeetupSpot,
+        proposedAt: Date,
+        conversationId: String,
+        draft: MeetupComposeDraft
+    ) async {
+        let chat = chats.first(where: { $0.id == conversationId }) ?? selectedChat
+        let me = authVM.user?.id ?? ""
+        let recipientId = chat?.participant.id ?? ""
+        guard !recipientId.isEmpty else { return }
+        let productId = lastListingInThread()?.productId ?? chat?.item.id
+        let sellerId = chat?.isMyListing == true ? me : recipientId
+        do {
+            if case .reschedule = draft, let existing = meetupStore.openMeetup(conversationId: conversationId) {
+                let updated = try await MeetupService.reschedule(id: existing.id, spot: spot, at: proposedAt)
+                meetupStore.apply(updated)
+            } else {
+                let created = try await MeetupService.propose(
+                    conversationId: conversationId,
+                    productId: productId,
+                    recipientId: recipientId,
+                    sellerId: sellerId,
+                    spot: spot,
+                    at: proposedAt,
+                    school: campusTheme.schoolID
+                )
+                meetupStore.apply(created)
+            }
+        } catch {}
+    }
+
+    private func payload(from chat: Chat) -> ListingRefPayload? {
+        guard !chat.item.id.isEmpty else { return nil }
+        return ListingRefPayload(
+            productId: chat.item.id,
+            title: chat.item.name,
+            price: chat.item.price,
+            imageURL: chat.item.image.isEmpty ? nil : chat.item.image
+        )
+    }
+
+    private func lastListingInThread() -> ListingRefPayload? {
+        for msg in vm.messages.reversed() {
+            if let listing = ListingRefMessageCodec.parse(msg.content) { return listing }
+            if let listing = OfferMessageCodec.listing(from: msg.content) { return listing }
         }
-        meetupChecklist = MeetupChecklistStore.load()
+        return selectedChat.flatMap(payload(from:))
     }
 
-    private func latestMeetupMessage(in messages: [Message]) -> (MeetupMessagePayload, String?)? {
-        var best: (Date, MeetupMessagePayload, String?)?
-        for msg in messages {
-            guard let parsed = MeetupMessageCodec.parse(msg.content) else { continue }
-            let date = InboxReadStore.parseISO(msg.createdAt) ?? .distantPast
-            if best == nil || date >= best!.0 {
-                best = (date, parsed, msg.senderId)
+    /// If this chat was opened from a listing, drop that listing card in once so both people can see the item.
+    private func announceListingIfNeeded() async {
+        let pendingId = (pendingAnnounceProductId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        pendingAnnounceProductId = nil
+        guard !pendingId.isEmpty, let chatId = selectedChatId else { return }
+        guard ListingRefMessageCodec.shouldAnnounce(productId: pendingId, in: vm.messages) else { return }
+
+        var listing = lastListingInThread()
+        if listing?.productId.lowercased() != pendingId.lowercased() {
+            if let chat = selectedChat, chat.item.id.lowercased() == pendingId.lowercased() {
+                listing = payload(from: chat)
+            } else if let product = try? await ProductService().product(id: pendingId) {
+                let image = product.images?.first(where: { $0.isPrimary == true })?.url
+                    ?? product.images?.first?.url
+                listing = ListingRefPayload(
+                    productId: product.id,
+                    title: product.title,
+                    price: product.price,
+                    imageURL: image
+                )
             }
         }
-        return best.map { ($0.1, $0.2) }
-    }
-
-    private func syncChecklistFromLoadedMessages() {
-        guard let chatId = selectedChatId, let chat = selectedChat else { return }
-        guard let latest = latestMeetupMessage(in: vm.messages) else { return }
-        let me = (authVM.user?.id ?? "").lowercased()
-        let sender = (latest.1 ?? "").lowercased()
-        MeetupChecklistStore.applyStatus(
-            latest.0,
+        guard let listing else { return }
+        await vm.send(
             conversationId: chatId,
-            otherUserId: chat.participant.id,
-            productId: chat.item.id,
-            productTitle: chat.item.name,
-            otherPersonName: chat.participant.name,
-            spots: campusTheme.meetupLocations,
-            isIncoming: !me.isEmpty && !sender.isEmpty && sender != me,
-            isSeller: chat.isMyListing
+            content: ListingRefMessageCodec.encode(payload: listing),
+            senderId: authVM.user?.id
         )
-        meetupChecklist = MeetupChecklistStore.load()
     }
 
     private func scrollThreadToBottom(

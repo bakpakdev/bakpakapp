@@ -239,7 +239,9 @@ struct SendOffersView: View {
                     .tint(campusTheme.primary)
                     .focused($customFocused)
                     .onChange(of: customAmountText) { value in
-                        if !value.isEmpty { selectedPercent = nil } else if selectedPercent == nil { selectedPercent = 15 }
+                        let cleaned = MoneyAmount.sanitized(value)
+                        if cleaned != value { customAmountText = cleaned }
+                        if !cleaned.isEmpty { selectedPercent = nil } else if selectedPercent == nil { selectedPercent = 15 }
                     }
                 if !customAmountText.isEmpty {
                     Button {

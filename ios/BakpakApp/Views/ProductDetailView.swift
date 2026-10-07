@@ -4,6 +4,7 @@ struct ProductDetailView: View {
     let productId: String
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var meetupStore: MeetupStore
     @Environment(\.campusTheme) private var campusTheme
     @Environment(\.dismiss) private var dismiss
 
@@ -31,6 +32,8 @@ struct ProductDetailView: View {
     @State private var isSendingOffer = false
     @State private var isLiked = false
     @State private var isSaved = false
+    @State private var reactionBusy = false
+    @State private var sellerRating: ReviewSummary?
     @State private var paymentOutcome: PaymentOutcomeKind?
 
     private let productService = ProductService()
@@ -75,7 +78,7 @@ struct ProductDetailView: View {
                 paymentPresenter.didComplete = false
                 presentPaymentOutcome(.success)
                 Task {
-                    MeetupChecklistStore.completePaid(productId: productId)
+                    await meetupStore.markCompleted(productId: productId)
                     await load()
                     await refreshActivePayment()
                 }
@@ -575,29 +578,24 @@ struct ProductDetailView: View {
             }
         } label: {
             HStack(spacing: 12) {
-                ZStack {
-                    AsyncImage(url: URL(string: seller?.avatar ?? "")) { img in
-                        img.resizable().scaledToFill()
-                    } placeholder: {
-                        ZStack {
-                            Color.white.opacity(0.08)
-                            Text(String(name.prefix(1)).uppercased())
-                                .font(Theme.syne(16, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
-                        }
-                    }
-                }
-                .frame(width: 48, height: 48)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(cardStroke, lineWidth: 1))
+                AvatarView(urlString: seller?.avatar, size: 48, initials: name)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(name)
                         .font(Theme.syne(15, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
-                    Text("View profile")
-                        .font(Theme.syne(12, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
+                    if let sellerRating, sellerRating.count > 0 {
+                        HStack(spacing: 6) {
+                            ReviewStars(rating: sellerRating.average, size: 11)
+                            Text(String(format: "%.1f · %d", sellerRating.average, sellerRating.count))
+                                .font(Theme.syne(12, weight: .medium))
+                                .foregroundStyle(campusTheme.textMuted)
+                        }
+                    } else {
+                        Text("View profile")
+                            .font(Theme.syne(12, weight: .medium))
+                            .foregroundStyle(campusTheme.textMuted)
+                    }
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -804,7 +802,9 @@ struct ProductDetailView: View {
                         .font(Theme.syne(22, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
                         .onChange(of: customOfferText) { newValue in
-                            if !newValue.isEmpty {
+                            let cleaned = MoneyAmount.sanitized(newValue)
+                            if cleaned != newValue { customOfferText = cleaned }
+                            if !cleaned.isEmpty {
                                 selectedOfferPercent = nil
                             } else if selectedOfferPercent == nil {
                                 selectedOfferPercent = 15
@@ -1048,7 +1048,7 @@ struct ProductDetailView: View {
                                 squarePaymentId: tapToPay.lastSquarePaymentId
                             )
                         }
-                        MeetupChecklistStore.completePaid(productId: productId)
+                        await meetupStore.markCompleted(productId: productId)
                         showSellerPaymentSheet = false
                         presentPaymentOutcome(.success)
                         await load()
@@ -1116,6 +1116,10 @@ struct ProductDetailView: View {
     }
 
     private func startSellerPayment() async {
+        if let blocker = SquareConfig.userFacingBlocker {
+            actionError = blocker
+            return
+        }
         isPaymentBusy = true
         defer { isPaymentBusy = false }
         do {
@@ -1140,6 +1144,10 @@ struct ProductDetailView: View {
     }
 
     private func startBuyerPayment() async {
+        if let blocker = SquareConfig.userFacingBlocker {
+            actionError = blocker
+            return
+        }
         isPaymentBusy = true
         defer { isPaymentBusy = false }
         do {
@@ -1199,6 +1207,10 @@ struct ProductDetailView: View {
             product = try await productService.product(id: productId)
             stats = await productService.listingStats(id: productId)
             await loadReactions()
+            if let sellerId = product?.user?.id,
+               let reviews = try? await FollowReviewService.reviews(sellerId: sellerId) {
+                sellerRating = ReviewSummary(reviews: reviews)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -1241,14 +1253,13 @@ struct ProductDetailView: View {
     }
 
     private func toggleLike() async {
+        guard !reactionBusy else { return }
+        reactionBusy = true
+        defer { reactionBusy = false }
         let wasLiked = isLiked
         await MainActor.run { isLiked = !wasLiked }
         do {
-            if wasLiked {
-                try await socialService.unlike(productId: productId)
-            } else {
-                try await socialService.like(productId: productId)
-            }
+            try await socialService.setLiked(productId: productId, liked: !wasLiked)
             stats = await productService.listingStats(id: productId)
         } catch {
             await MainActor.run { isLiked = wasLiked }
@@ -1257,14 +1268,13 @@ struct ProductDetailView: View {
     }
 
     private func toggleSave() async {
+        guard !reactionBusy else { return }
+        reactionBusy = true
+        defer { reactionBusy = false }
         let wasSaved = isSaved
         await MainActor.run { isSaved = !wasSaved }
         do {
-            if wasSaved {
-                try await socialService.unsave(productId: productId)
-            } else {
-                try await socialService.save(productId: productId)
-            }
+            try await socialService.setSaved(productId: productId, saved: !wasSaved)
         } catch {
             await MainActor.run { isSaved = wasSaved }
             actionError = error.localizedDescription

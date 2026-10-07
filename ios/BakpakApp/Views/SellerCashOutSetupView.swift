@@ -597,8 +597,13 @@ struct SellerCashOutSetupView: View {
     }
 
     private func connectSquare() async {
-        guard SquareConfig.isConfigured else {
-            errorMessage = "Add Square application keys before connecting."
+        guard AccountPrefsStore.twoFactorEnabled else {
+            errorMessage = "Turn on SMS two-factor before connecting Square for cash out."
+            appState.path.append(.twoFactorAuth)
+            return
+        }
+        if let blocker = SquareConfig.userFacingBlocker {
+            errorMessage = blocker
             return
         }
         isSaving = true

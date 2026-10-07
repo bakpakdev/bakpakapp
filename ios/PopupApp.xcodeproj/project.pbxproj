@@ -15,17 +15,24 @@
 		415F9D4D46786E89ACD111E1 /* AchievementCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF11EB12B2179C10D01D6553 /* AchievementCatalog.swift */; };
 		3D3EBFCCFE08807D3922E0CC /* AchievementService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2AE2E28DA0060FD7EA76E3 /* AchievementService.swift */; };
 		5442C2A3784925E7A6E273CB /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF249FAAD97B99AE818FE9F /* AuthViewModel.swift */; };
+		334D30011DEAA0903D84B927 /* ClosetShareLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F14F42D7B0527D495B6BEE1 /* ClosetShareLinks.swift */; };
 		9BF601A36BB304D5E684B7D6 /* ClothingIdentifyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0032275B26EC8F78ECA97037 /* ClothingIdentifyService.swift */; };
 		E5342D1406BEE0FC8795CB54 /* FollowReviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 924E5080DBE8AA88C54229E9 /* FollowReviewService.swift */; };
 		9DE8874A880C03ADD8B04542 /* InboxReadStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F486F7C2EADFAB9EF5098D3 /* InboxReadStore.swift */; };
 		497C9C545888C954DDBDC26E /* InstagramConnectService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C07CBEF540023CB4A4C6069 /* InstagramConnectService.swift */; };
 		207234CCA878F8FF820C7028 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7871CFD5DCB6299D557980A /* KeychainManager.swift */; };
+		472DC7E18D52F1B2E3F09B05 /* Meetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82DE559B90AD3B62F80AA834 /* Meetup.swift */; };
 		941291BCC6EC07B95C1BE7F3 /* MeetupMessaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86FF3A9713325A1019C8DB50 /* MeetupMessaging.swift */; };
+		ACF40332C99BBA72ED44911D /* MeetupNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21941AC53FD0580D578E9833 /* MeetupNotificationScheduler.swift */; };
 		ADE00250D41817B09CB90158 /* MeetupPaymentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 759E1D4FFF2DA3082D55C3B4 /* MeetupPaymentService.swift */; };
+		B8AD964EFE9AF102A1FC7485 /* MeetupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48F3D619E0A53BE9212C7A9 /* MeetupService.swift */; };
+		3C1E31A3A32EB30EC0B8BB07 /* MeetupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB84D0F5FB91E57A5A3EDDCD /* MeetupStore.swift */; };
 		0BBCD423D2A8256C02A96314 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95CC3DB173DD6DB85D2FCA8C /* Models.swift */; };
+		C4FD8BD1E8A487C7CCFA8B60 /* MoneyAmount.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF900DEF59623BEEE3815DA /* MoneyAmount.swift */; };
 		3519D738BF8C734A1D805400 /* PaymentSheetPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41BA75AE73FE74E0DFFABA0 /* PaymentSheetPresenter.swift */; };
 		439766C6BAE6280B05F7F370 /* SellerRankService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E77535FF9E10D777A7AE5B1 /* SellerRankService.swift */; };
 		03586D62860BCF0FF2C45821 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4BE39B8650EB00F6D92CD9F /* Services.swift */; };
+		1E0B42DB0F84FE9678A79974 /* Sms2FAService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96F4F7F29E0F99F5DBCFE23 /* Sms2FAService.swift */; };
 		ADBD256BC41AA8891BF99AA9 /* SquareConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4684CF0C17F90FE840AEA521 /* SquareConfig.swift */; };
 		4022A6C5DE03D21547E75779 /* SquareConnectService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049269B572D56CADF3F53A46 /* SquareConnectService.swift */; };
 		7016B3BA22720A1E12247FBB /* SupabaseCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC00785D1162823234947362 /* SupabaseCatalogService.swift */; };
@@ -49,6 +56,7 @@
 		250A415576346E2D72039A7E /* OnboardingFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A82C74FF17606EDE7B033459 /* OnboardingFlowView.swift */; };
 		D61441567F6A87B7E9CEB67F /* RegisterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74ACCEE5BA97F40853AA3F61 /* RegisterView.swift */; };
 		15CC7FF14FE13DF6131B6518 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB2504012BFA809B7ECE25A /* WelcomeView.swift */; };
+		ABCBCA1CCDE244D5ED35E729 /* AvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59EA95B14021E722DC91EC37 /* AvatarView.swift */; };
 		F759CDB647A470CD16333B84 /* BadgeCollectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DD87A0D7FE515F04AE69D07 /* BadgeCollectionView.swift */; };
 		5EE93D6B5E4C55C05BBC1A55 /* BadgeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FFC5F87A92B19D4F8EA62E /* BadgeViews.swift */; };
 		49CDC4C7CA99CAE09C849135 /* CampusPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C6573FABE13C6F633B2E05 /* CampusPage.swift */; };
@@ -66,6 +74,8 @@
 		46DB263707D84754C5B1C371 /* ListingPhotoCropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8AFB7BCFF8232B36176D03D /* ListingPhotoCropView.swift */; };
 		EA4FB363000CE27A91577A4C /* MeetupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46B40B5E85713168193D296D /* MeetupDetailView.swift */; };
 		28D0E9882EA35B6153192F13 /* MeetupPayFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 454860ACBA32D8A3164D316E /* MeetupPayFlowView.swift */; };
+		52974F96272826B33BCE75E4 /* MeetupCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7819251CD462E500E6D41FCD /* MeetupCard.swift */; };
+		C9E2030EBE6F65544C57A09B /* MeetupsHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5CDBB4D7C3F0F50BEF41DE2 /* MeetupsHubView.swift */; };
 		1EEE75EB3BC05DB9CEECF24C /* MessagedItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C059AEF4B17C9CD369B410 /* MessagedItemsView.swift */; };
 		CE0EB7E6BEE8E2A475F684BE /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16FB1A945363E5D98063487E /* MessagesView.swift */; };
 		EFF3A6BCD5EAECEEAC4DD1B4 /* MyListingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8AEFA66A2956317DD471A4E /* MyListingsView.swift */; };
@@ -84,6 +94,7 @@
 		EDF6EE5D3E5AF8BF2EE7AB7F /* SendOffersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C816A345CB184A8A25D408 /* SendOffersView.swift */; };
 		39D94FA2A520BFCED94D45B8 /* SetDiscountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 374079471D066184256C923E /* SetDiscountView.swift */; };
 		20681F53F5F1DCC79A1E6FAF /* SettingsChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A9B0D26ADDDDAA0DF6E7B7 /* SettingsChrome.swift */; };
+		D411D10B01C1868250CFE33C /* ShareClosetSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57BDB4773F98BD48D368E09 /* ShareClosetSheet.swift */; };
 		2B6DF528413E1B3ECEC33E83 /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E59CFF12224C901E90998E /* SharedViews.swift */; };
 		034DA744FD4AEC0AB727248A /* SplashScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 464A80971AD82EE9F23EB8CB /* SplashScreen.swift */; };
 		47ACEB8D5E367AD67FB46075 /* TwoFactorAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24CA9F040EA4E7006E25016A /* TwoFactorAuthView.swift */; };
@@ -119,17 +130,24 @@
 		BF11EB12B2179C10D01D6553 /* AchievementCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AchievementCatalog.swift'; sourceTree = "<group>"; };
 		DE2AE2E28DA0060FD7EA76E3 /* AchievementService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AchievementService.swift'; sourceTree = "<group>"; };
 		EFF249FAAD97B99AE818FE9F /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AuthViewModel.swift'; sourceTree = "<group>"; };
+		1F14F42D7B0527D495B6BEE1 /* ClosetShareLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ClosetShareLinks.swift'; sourceTree = "<group>"; };
 		0032275B26EC8F78ECA97037 /* ClothingIdentifyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ClothingIdentifyService.swift'; sourceTree = "<group>"; };
 		924E5080DBE8AA88C54229E9 /* FollowReviewService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'FollowReviewService.swift'; sourceTree = "<group>"; };
 		3F486F7C2EADFAB9EF5098D3 /* InboxReadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'InboxReadStore.swift'; sourceTree = "<group>"; };
 		8C07CBEF540023CB4A4C6069 /* InstagramConnectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'InstagramConnectService.swift'; sourceTree = "<group>"; };
 		E7871CFD5DCB6299D557980A /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'KeychainManager.swift'; sourceTree = "<group>"; };
+		82DE559B90AD3B62F80AA834 /* Meetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Meetup.swift'; sourceTree = "<group>"; };
 		86FF3A9713325A1019C8DB50 /* MeetupMessaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupMessaging.swift'; sourceTree = "<group>"; };
+		21941AC53FD0580D578E9833 /* MeetupNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupNotificationScheduler.swift'; sourceTree = "<group>"; };
 		759E1D4FFF2DA3082D55C3B4 /* MeetupPaymentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupPaymentService.swift'; sourceTree = "<group>"; };
+		D48F3D619E0A53BE9212C7A9 /* MeetupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupService.swift'; sourceTree = "<group>"; };
+		AB84D0F5FB91E57A5A3EDDCD /* MeetupStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupStore.swift'; sourceTree = "<group>"; };
 		95CC3DB173DD6DB85D2FCA8C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Models.swift'; sourceTree = "<group>"; };
+		4BF900DEF59623BEEE3815DA /* MoneyAmount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MoneyAmount.swift'; sourceTree = "<group>"; };
 		E41BA75AE73FE74E0DFFABA0 /* PaymentSheetPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'PaymentSheetPresenter.swift'; sourceTree = "<group>"; };
 		1E77535FF9E10D777A7AE5B1 /* SellerRankService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SellerRankService.swift'; sourceTree = "<group>"; };
 		F4BE39B8650EB00F6D92CD9F /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Services.swift'; sourceTree = "<group>"; };
+		B96F4F7F29E0F99F5DBCFE23 /* Sms2FAService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Sms2FAService.swift'; sourceTree = "<group>"; };
 		4684CF0C17F90FE840AEA521 /* SquareConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SquareConfig.swift'; sourceTree = "<group>"; };
 		049269B572D56CADF3F53A46 /* SquareConnectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SquareConnectService.swift'; sourceTree = "<group>"; };
 		FC00785D1162823234947362 /* SupabaseCatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseCatalogService.swift'; sourceTree = "<group>"; };
@@ -153,6 +171,7 @@
 		A82C74FF17606EDE7B033459 /* OnboardingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'OnboardingFlowView.swift'; sourceTree = "<group>"; };
 		74ACCEE5BA97F40853AA3F61 /* RegisterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'RegisterView.swift'; sourceTree = "<group>"; };
 		EAB2504012BFA809B7ECE25A /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'WelcomeView.swift'; sourceTree = "<group>"; };
+		59EA95B14021E722DC91EC37 /* AvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AvatarView.swift'; sourceTree = "<group>"; };
 		8DD87A0D7FE515F04AE69D07 /* BadgeCollectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'BadgeCollectionView.swift'; sourceTree = "<group>"; };
 		46FFC5F87A92B19D4F8EA62E /* BadgeViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'BadgeViews.swift'; sourceTree = "<group>"; };
 		A1C6573FABE13C6F633B2E05 /* CampusPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'CampusPage.swift'; sourceTree = "<group>"; };
@@ -170,6 +189,8 @@
 		C8AFB7BCFF8232B36176D03D /* ListingPhotoCropView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ListingPhotoCropView.swift'; sourceTree = "<group>"; };
 		46B40B5E85713168193D296D /* MeetupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupDetailView.swift'; sourceTree = "<group>"; };
 		454860ACBA32D8A3164D316E /* MeetupPayFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupPayFlowView.swift'; sourceTree = "<group>"; };
+		7819251CD462E500E6D41FCD /* MeetupCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupCard.swift'; sourceTree = "<group>"; };
+		D5CDBB4D7C3F0F50BEF41DE2 /* MeetupsHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupsHubView.swift'; sourceTree = "<group>"; };
 		20C059AEF4B17C9CD369B410 /* MessagedItemsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MessagedItemsView.swift'; sourceTree = "<group>"; };
 		16FB1A945363E5D98063487E /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MessagesView.swift'; sourceTree = "<group>"; };
 		F8AEFA66A2956317DD471A4E /* MyListingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MyListingsView.swift'; sourceTree = "<group>"; };
@@ -188,6 +209,7 @@
 		F9C816A345CB184A8A25D408 /* SendOffersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SendOffersView.swift'; sourceTree = "<group>"; };
 		374079471D066184256C923E /* SetDiscountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SetDiscountView.swift'; sourceTree = "<group>"; };
 		64A9B0D26ADDDDAA0DF6E7B7 /* SettingsChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SettingsChrome.swift'; sourceTree = "<group>"; };
+		A57BDB4773F98BD48D368E09 /* ShareClosetSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ShareClosetSheet.swift'; sourceTree = "<group>"; };
 		D4E59CFF12224C901E90998E /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SharedViews.swift'; sourceTree = "<group>"; };
 		464A80971AD82EE9F23EB8CB /* SplashScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SplashScreen.swift'; sourceTree = "<group>"; };
 		24CA9F040EA4E7006E25016A /* TwoFactorAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'TwoFactorAuthView.swift'; sourceTree = "<group>"; };
@@ -272,17 +294,24 @@
 				BF11EB12B2179C10D01D6553 /* AchievementCatalog.swift */,
 				DE2AE2E28DA0060FD7EA76E3 /* AchievementService.swift */,
 				EFF249FAAD97B99AE818FE9F /* AuthViewModel.swift */,
+				1F14F42D7B0527D495B6BEE1 /* ClosetShareLinks.swift */,
 				0032275B26EC8F78ECA97037 /* ClothingIdentifyService.swift */,
 				924E5080DBE8AA88C54229E9 /* FollowReviewService.swift */,
 				3F486F7C2EADFAB9EF5098D3 /* InboxReadStore.swift */,
 				8C07CBEF540023CB4A4C6069 /* InstagramConnectService.swift */,
 				E7871CFD5DCB6299D557980A /* KeychainManager.swift */,
+				82DE559B90AD3B62F80AA834 /* Meetup.swift */,
 				86FF3A9713325A1019C8DB50 /* MeetupMessaging.swift */,
+				21941AC53FD0580D578E9833 /* MeetupNotificationScheduler.swift */,
 				759E1D4FFF2DA3082D55C3B4 /* MeetupPaymentService.swift */,
+				D48F3D619E0A53BE9212C7A9 /* MeetupService.swift */,
+				AB84D0F5FB91E57A5A3EDDCD /* MeetupStore.swift */,
 				95CC3DB173DD6DB85D2FCA8C /* Models.swift */,
+				4BF900DEF59623BEEE3815DA /* MoneyAmount.swift */,
 				E41BA75AE73FE74E0DFFABA0 /* PaymentSheetPresenter.swift */,
 				1E77535FF9E10D777A7AE5B1 /* SellerRankService.swift */,
 				F4BE39B8650EB00F6D92CD9F /* Services.swift */,
+				B96F4F7F29E0F99F5DBCFE23 /* Sms2FAService.swift */,
 				4684CF0C17F90FE840AEA521 /* SquareConfig.swift */,
 				049269B572D56CADF3F53A46 /* SquareConnectService.swift */,
 				FC00785D1162823234947362 /* SupabaseCatalogService.swift */,
@@ -303,6 +332,7 @@
 				14C28541EC008496C9BC3C5C /* AccountDetailsView.swift */,
 				BCEE7076AD15BC4CB89BD784 /* AccountSettingsView.swift */,
 				62EFD531D69BBC1FDC02D399 /* ApplePayButton.swift */,
+				59EA95B14021E722DC91EC37 /* AvatarView.swift */,
 				8DD87A0D7FE515F04AE69D07 /* BadgeCollectionView.swift */,
 				46FFC5F87A92B19D4F8EA62E /* BadgeViews.swift */,
 				A1C6573FABE13C6F633B2E05 /* CampusPage.swift */,
@@ -338,11 +368,13 @@
 				F9C816A345CB184A8A25D408 /* SendOffersView.swift */,
 				374079471D066184256C923E /* SetDiscountView.swift */,
 				64A9B0D26ADDDDAA0DF6E7B7 /* SettingsChrome.swift */,
+				A57BDB4773F98BD48D368E09 /* ShareClosetSheet.swift */,
 				D4E59CFF12224C901E90998E /* SharedViews.swift */,
 				464A80971AD82EE9F23EB8CB /* SplashScreen.swift */,
 				24CA9F040EA4E7006E25016A /* TwoFactorAuthView.swift */,
 				F9818C9EF94BBB5A397C674D /* UserProfileView.swift */,
 				B39A9C45FA246CC0E4091C91 /* Auth */,
+				13EDB08DDD3BA2C167B73A6B /* Meetups */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -357,6 +389,15 @@
 				EAB2504012BFA809B7ECE25A /* WelcomeView.swift */,
 			);
 			path = Auth;
+			sourceTree = "<group>";
+		};
+		13EDB08DDD3BA2C167B73A6B /* Meetups */ = {
+			isa = PBXGroup;
+			children = (
+				7819251CD462E500E6D41FCD /* MeetupCard.swift */,
+				D5CDBB4D7C3F0F50BEF41DE2 /* MeetupsHubView.swift */,
+			);
+			path = Meetups;
 			sourceTree = "<group>";
 		};
 		5F8286281AD4DEB96E6ACEFF /* Resources */ = {
@@ -465,17 +506,24 @@
 				415F9D4D46786E89ACD111E1 /* AchievementCatalog.swift in Sources */,
 				3D3EBFCCFE08807D3922E0CC /* AchievementService.swift in Sources */,
 				5442C2A3784925E7A6E273CB /* AuthViewModel.swift in Sources */,
+				334D30011DEAA0903D84B927 /* ClosetShareLinks.swift in Sources */,
 				9BF601A36BB304D5E684B7D6 /* ClothingIdentifyService.swift in Sources */,
 				E5342D1406BEE0FC8795CB54 /* FollowReviewService.swift in Sources */,
 				9DE8874A880C03ADD8B04542 /* InboxReadStore.swift in Sources */,
 				497C9C545888C954DDBDC26E /* InstagramConnectService.swift in Sources */,
 				207234CCA878F8FF820C7028 /* KeychainManager.swift in Sources */,
+				472DC7E18D52F1B2E3F09B05 /* Meetup.swift in Sources */,
 				941291BCC6EC07B95C1BE7F3 /* MeetupMessaging.swift in Sources */,
+				ACF40332C99BBA72ED44911D /* MeetupNotificationScheduler.swift in Sources */,
 				ADE00250D41817B09CB90158 /* MeetupPaymentService.swift in Sources */,
+				B8AD964EFE9AF102A1FC7485 /* MeetupService.swift in Sources */,
+				3C1E31A3A32EB30EC0B8BB07 /* MeetupStore.swift in Sources */,
 				0BBCD423D2A8256C02A96314 /* Models.swift in Sources */,
+				C4FD8BD1E8A487C7CCFA8B60 /* MoneyAmount.swift in Sources */,
 				3519D738BF8C734A1D805400 /* PaymentSheetPresenter.swift in Sources */,
 				439766C6BAE6280B05F7F370 /* SellerRankService.swift in Sources */,
 				03586D62860BCF0FF2C45821 /* Services.swift in Sources */,
+				1E0B42DB0F84FE9678A79974 /* Sms2FAService.swift in Sources */,
 				ADBD256BC41AA8891BF99AA9 /* SquareConfig.swift in Sources */,
 				4022A6C5DE03D21547E75779 /* SquareConnectService.swift in Sources */,
 				7016B3BA22720A1E12247FBB /* SupabaseCatalogService.swift in Sources */,
@@ -499,6 +547,7 @@
 				250A415576346E2D72039A7E /* OnboardingFlowView.swift in Sources */,
 				D61441567F6A87B7E9CEB67F /* RegisterView.swift in Sources */,
 				15CC7FF14FE13DF6131B6518 /* WelcomeView.swift in Sources */,
+				ABCBCA1CCDE244D5ED35E729 /* AvatarView.swift in Sources */,
 				F759CDB647A470CD16333B84 /* BadgeCollectionView.swift in Sources */,
 				5EE93D6B5E4C55C05BBC1A55 /* BadgeViews.swift in Sources */,
 				49CDC4C7CA99CAE09C849135 /* CampusPage.swift in Sources */,
@@ -516,6 +565,8 @@
 				46DB263707D84754C5B1C371 /* ListingPhotoCropView.swift in Sources */,
 				EA4FB363000CE27A91577A4C /* MeetupDetailView.swift in Sources */,
 				28D0E9882EA35B6153192F13 /* MeetupPayFlowView.swift in Sources */,
+				52974F96272826B33BCE75E4 /* MeetupCard.swift in Sources */,
+				C9E2030EBE6F65544C57A09B /* MeetupsHubView.swift in Sources */,
 				1EEE75EB3BC05DB9CEECF24C /* MessagedItemsView.swift in Sources */,
 				CE0EB7E6BEE8E2A475F684BE /* MessagesView.swift in Sources */,
 				EFF3A6BCD5EAECEEAC4DD1B4 /* MyListingsView.swift in Sources */,
@@ -534,6 +585,7 @@
 				EDF6EE5D3E5AF8BF2EE7AB7F /* SendOffersView.swift in Sources */,
 				39D94FA2A520BFCED94D45B8 /* SetDiscountView.swift in Sources */,
 				20681F53F5F1DCC79A1E6FAF /* SettingsChrome.swift in Sources */,
+				D411D10B01C1868250CFE33C /* ShareClosetSheet.swift in Sources */,
 				2B6DF528413E1B3ECEC33E83 /* SharedViews.swift in Sources */,
 				034DA744FD4AEC0AB727248A /* SplashScreen.swift in Sources */,
 				47ACEB8D5E367AD67FB46075 /* TwoFactorAuthView.swift in Sources */,

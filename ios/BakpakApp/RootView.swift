@@ -31,7 +31,14 @@ struct RootView: View {
                 case .userProfile(let id): UserProfileView(userId: id)
                 case .createListing: CreateListingView()
                 case .conversation(let conversationId, let otherUserId, let productId):
-                    ConversationView(conversationId: conversationId, otherUserId: otherUserId, productId: productId)
+                    Color.clear
+                        .task {
+                            appState.openInboxChat(
+                                conversationId: conversationId,
+                                otherUserId: otherUserId,
+                                productId: productId
+                            )
+                        }
                 case .editProfile: EditProfileView()
                 case .cart: CartView()
                 case .checkout: CheckoutView()
@@ -52,8 +59,9 @@ struct RootView: View {
                 case .preferences: PreferencesView()
                 case .helpSupport: HelpSupportView()
                 case .sellerCashOutSetup: SellerCashOutSetupView()
-                case .meetupPay(let item): MeetupPayFlowView(item: item)
-                case .meetupDetail(let item): MeetupDetailView(item: item)
+                case .meetupsHub: MeetupsHubView()
+                case .meetupPay(let id): MeetupPayFlowView(meetupId: id)
+                case .meetupDetail(let id): MeetupDetailView(meetupId: id)
                 case .leaderboard: LeaderboardView()
                 case .badgeCollection: BadgeCollectionView()
                 }

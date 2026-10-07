@@ -62,6 +62,16 @@ struct ProductService {
         return try await api.request(path: "/users/\(userId)")
     }
 
+    func publicProfile(username: String) async throws -> User {
+        let handle = username
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "@", with: "")
+        if SupabaseConfig.isConfigured, let c = SupabaseManager.shared.client() {
+            return try await SupabaseProductService.fetchPublicProfileByUsername(client: c, username: handle)
+        }
+        throw SupabaseDataError.notFound
+    }
+
     func deleteProduct(id: String) async throws {
         if SupabaseConfig.isConfigured, let c = await SupabaseManager.shared.clientWithValidSession() {
             try await SupabaseListingService.deleteListing(client: c, productId: id)
@@ -262,6 +272,16 @@ struct SocialService {
             return
         }
         try await api.requestVoid(path: "/social/like/\(productId)", method: "DELETE")
+    }
+
+    func setLiked(productId: String, liked: Bool) async throws {
+        if liked { try await like(productId: productId) }
+        else { try await unlike(productId: productId) }
+    }
+
+    func setSaved(productId: String, saved: Bool) async throws {
+        if saved { try await save(productId: productId) }
+        else { try await unsave(productId: productId) }
     }
 
     func save(productId: String) async throws {

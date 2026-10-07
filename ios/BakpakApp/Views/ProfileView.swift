@@ -43,6 +43,7 @@ struct ProfileView: View {
     @State private var loadingReviews = false
     @State private var squareStatus: SquareConnectStatus?
     @State private var loadingBalance = false
+    @State private var showShareCloset = false
 
     private let feedColumns = 3
 
@@ -148,12 +149,9 @@ struct ProfileView: View {
                             .padding(.horizontal, horizontalPad)
                             .padding(.bottom, 12)
 
-                        HStack(spacing: 12) {
-                            rankingCard
-                            sellerTiersComingSoonCard
-                        }
-                        .padding(.horizontal, horizontalPad)
-                        .padding(.bottom, 26)
+                        rankingCard
+                            .padding(.horizontal, horizontalPad)
+                            .padding(.bottom, 26)
 
                         sectionTitle("account")
                             .padding(.horizontal, horizontalPad)
@@ -231,6 +229,19 @@ struct ProfileView: View {
         .onChange(of: authVM.user?.id) { _ in
             products = []
         }
+        .fullScreenCover(isPresented: $showShareCloset) {
+            ShareClosetSheet(
+                shopName: displayName,
+                username: user?.username ?? "",
+                userId: user?.id ?? "",
+                avatarURL: user?.avatar,
+                campusTheme: campusTheme,
+                listingCount: activeShopItems.count,
+                soldCount: soldCount,
+                reviewAverage: ReviewSummary(reviews: reviews).average,
+                reviewCount: reviews.count
+            )
+        }
     }
 
     // MARK: Header
@@ -285,18 +296,12 @@ struct ProfileView: View {
 
     private var identityCard: some View {
         HStack(alignment: .center, spacing: 14) {
-            AsyncImage(url: URL(string: user?.avatar ?? "")) { img in
-                img.resizable().scaledToFill()
-            } placeholder: {
-                ZStack {
-                    campusTheme.elevatedSurface
-                    Text(String(displayName.prefix(1)).uppercased())
-                        .font(Theme.syne(26, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                }
-            }
-            .frame(width: 76, height: 76)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            AvatarView(
+                urlString: user?.avatar,
+                size: 76,
+                cornerRadius: 22,
+                initials: displayName
+            )
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(displayName)
@@ -345,7 +350,7 @@ struct ProfileView: View {
     private var shareClosetButton: some View {
         Button {
             Motion.haptic(.light)
-            appState.path.append(.editProfile)
+            showShareCloset = true
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "square.and.arrow.up")
@@ -399,90 +404,56 @@ struct ProfileView: View {
                 appState.path.append(.leaderboard)
             }
         } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Grid rank")
-                    .font(Theme.syne(11, weight: .semibold))
-                    .foregroundStyle(campusTheme.textMuted)
+            HStack(alignment: .center, spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Grid rank")
+                        .font(Theme.syne(11, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
 
-                if loadingRank && rankSnapshot == nil {
-                    ProgressView().tint(campusTheme.primary)
-                    Spacer(minLength: 0)
-                } else if soldCount == 0 {
-                    Text("Join the ranking")
-                        .font(Theme.syne(16, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("List your first item")
-                        .font(Theme.syne(11, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                    Spacer(minLength: 0)
-                    Text("Start selling")
-                        .font(Theme.syne(12, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
-                } else if let snap = rankSnapshot {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(snap.rankHeadlinePrimary)
-                            .font(Theme.syne(28, weight: .bold))
+                    if loadingRank && rankSnapshot == nil {
+                        ProgressView().tint(campusTheme.primary)
+                    } else if soldCount == 0 {
+                        Text("Join the ranking")
+                            .font(Theme.syne(18, weight: .bold))
                             .foregroundStyle(campusTheme.textPrimary)
-                        Text(snap.rankHeadlineSecondary)
-                            .font(Theme.syne(12, weight: .semibold))
+                        Text("List your first item")
+                            .font(Theme.syne(12, weight: .medium))
                             .foregroundStyle(campusTheme.textMuted)
+                    } else if let snap = rankSnapshot {
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text(snap.rankHeadlinePrimary)
+                                .font(Theme.syne(28, weight: .bold))
+                                .foregroundStyle(campusTheme.textPrimary)
+                            Text(snap.rankHeadlineSecondary)
+                                .font(Theme.syne(12, weight: .semibold))
+                                .foregroundStyle(campusTheme.textMuted)
+                        }
+                        Text(snap.gridSubtitle)
+                            .font(Theme.syne(12, weight: .medium))
+                            .foregroundStyle(campusTheme.textMuted)
+                        if let delta = snap.weeklyDelta, delta != 0 {
+                            Text(delta > 0 ? "+\(delta) this week" : "\(delta) this week")
+                                .font(Theme.syne(11, weight: .bold))
+                                .foregroundStyle(campusTheme.primary)
+                        }
                     }
-                    Text(snap.gridSubtitle)
-                        .font(Theme.syne(11, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                    if let delta = snap.weeklyDelta, delta != 0 {
-                        Text(delta > 0 ? "+\(delta) this week" : "\(delta) this week")
-                            .font(Theme.syne(11, weight: .bold))
-                            .foregroundStyle(campusTheme.primary)
-                    }
-                    Spacer(minLength: 0)
-                    HStack(spacing: 4) {
-                        Text("Leaderboard")
-                            .font(Theme.syne(12, weight: .bold))
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
-                    }
-                    .foregroundStyle(campusTheme.textPrimary)
                 }
+
+                Spacer(minLength: 8)
+
+                HStack(spacing: 4) {
+                    Text(soldCount == 0 ? "Start selling" : "Leaderboard")
+                        .font(Theme.syne(13, weight: .bold))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .foregroundStyle(campusTheme.textPrimary)
             }
             .padding(16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(cardBackground())
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-        .aspectRatio(1, contentMode: .fit)
-    }
-
-    private var sellerTiersComingSoonCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Seller ranks")
-                .font(Theme.syne(11, weight: .semibold))
-                .foregroundStyle(campusTheme.textMuted)
-
-            Text("Coming soon")
-                .font(Theme.syne(16, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-
-            Text("Unlock tier badges as you close more campus sales — from first deal to top of the Grid.")
-                .font(Theme.syne(12, weight: .medium))
-                .foregroundStyle(campusTheme.textMuted)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
-
-            Text("Soon")
-                .font(Theme.syne(11, weight: .bold))
-                .foregroundStyle(campusTheme.primary)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(campusTheme.primary.opacity(0.12))
-                .clipShape(Capsule())
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(cardBackground())
-        .aspectRatio(1, contentMode: .fit)
     }
 
     private func loadRank() async {

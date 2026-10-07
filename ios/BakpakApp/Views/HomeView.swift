@@ -75,6 +75,24 @@ struct HomeProductImage: View {
 // MARK: - Cards
 
 /// Light tile: title + price on top, photo below.
+private enum HomeSort: String, CaseIterable, Identifiable {
+    case newest
+    case priceLow
+    case priceHigh
+    case discount
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .newest: return "Newest"
+        case .priceLow: return "Price: low to high"
+        case .priceHigh: return "Price: high to low"
+        case .discount: return "On sale"
+        }
+    }
+}
+
 struct HomeProductCard: View {
     let product: Product
     let onTap: () -> Void
@@ -135,6 +153,7 @@ struct HomeView: View {
     @State private var searchText = ""
     @State private var searchTask: Task<Void, Never>?
     @State private var notificationUnread = 0
+    @State private var homeSort: HomeSort = .newest
 
     private let columns: [GridItem] = [
         GridItem(.flexible(), spacing: 12),
@@ -142,12 +161,22 @@ struct HomeView: View {
     ]
 
     private var clothingProducts: [Product] {
-        vm.products.filter { product in
+        let filtered = vm.products.filter { product in
             if let sellerId = product.user?.id, AccountPrefsStore.isBlocked(sellerId) {
                 return false
             }
             guard let category = product.category?.lowercased() else { return false }
             return homeClothingCategories.contains(category)
+        }
+        switch homeSort {
+        case .newest:
+            return filtered.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
+        case .priceLow:
+            return filtered.sorted { $0.price < $1.price }
+        case .priceHigh:
+            return filtered.sorted { $0.price > $1.price }
+        case .discount:
+            return filtered.filter(\.hasDiscount).sorted { $0.price < $1.price }
         }
     }
 
@@ -371,19 +400,28 @@ struct HomeView: View {
                 .buttonStyle(.plain)
             }
 
-            Button {
-                Motion.haptic(.light)
-                appState.selectedTab = .search
+            Menu {
+                ForEach(HomeSort.allCases) { option in
+                    Button {
+                        Motion.haptic(.light)
+                        homeSort = option
+                    } label: {
+                        if homeSort == option {
+                            Label(option.label, systemImage: "checkmark")
+                        } else {
+                            Text(option.label)
+                        }
+                    }
+                }
             } label: {
-                Image(systemName: "slider.horizontal.3")
+                Image(systemName: "line.3.horizontal.decrease")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(campusTheme.textPrimary)
                     .frame(width: 50, height: 50)
                     .background(campusTheme.elevatedSurface)
                     .clipShape(Circle())
             }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
-            .accessibilityLabel("Filters")
+            .accessibilityLabel("Sort")
         }
         .padding(.leading, 16)
         .padding(.trailing, 6)

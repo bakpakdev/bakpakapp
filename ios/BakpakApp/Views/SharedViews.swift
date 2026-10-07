@@ -201,6 +201,7 @@ struct ListingReactionButtons: View {
     var compact: Bool = true
     let onLike: () -> Void
     let onSave: () -> Void
+    @State private var busy = false
 
     private var buttonSize: CGFloat { compact ? 32 : 40 }
     private var iconSize: CGFloat { compact ? 14 : 16 }
@@ -229,8 +230,11 @@ struct ListingReactionButtons: View {
         action: @escaping () -> Void
     ) -> some View {
         Button {
+            guard !busy else { return }
+            busy = true
             Motion.haptic(.light)
             action()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { busy = false }
         } label: {
             Image(systemName: systemName)
                 .font(.system(size: iconSize, weight: .semibold))
@@ -239,7 +243,7 @@ struct ListingReactionButtons: View {
                 .background(Color.black.opacity(0.42))
                 .clipShape(Circle())
         }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
+        .buttonStyle(.plain)
         .accessibilityLabel(accessibility)
     }
 }

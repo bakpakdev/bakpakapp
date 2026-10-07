@@ -580,6 +580,10 @@ struct IdentifyClothingView: View {
                     TextField("Price", text: $draftPrice)
                         .keyboardType(.decimalPad)
                         .textFieldStyle(IdentifyFieldStyle())
+                        .onChange(of: draftPrice) { value in
+                            let cleaned = MoneyAmount.sanitized(value)
+                            if cleaned != value { draftPrice = cleaned }
+                        }
                 case .condition:
                     Picker("Condition", selection: $draftConditionID) {
                         Text("Select").tag("")

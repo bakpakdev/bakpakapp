@@ -885,6 +885,10 @@ struct CreateListingView: View {
                                 .padding(.leading, 4)
                                 .padding(.trailing, 14)
                                 .padding(.vertical, 12)
+                                .onChange(of: price) { value in
+                                    let cleaned = MoneyAmount.sanitized(value)
+                                    if cleaned != value { price = cleaned }
+                                }
                         }
                         .background(campusTheme.elevatedSurface)
                         .clipShape(RoundedRectangle(cornerRadius: 12))

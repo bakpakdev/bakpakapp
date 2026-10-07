@@ -4,11 +4,13 @@ import SwiftUI
 enum AppNotificationKind: String, Codable, Hashable {
     case message
     case offer
+    case meetup
 
     var title: String {
         switch self {
         case .message: return "New message"
         case .offer: return "Offer received"
+        case .meetup: return "Meetup"
         }
     }
 
@@ -16,6 +18,7 @@ enum AppNotificationKind: String, Codable, Hashable {
         switch self {
         case .message: return "bubble.left.and.bubble.right.fill"
         case .offer: return "dollarsign.circle.fill"
+        case .meetup: return "mappin.and.ellipse"
         }
     }
 }
@@ -30,6 +33,7 @@ struct AppNotification: Identifiable, Hashable, Codable {
     let conversationId: String?
     let otherUserId: String?
     let productId: String?
+    let meetupId: String?
 }
 
 enum NotificationCenterStore {
@@ -63,7 +67,8 @@ enum NotificationCenterStore {
                     isRead: false,
                     conversationId: built.conversationId,
                     otherUserId: built.otherUserId,
-                    productId: built.productId
+                    productId: built.productId,
+                    meetupId: built.meetupId
                 )
                 byId[built.id] = existing
             } else {
@@ -71,6 +76,33 @@ enum NotificationCenterStore {
             }
         }
 
+        let pruned = prune(Array(byId.values))
+        save(pruned)
+        return pruned.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    @discardableResult
+    static func mergeServer(_ rows: [AppNotification]) -> [AppNotification] {
+        var byId = Dictionary(uniqueKeysWithValues: loadAll().map { ($0.id, $0) })
+        for row in rows {
+            if var existing = byId[row.id] {
+                existing = AppNotification(
+                    id: row.id,
+                    kind: row.kind,
+                    headline: row.headline,
+                    body: row.body,
+                    createdAt: max(existing.createdAt, row.createdAt),
+                    isRead: row.isRead || existing.isRead,
+                    conversationId: row.conversationId ?? existing.conversationId,
+                    otherUserId: row.otherUserId ?? existing.otherUserId,
+                    productId: row.productId ?? existing.productId,
+                    meetupId: row.meetupId ?? existing.meetupId
+                )
+                byId[row.id] = existing
+            } else {
+                byId[row.id] = row
+            }
+        }
         let pruned = prune(Array(byId.values))
         save(pruned)
         return pruned.sorted { $0.createdAt > $1.createdAt }
@@ -150,7 +182,8 @@ enum NotificationCenterStore {
             isRead: false,
             conversationId: conv.id,
             otherUserId: other?.id,
-            productId: conv.productId ?? conv.product?.id
+            productId: conv.productId ?? conv.product?.id,
+            meetupId: nil
         )
     }
 
@@ -232,7 +265,7 @@ struct NotificationCenterView: View {
                     .foregroundStyle(campusTheme.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                Text("messages & offers")
+                Text("messages, offers & meetups")
                     .font(Theme.syne(28, weight: .semibold))
                     .foregroundStyle(campusTheme.textMuted)
                     .lineLimit(1)
@@ -274,7 +307,7 @@ struct NotificationCenterView: View {
             Text("you're all caught up")
                 .font(Theme.syne(18, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
-            Text("New messages and offers will show up here for two weeks.")
+            Text("New messages, offers, and meetup updates will show up here for two weeks.")
                 .font(Theme.syne(14, weight: .regular))
                 .foregroundStyle(campusTheme.textMuted)
                 .multilineTextAlignment(.center)
@@ -356,18 +389,29 @@ struct NotificationCenterView: View {
 
     private func handleTap(_ item: AppNotification) async {
         NotificationCenterStore.markRead(item.id)
+        if item.kind == .meetup {
+            await MeetupService.markNotificationRead(id: item.id)
+        }
         if let idx = notifications.firstIndex(where: { $0.id == item.id }) {
             notifications[idx].isRead = true
         }
 
-        if let conversationId = item.conversationId, !conversationId.isEmpty {
+        if let meetupId = item.meetupId, !meetupId.isEmpty {
+            dismiss()
+            appState.openMeetupDetail(meetupId)
+        } else if let conversationId = item.conversationId, !conversationId.isEmpty {
             try? await messageService.markRead(conversationId: conversationId)
             InboxReadStore.markRead(conversationId)
             await appState.refreshInboxUnread()
             dismiss()
-            appState.path.append(
-                .conversation(conversationId, item.otherUserId, item.productId)
+            appState.openInboxChat(
+                conversationId: conversationId,
+                otherUserId: item.otherUserId,
+                productId: item.productId
             )
+        } else if let productId = item.productId, !productId.isEmpty {
+            dismiss()
+            appState.path.append(.productDetail(productId))
         } else {
             dismiss()
             appState.selectedTab = .messages
@@ -376,6 +420,8 @@ struct NotificationCenterView: View {
 
     private func markAllRead() async {
         NotificationCenterStore.markAllRead(notifications.map(\.id))
+        let meetupIds = notifications.filter { $0.kind == .meetup }.map(\.id)
+        await MeetupService.markNotificationsRead(ids: meetupIds)
         for item in notifications {
             if let conversationId = item.conversationId, !conversationId.isEmpty {
                 try? await messageService.markRead(conversationId: conversationId)
@@ -401,6 +447,27 @@ struct NotificationCenterView: View {
         } catch {
             notifications = NotificationCenterStore.loadPersisted()
         }
+        if let rows = try? await MeetupService.fetchMyNotifications() {
+            let meetupRows = rows.compactMap { Self.appNotification(from: $0) }
+            notifications = NotificationCenterStore.mergeServer(meetupRows)
+        }
+    }
+
+    private static func appNotification(from row: MeetupService.ServerNotification) -> AppNotification? {
+        guard row.type == "meetup" else { return nil }
+        let meetupId = row.meetupId
+        return AppNotification(
+            id: row.id,
+            kind: .meetup,
+            headline: row.title ?? "Meetup",
+            body: row.body ?? "Open to see meetup details.",
+            createdAt: row.createdAt,
+            isRead: row.isRead,
+            conversationId: nil,
+            otherUserId: nil,
+            productId: nil,
+            meetupId: meetupId
+        )
     }
 
     private func relativeTime(_ date: Date) -> String {

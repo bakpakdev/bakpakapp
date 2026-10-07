@@ -106,6 +106,19 @@ enum SupabaseProductService {
         guard let row = rows.first else { throw SupabaseDataError.notFound }
         return row.asUser
     }
+
+    static func fetchPublicProfileByUsername(client: SupabaseClient, username: String) async throws -> User {
+        let handle = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rows: [SupabaseProfileRow] = try await client
+            .from("profiles")
+            .select(profileSelect)
+            .ilike("username", value: handle)
+            .limit(1)
+            .execute()
+            .value
+        guard let row = rows.first else { throw SupabaseDataError.notFound }
+        return row.asUser
+    }
 }
 
 enum SupabaseDataError: LocalizedError, Equatable {
