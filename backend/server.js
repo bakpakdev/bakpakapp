@@ -7,6 +7,9 @@ const { Server } = require('socket.io');
 
 // Load environment variables
 dotenv.config();
+if (!process.env.PUBLIC_BASE_URL && process.env.RENDER_EXTERNAL_URL) {
+  process.env.PUBLIC_BASE_URL = process.env.RENDER_EXTERNAL_URL;
+}
 
 const app = express();
 const server = http.createServer(app);

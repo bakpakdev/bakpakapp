@@ -43,5 +43,20 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: DATABASE_URL
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-4-6
+      - key: ANTHROPIC_WEB_SEARCH_TOOL
+        value: web_search_20260209
+      - key: IDENTIFY_RATE_LIMIT_PER_HOUR
+        value: "12"
+      - key: TWILIO_ACCOUNT_SID
         sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: TWILIO_VERIFY_SERVICE_SID
+        sync: false
+      # Unused by the scanner (Supabase is the live DB). Dummy so Prisma can boot.
+      - key: DATABASE_URL
+        value: mysql://unused:unused@127.0.0.1:3306/unused
