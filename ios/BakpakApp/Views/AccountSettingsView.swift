@@ -63,8 +63,7 @@ struct AccountSettingsView: View {
                     confirmTitle: "Log out",
                     onConfirm: {
                         showLogoutModal = false
-                        if !appState.path.isEmpty { appState.path.removeAll() }
-                        appState.resetAccountSessionCaches()
+                        appState.hidesTabBar = false
                         authVM.logout()
                     },
                     onCancel: { showLogoutModal = false }
@@ -135,9 +134,9 @@ struct AccountSettingsView: View {
                     .init(
                         icon: "person.slash",
                         title: "Blocked users",
-                        subtitle: AccountPrefsStore.blockedUsers.isEmpty
+                        subtitle: BlockStore.shared.blockedByMe.isEmpty
                             ? "Nobody blocked"
-                            : "\(AccountPrefsStore.blockedUsers.count) blocked"
+                            : "\(BlockStore.shared.blockedByMe.count) blocked"
                     ) {
                         appState.path.append(.blockedUsers)
                     },

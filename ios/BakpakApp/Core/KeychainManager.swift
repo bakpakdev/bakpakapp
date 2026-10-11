@@ -7,21 +7,45 @@ final class KeychainManager {
 
     private let service = "com.popup.app"
     private let account = "auth.token"
+    private let signupTempAccount = "auth.signupTempPassword"
 
     func saveToken(_ token: String) {
-        let data = Data(token.utf8)
+        save(account: account, value: token)
+    }
+
+    func readToken() -> String? {
+        read(account: account)
+    }
+
+    func clearToken() {
+        delete(account: account)
+    }
+
+    func saveSignupTempPassword(_ password: String) {
+        save(account: signupTempAccount, value: password)
+    }
+
+    func readSignupTempPassword() -> String? {
+        read(account: signupTempAccount)
+    }
+
+    func clearSignupTempPassword() {
+        delete(account: signupTempAccount)
+    }
+
+    private func save(account: String, value: String) {
+        let data = Data(value.utf8)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
-
         SecItemDelete(query as CFDictionary)
         let attributes: [String: Any] = query.merging([kSecValueData as String: data]) { _, new in new }
         SecItemAdd(attributes as CFDictionary, nil)
     }
 
-    func readToken() -> String? {
+    private func read(account: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -29,18 +53,17 @@ final class KeychainManager {
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
-
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         guard status == errSecSuccess,
               let data = item as? Data,
-              let token = String(data: data, encoding: .utf8) else {
+              let value = String(data: data, encoding: .utf8) else {
             return nil
         }
-        return token
+        return value
     }
 
-    func clearToken() {
+    private func delete(account: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

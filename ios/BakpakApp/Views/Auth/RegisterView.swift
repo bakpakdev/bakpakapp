@@ -51,6 +51,7 @@ struct RegisterView: View {
             let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             return trimmed.contains("@") && trimmed.hasSuffix(".edu")
         case .verify:
+            // Continue only after they opened the email link AND tapped Confirm email.
             return authVM.hasVerifiedSignupEmail
         case .password:
             return password.count >= 6 && password == confirmPassword
@@ -60,7 +61,10 @@ struct RegisterView: View {
     private var primaryButtonTitle: String {
         switch step {
         case .email: return "Send verification email"
-        case .verify: return "Continue"
+        case .verify:
+            if authVM.hasVerifiedSignupEmail { return "Continue" }
+            if authVM.emailConfirmationLinkOpened { return "Confirm email" }
+            return "Waiting for email link…"
         case .password: return "Create account"
         default: return "Continue"
         }
@@ -86,17 +90,21 @@ struct RegisterView: View {
                 AuthPrimaryButton {
                     advanceOrSubmit()
                 } label: {
-                    if authVM.isLoading && (step == .email || step == .password) {
+                    if authVM.isLoading && (step == .email || step == .verify || step == .password) {
                         ProgressView()
                     } else {
                         Text(primaryButtonTitle)
                     }
                 }
-                .opacity(canContinue || authVM.isLoading ? 1 : 0.45)
-                .disabled(!canContinue || authVM.isLoading)
+                .opacity(verifyPrimaryEnabled || authVM.isLoading ? 1 : 0.45)
+                .disabled(!verifyPrimaryEnabled || authVM.isLoading)
 
                 if step == .verify && !authVM.hasVerifiedSignupEmail {
-                    Text("Open the email on this device, tap the link to return to popup, then Continue unlocks.")
+                    Text(
+                        authVM.emailConfirmationLinkOpened
+                            ? "Link opened — tap Confirm email to continue."
+                            : "Open the email on this phone, tap Open popup & confirm, then come back here."
+                    )
                         .font(Theme.syne(12, weight: .medium))
                         .foregroundStyle(PopupBrand.textMuted)
                 }
@@ -140,16 +148,41 @@ struct RegisterView: View {
                 .padding(.bottom, 24)
         }
         .animation(.easeInOut(duration: 0.3), value: step)
+        .onAppear {
+            if authVM.isAwaitingEmailVerification {
+                if let pending = authVM.pendingVerificationEmail,
+                   email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    email = pending
+                }
+                step = .verify
+            }
+        }
+        .onChange(of: authVM.emailConfirmationLinkOpened) { opened in
+            guard opened, step == .verify, !authVM.hasVerifiedSignupEmail else { return }
+            statusMessage = "Email link opened — tap Confirm email."
+            Motion.haptic(.medium)
+        }
         .onChange(of: authVM.hasVerifiedSignupEmail) { verified in
             guard verified, step == .verify else { return }
-            statusMessage = "Email verified — tap Continue to create your password."
+            statusMessage = "Email confirmed — tap Continue to create your password."
+            Motion.haptic(.medium)
         }
         .task(id: step) {
             guard step == .verify else { return }
-            while !Task.isCancelled && step == .verify && !authVM.hasVerifiedSignupEmail {
-                await authVM.checkSignupEmailVerification()
+            while !Task.isCancelled && step == .verify && !authVM.emailConfirmationLinkOpened {
+                await authVM.pollSignupEmailLinkStatus()
                 try? await Task.sleep(nanoseconds: 2_500_000_000)
             }
+        }
+    }
+
+    /// Primary CTA: disabled while waiting for the email link; enabled for Confirm / Continue / other steps.
+    private var verifyPrimaryEnabled: Bool {
+        switch step {
+        case .verify:
+            return authVM.emailConfirmationLinkOpened || authVM.hasVerifiedSignupEmail
+        default:
+            return canContinue
         }
     }
 
@@ -190,7 +223,13 @@ struct RegisterView: View {
             }
             return "Enter your college email (.edu). We’ll send a verification link."
         case .verify:
-            return "Open the link we sent to \(email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()). It should bring you back into popup — then tap Continue."
+            if authVM.hasVerifiedSignupEmail {
+                return "You’re confirmed. Tap Continue to create your password."
+            }
+            if authVM.emailConfirmationLinkOpened {
+                return "We got you back into popup. Tap Confirm email to unlock the rest of signup."
+            }
+            return "We sent a link to \(email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()). Open it on this phone — it brings you into popup — then tap Confirm email."
         case .password:
             return "Choose a password with at least 6 characters. You’ll use this to sign in next time."
         }
@@ -294,12 +333,23 @@ struct RegisterView: View {
     }
 
     private var verifyStep: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if authVM.hasVerifiedSignupEmail {
-                Text("You’re verified. Tap Continue to create your password.")
-                    .font(Theme.syne(14, weight: .medium))
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: verifyStatusIcon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(verifyStatusColor)
+                Text(verifyStatusText)
+                    .font(Theme.syne(14, weight: .semibold))
                     .foregroundStyle(PopupBrand.textPrimary)
             }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(PopupBrand.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(PopupBrand.border, lineWidth: 1)
+            )
 
             Button {
                 Task { await resendVerificationEmail() }
@@ -311,6 +361,24 @@ struct RegisterView: View {
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
             .disabled(authVM.isLoading || authVM.hasVerifiedSignupEmail)
         }
+    }
+
+    private var verifyStatusIcon: String {
+        if authVM.hasVerifiedSignupEmail { return "checkmark.seal.fill" }
+        if authVM.emailConfirmationLinkOpened { return "envelope.open.fill" }
+        return "envelope.badge"
+    }
+
+    private var verifyStatusColor: Color {
+        if authVM.hasVerifiedSignupEmail { return Color(hex: "#22C55E") }
+        if authVM.emailConfirmationLinkOpened { return PopupBrand.textPrimary }
+        return PopupBrand.textMuted
+    }
+
+    private var verifyStatusText: String {
+        if authVM.hasVerifiedSignupEmail { return "Email confirmed" }
+        if authVM.emailConfirmationLinkOpened { return "Link opened — confirm below" }
+        return "Waiting for you to open the email"
     }
 
     private var passwordStep: some View {
@@ -420,8 +488,12 @@ struct RegisterView: View {
             Task { await sendVerificationAndAdvance() }
 
         case .verify:
-            guard authVM.hasVerifiedSignupEmail else {
-                localError = "Open the link in your email to verify before continuing."
+            if !authVM.hasVerifiedSignupEmail {
+                guard authVM.emailConfirmationLinkOpened else {
+                    localError = "Open the link in your popup email first."
+                    return
+                }
+                Task { await confirmEmailInApp() }
                 return
             }
             withAnimation(.easeInOut(duration: 0.3)) { step = .password }
@@ -484,6 +556,18 @@ struct RegisterView: View {
         let ok = await authVM.resendSignupVerificationEmail(email: trimmed)
         if ok {
             statusMessage = "New verification email sent — check inbox and spam."
+        }
+    }
+
+    private func confirmEmailInApp() async {
+        localError = nil
+        authVM.errorMessage = nil
+        let ok = await authVM.confirmSignupEmailInApp()
+        if ok {
+            statusMessage = "Email confirmed — create your password next."
+            withAnimation(.easeInOut(duration: 0.3)) { step = .password }
+        } else if let message = authVM.errorMessage {
+            localError = message
         }
     }
 

@@ -3,6 +3,7 @@ import SwiftUI
 struct PrivacySettingsView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var blockStore: BlockStore
     @Environment(\.campusTheme) private var campusTheme
 
     @State private var allowDMs = AccountPrefsStore.allowDMs
@@ -11,7 +12,8 @@ struct PrivacySettingsView: View {
     @State private var showSchool = AccountPrefsStore.showSchoolOnProfile
     @State private var showFollowers = AccountPrefsStore.showFollowersPublicly
     @State private var hideNameOnLeaderboard = SellerRankStore.hideNameOnLeaderboard
-    @State private var blockedCount = AccountPrefsStore.blockedUsers.count
+
+    private var blockedCount: Int { blockStore.blockedByMe.count }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -117,13 +119,15 @@ struct PrivacySettingsView: View {
                 _ = SellerRankStore.anonymousSellerId(userId: uid, schoolID: campusTheme.schoolID)
             }
         }
-        .onAppear { blockedCount = AccountPrefsStore.blockedUsers.count }
+        .task { await blockStore.refreshIfNeeded() }
     }
 }
 
 struct BlockedUsersView: View {
+    @EnvironmentObject private var blockStore: BlockStore
     @Environment(\.campusTheme) private var campusTheme
-    @State private var blocked: [BlockedUser] = []
+
+    private var blocked: [BlockedUser] { blockStore.blockedByMe }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -137,7 +141,7 @@ struct BlockedUsersView: View {
                         CampusEmptyCard(
                             systemImage: "person.slash",
                             title: "nobody blocked",
-                            message: "If someone makes you uncomfortable, block them from their profile. They won’t be able to message you."
+                            message: "If someone makes you uncomfortable, block them from chat or their profile. You won’t see each other anywhere in the app."
                         )
                     } else {
                         VStack(spacing: 0) {
@@ -159,9 +163,10 @@ struct BlockedUsersView: View {
                                     }
                                     Spacer()
                                     Button {
-                                        AccountPrefsStore.unblock(userId: person.id)
-                                        blocked = AccountPrefsStore.blockedUsers
-                                        Motion.haptic(.light)
+                                        Task {
+                                            await blockStore.unblock(userId: person.id)
+                                            Motion.haptic(.light)
+                                        }
                                     } label: {
                                         Text("unblock")
                                             .font(Theme.syne(13, weight: .semibold))
@@ -192,6 +197,6 @@ struct BlockedUsersView: View {
             }
         }
         .campusPageStyle()
-        .onAppear { blocked = AccountPrefsStore.blockedUsers }
+        .task { await blockStore.refresh() }
     }
 }

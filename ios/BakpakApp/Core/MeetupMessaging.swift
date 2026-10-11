@@ -631,6 +631,7 @@ struct MeetupComposeView: View {
         Calendar.current.date(byAdding: .hour, value: 1, to: Date()) ?? Date()
     )
     @State private var searchText = ""
+    @State private var showSpotPicker = false
     @State private var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 44.0448, longitude: -123.0725),
         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
@@ -639,6 +640,10 @@ struct MeetupComposeView: View {
 
     private var selectedSpot: CampusMeetupSpot? {
         spots.first(where: { $0.id == selectedSpotId })
+    }
+
+    private var spotLabel: String {
+        selectedSpot?.name ?? "Select"
     }
 
     private var filteredSpots: [CampusMeetupSpot] {
@@ -665,11 +670,13 @@ struct MeetupComposeView: View {
         VStack(spacing: 0) {
             headerBar
             mapSection
-            searchBar
-            whenSection
-            Divider().opacity(0.35)
-            whereHeader
-            spotList
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    whenSection
+                    Divider().opacity(0.35)
+                    whereSection
+                }
+            }
         }
         .background(campusTheme.background.ignoresSafeArea())
         .preferredColorScheme(campusTheme.isDark ? .dark : .light)
@@ -679,12 +686,17 @@ struct MeetupComposeView: View {
             if let initialDate {
                 proposedAt = Self.roundedToHalfHour(max(initialDate, Date()))
             }
+            // Reschedule keeps the prior spot; new invites start on "Select".
             if let initialSpotId,
                let spot = spots.first(where: { $0.id == initialSpotId }) {
                 select(spot, animated: false)
-            } else if selectedSpotId.isEmpty, let first = spots.first {
-                select(first, animated: false)
             }
+        }
+        .sheet(isPresented: $showSpotPicker) {
+            spotPickerSheet
+                .environment(\.campusTheme, campusTheme)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -748,27 +760,25 @@ struct MeetupComposeView: View {
             }
             .disabled(true)
 
-            if let spot = selectedSpot {
-                HStack(spacing: 8) {
-                    Image(systemName: "mappin.circle.fill")
-                        .foregroundStyle(campusTheme.primary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(spot.name)
-                            .font(Theme.syne(14, weight: .bold))
-                            .foregroundStyle(campusTheme.textPrimary)
-                        Text("Pin ready for Apple Maps")
-                            .font(Theme.syne(11, weight: .medium))
-                            .foregroundStyle(campusTheme.textMuted)
-                    }
+            HStack(spacing: 8) {
+                Image(systemName: "mappin.circle.fill")
+                    .foregroundStyle(campusTheme.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(selectedSpot?.name ?? "Pick a meetup spot")
+                        .font(Theme.syne(14, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                    Text(selectedSpot == nil ? "Choose where you’ll meet" : "Pin ready for Apple Maps")
+                        .font(Theme.syne(11, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .padding(12)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(12)
         }
-        .frame(height: 220)
+        .frame(height: 200)
         .clipped()
     }
 
@@ -777,33 +787,28 @@ struct MeetupComposeView: View {
         return []
     }
 
-    private var searchBar: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(campusTheme.textMuted)
-            TextField("Search dorms & spots", text: $searchText)
-                .font(Theme.syne(14, weight: .medium))
-                .foregroundStyle(campusTheme.textPrimary)
-                .tint(campusTheme.primary)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .background(campusTheme.elevatedSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 4)
-    }
-
     private var whenSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("When")
                 .font(Theme.syne(13, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
 
-            meetupDateRow(title: "Date", value: dateLabel, mode: .date)
-            meetupDateRow(title: "Time", value: timeLabel, mode: .time)
+            Text("Tap a row to change the date or time")
+                .font(Theme.syne(12, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+
+            meetupDateRow(
+                title: "Date",
+                value: dateLabel,
+                systemImage: "calendar",
+                mode: .date
+            )
+            meetupDateRow(
+                title: "Time",
+                value: timeLabel,
+                systemImage: "clock",
+                mode: .time
+            )
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
@@ -815,83 +820,199 @@ struct MeetupComposeView: View {
     private func meetupDateRow(
         title: String,
         value: String,
+        systemImage: String,
         mode: UIDatePicker.Mode
     ) -> some View {
-        HStack {
-            Text(title)
-                .font(Theme.syne(15, weight: .semibold))
-                .foregroundStyle(campusTheme.textPrimary)
-            Spacer(minLength: 12)
-            Text(value)
-                .font(Theme.syne(15, weight: .medium))
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(campusTheme.primary)
-                .padding(.vertical, 8)
-                .padding(.horizontal, 2)
-                .overlay {
-                    HalfHourDatePicker(
-                        date: $proposedAt,
-                        minimumDate: Date(),
-                        mode: mode
-                    )
-                }
+                .frame(width: 36, height: 36)
+                .background(campusTheme.primary.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(Theme.syne(12, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+                Text(value)
+                    .font(Theme.syne(16, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+            }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "chevron.down")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(campusTheme.primary)
+                .frame(width: 32, height: 32)
+                .background(campusTheme.primary.opacity(0.12))
+                .clipShape(Circle())
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+        .background(campusTheme.elevatedSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(campusTheme.primary.opacity(0.28), lineWidth: 1.5)
+        )
+        .contentShape(Rectangle())
+        .overlay {
+            HalfHourDatePicker(
+                date: $proposedAt,
+                minimumDate: Date(),
+                mode: mode
+            )
         }
     }
 
-    private var whereHeader: some View {
-        HStack {
+    private var whereSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Where")
                 .font(Theme.syne(13, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
-            Spacer()
-            Text("\(filteredSpots.count) spots")
+
+            Text("Tap to choose a campus meetup spot")
                 .font(Theme.syne(12, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
+
+            Button {
+                Motion.haptic(.light)
+                searchText = ""
+                showSpotPicker = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(campusTheme.primary)
+                        .frame(width: 36, height: 36)
+                        .background(campusTheme.primary.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Spot")
+                            .font(Theme.syne(12, weight: .semibold))
+                            .foregroundStyle(campusTheme.textMuted)
+                        Text(spotLabel)
+                            .font(Theme.syne(16, weight: .bold))
+                            .foregroundStyle(
+                                selectedSpot == nil
+                                    ? campusTheme.textMuted
+                                    : campusTheme.textPrimary
+                            )
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(campusTheme.primary)
+                        .frame(width: 32, height: 32)
+                        .background(campusTheme.primary.opacity(0.12))
+                        .clipShape(Circle())
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+                .background(campusTheme.elevatedSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(campusTheme.primary.opacity(0.28), lineWidth: 1.5)
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if selectedSpot == nil {
+                Text("Pick a spot before you can send.")
+                    .font(Theme.syne(12, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
-        .padding(.bottom, 8)
+        .padding(.bottom, 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(campusTheme.surface.opacity(0.55))
     }
 
-    private var spotList: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(filteredSpots) { spot in
-                    Button {
-                        Motion.haptic(.light)
-                        select(spot, animated: true)
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: selectedSpotId == spot.id ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(selectedSpotId == spot.id ? campusTheme.primary : campusTheme.textMuted)
+    private var spotPickerSheet: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                    TextField("Search dorms & spots", text: $searchText)
+                        .font(Theme.syne(14, weight: .medium))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .tint(campusTheme.primary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(campusTheme.elevatedSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
 
-                            Text(spot.name)
-                                .font(Theme.syne(15, weight: .semibold))
-                                .foregroundStyle(campusTheme.textPrimary)
-                                .multilineTextAlignment(.leading)
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredSpots) { spot in
+                            Button {
+                                Motion.haptic(.light)
+                                select(spot, animated: true)
+                                showSpotPicker = false
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: selectedSpotId == spot.id ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundStyle(
+                                            selectedSpotId == spot.id
+                                                ? campusTheme.primary
+                                                : campusTheme.textMuted
+                                        )
 
-                            Spacer(minLength: 0)
+                                    Text(spot.name)
+                                        .font(Theme.syne(15, weight: .semibold))
+                                        .foregroundStyle(campusTheme.textPrimary)
+                                        .multilineTextAlignment(.leading)
+
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                .background(
+                                    selectedSpotId == spot.id
+                                        ? campusTheme.primary.opacity(0.08)
+                                        : Color.clear
+                                )
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            Divider()
+                                .padding(.leading, 46)
+                                .opacity(0.45)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 14)
-                        .background(
-                            selectedSpotId == spot.id
-                                ? campusTheme.primary.opacity(0.08)
-                                : Color.clear
-                        )
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-
-                    Divider()
-                        .padding(.leading, 46)
-                        .opacity(0.45)
+                }
+            }
+            .background(campusTheme.background.ignoresSafeArea())
+            .navigationTitle("Meetup spot")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showSpotPicker = false }
+                        .font(Theme.syne(15, weight: .semibold))
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(campusTheme.surface.opacity(0.55))
     }
 
     private func select(_ spot: CampusMeetupSpot, animated: Bool) {
@@ -999,7 +1120,9 @@ private final class DatePickerHitView: UIView {
         backgroundColor = .clear
         clipsToBounds = true
         isUserInteractionEnabled = true
-        picker.alpha = 0.02
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+        picker.alpha = 0.011
         addSubview(picker)
     }
 
@@ -1012,14 +1135,15 @@ private final class DatePickerHitView: UIView {
         picker.sizeToFit()
         let pw = max(picker.bounds.width, 1)
         let ph = max(picker.bounds.height, 1)
-        let scaleX = bounds.width / pw
-        let scaleY = bounds.height / ph
+        // Stretch the compact control across the whole chip so taps anywhere open the picker.
+        let scaleX = max(bounds.width / pw, 1)
+        let scaleY = max(bounds.height / ph, 1)
         picker.center = CGPoint(x: bounds.midX, y: bounds.midY)
-        picker.transform = CGAffineTransform(scaleX: max(scaleX, 0.01), y: max(scaleY, 0.01))
+        picker.transform = CGAffineTransform(scaleX: scaleX, y: scaleY)
     }
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        bounds.contains(point)
+        bounds.insetBy(dx: -6, dy: -6).contains(point)
     }
 
     override var intrinsicContentSize: CGSize {
@@ -1107,7 +1231,7 @@ struct MeetupInviteBubble: View {
                         }
                         .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                     }
-                } else if canManage, effectiveKind == .accepted {
+                } else if canManage, effectiveKind == .accepted || (effectiveKind.isProposal && status == nil) {
                     HStack(spacing: 8) {
                         Button {
                             onRescheduleMeetup?()

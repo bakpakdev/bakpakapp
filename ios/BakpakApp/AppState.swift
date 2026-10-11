@@ -128,14 +128,17 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// One chat UI (Inbox). Drops any pushed ConversationView and opens the thread there.
+    /// Opens the shared thread with a system navigation push (right-to-left).
     func openInboxChat(conversationId: String, otherUserId: String?, productId: String?) {
-        pendingInboxConversationId = conversationId
-        pendingInboxOtherUserId = otherUserId
-        pendingInboxProductId = productId
-        path.removeAll()
         selectedTab = .messages
-        hidesTabBar = !conversationId.isEmpty
+        hidesTabBar = false
+        let route = Route.conversation(conversationId, otherUserId, productId)
+        if path.last == route { return }
+        if case .conversation = path.last {
+            path[path.count - 1] = route
+        } else {
+            path.append(route)
+        }
     }
 
     /// Login, cold session restore, or long background → Home with product loading.
@@ -249,6 +252,8 @@ enum Route: Hashable, Identifiable {
     case twoFactorAuth
     case preferences
     case helpSupport
+    case contactSupport
+    case reportUser(ReportUserTarget)
     case sellerCashOutSetup
     case meetupsHub
     case meetupPay(String)
@@ -282,6 +287,9 @@ enum Route: Hashable, Identifiable {
         case .twoFactorAuth: return "two-factor-auth"
         case .preferences: return "preferences"
         case .helpSupport: return "help-support"
+        case .contactSupport: return "contact-support"
+        case .reportUser(let target):
+            return "report-user-\(target.userId)-\(target.conversationId)"
         case .sellerCashOutSetup: return "seller-cash-out-setup"
         case .meetupsHub: return "meetups-hub"
         case .meetupPay(let id): return "meetup-pay-\(id)"

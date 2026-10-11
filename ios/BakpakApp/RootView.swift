@@ -9,62 +9,23 @@ struct RootView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $appState.path) {
-            Group {
-                if authVM.isAuthenticated {
-                    if authVM.needsOnboarding {
-                        OnboardingFlowView()
-                            .transition(.opacity)
-                    } else {
-                        MainTabView()
-                            .transition(.opacity)
-                    }
-                } else {
-                    AuthContainerView()
-                }
-            }
-            .animation(.easeInOut(duration: 0.55), value: authVM.needsOnboarding)
-            .animation(.easeInOut(duration: 0.45), value: authVM.isAuthenticated)
-            .navigationDestination(for: Route.self) { route in
-                switch route {
-                case .productDetail(let id): ProductDetailView(productId: id)
-                case .userProfile(let id): UserProfileView(userId: id)
-                case .createListing: CreateListingView()
-                case .conversation(let conversationId, let otherUserId, let productId):
-                    Color.clear
-                        .task {
-                            appState.openInboxChat(
-                                conversationId: conversationId,
-                                otherUserId: otherUserId,
-                                productId: productId
-                            )
+        Group {
+            if authVM.isAuthenticated {
+                NavigationStack(path: $appState.path) {
+                    Group {
+                        if authVM.needsOnboarding {
+                            OnboardingFlowView()
+                        } else {
+                            MainTabView()
                         }
-                case .editProfile: EditProfileView()
-                case .cart: CartView()
-                case .checkout: CheckoutView()
-                case .orders: OrdersView()
-                case .likedItems: LikedItemsView()
-                case .savedItems: SavedItemsView()
-                case .messagedItems: MessagedItemsView()
-                case .notificationCenter: NotificationCenterView()
-                case .myListings: MyListingsView()
-                case .editListing(let id): EditListingView(productId: id)
-                case .sendOffers(let id): SendOffersView(productId: id)
-                case .setDiscount(let id): SetDiscountView(productId: id)
-                case .accountSettings: AccountSettingsView()
-                case .accountDetails: AccountDetailsView()
-                case .privacySettings: PrivacySettingsView()
-                case .blockedUsers: BlockedUsersView()
-                case .twoFactorAuth: TwoFactorAuthView()
-                case .preferences: PreferencesView()
-                case .helpSupport: HelpSupportView()
-                case .sellerCashOutSetup: SellerCashOutSetupView()
-                case .meetupsHub: MeetupsHubView()
-                case .meetupPay(let id): MeetupPayFlowView(meetupId: id)
-                case .meetupDetail(let id): MeetupDetailView(meetupId: id)
-                case .leaderboard: LeaderboardView()
-                case .badgeCollection: BadgeCollectionView()
+                    }
+                    .animation(.easeInOut(duration: 0.55), value: authVM.needsOnboarding)
+                    .navigationDestination(for: Route.self) { route in
+                        destination(for: route)
+                    }
                 }
+            } else {
+                AuthContainerView()
             }
         }
         .sheet(item: $appState.modal) { route in
@@ -108,6 +69,48 @@ struct RootView: View {
             CampusAppearance.apply(campusTheme)
         }
     }
+
+    @ViewBuilder
+    private func destination(for route: Route) -> some View {
+        switch route {
+        case .productDetail(let id): ProductDetailView(productId: id)
+        case .userProfile(let id): UserProfileView(userId: id)
+        case .createListing: CreateListingView()
+        case .conversation(let conversationId, let otherUserId, let productId):
+            ConversationView(
+                conversationId: conversationId,
+                otherUserId: otherUserId,
+                productId: productId
+            )
+        case .editProfile: EditProfileView()
+        case .cart: CartView()
+        case .checkout: CheckoutView()
+        case .orders: OrdersView()
+        case .likedItems: LikedItemsView()
+        case .savedItems: SavedItemsView()
+        case .messagedItems: MessagedItemsView()
+        case .notificationCenter: NotificationCenterView()
+        case .myListings: MyListingsView()
+        case .editListing(let id): EditListingView(productId: id)
+        case .sendOffers(let id): SendOffersView(productId: id)
+        case .setDiscount(let id): SetDiscountView(productId: id)
+        case .accountSettings: AccountSettingsView()
+        case .accountDetails: AccountDetailsView()
+        case .privacySettings: PrivacySettingsView()
+        case .blockedUsers: BlockedUsersView()
+        case .twoFactorAuth: TwoFactorAuthView()
+        case .preferences: PreferencesView()
+        case .helpSupport: HelpSupportView()
+        case .contactSupport: ContactSupportView()
+        case .reportUser(let target): ReportUserView(target: target)
+        case .sellerCashOutSetup: SellerCashOutSetupView()
+        case .meetupsHub: MeetupsHubView()
+        case .meetupPay(let id): MeetupPayFlowView(meetupId: id)
+        case .meetupDetail(let id): MeetupDetailView(meetupId: id)
+        case .leaderboard: LeaderboardView()
+        case .badgeCollection: BadgeCollectionView()
+        }
+    }
 }
 
 private enum AuthStep {
@@ -117,6 +120,7 @@ private enum AuthStep {
 }
 
 private struct AuthContainerView: View {
+    @EnvironmentObject private var authVM: AuthViewModel
     @State private var step: AuthStep = .welcome
 
     var body: some View {
@@ -159,5 +163,18 @@ private struct AuthContainerView: View {
             }
         }
         .animation(.easeInOut(duration: 0.45), value: step)
+        .onAppear {
+            if authVM.isAwaitingEmailVerification {
+                step = .register
+            }
+        }
+        .onChange(of: authVM.emailConfirmationLinkOpened) { opened in
+            if opened, authVM.isAwaitingEmailVerification {
+                step = .register
+            }
+        }
+        .onChange(of: authVM.isAwaitingEmailVerification) { awaiting in
+            if awaiting { step = .register }
+        }
     }
 }

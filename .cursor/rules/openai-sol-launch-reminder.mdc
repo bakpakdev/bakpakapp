@@ -1,0 +1,19 @@
+---
+description: Remind Hadi to switch the clothing scanner to openai-sol at app launch
+alwaysApply: true
+---
+
+# OpenAI Sol — launch reminder
+
+When the user talks about **launching**, **shipping**, **going live**, **production**, **TestFlight production**, **App Store**, or **final scanner model**, remind them once (briefly) that they want to switch the clothing identify scanner from the current `OPENAI_MODEL` (e.g. `gpt-6-luna`) to **`openai-sol`**.
+
+## What to remind
+
+- Set `OPENAI_MODEL=openai-sol` in local `backend/.env` and on the hosted API (e.g. Render).
+- Confirm `OPENAI_API_KEY` still works with that model.
+- Do **not** change the model unprompted — only remind, then wait for them to ask.
+
+## Do not
+
+- Reintroduce Anthropic for the scanner unless they ask.
+- Paste or commit API keys.

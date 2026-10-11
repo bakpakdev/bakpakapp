@@ -252,10 +252,6 @@ struct MeetupDetailView: View {
         if meetup.status == .cancelled || meetup.status == .declined {
             return meetup.status == .proposed ? TimelineStep.proposed.rawValue : TimelineStep.confirmed.rawValue
         }
-        if meetup.bothCheckedIn { return TimelineStep.bothHere.rawValue }
-        if meetup.etaMinutes != nil || meetup.proposerCheckedInAt != nil || meetup.recipientCheckedInAt != nil {
-            return TimelineStep.onTheWay.rawValue
-        }
         if meetup.status == .confirmed { return TimelineStep.confirmed.rawValue }
         return TimelineStep.proposed.rawValue
     }
@@ -267,18 +263,6 @@ struct MeetupDetailView: View {
         case .confirmed:
             guard meetup.status != .proposed else { return nil }
             return MeetupMessageCodec.displayString(from: meetup.scheduledAt)
-        case .onTheWay:
-            if let mins = meetup.etaMinutes {
-                return mins <= 0 ? "on the way" : "running late · \(mins) min"
-            }
-            if meetup.proposerCheckedInAt != nil || meetup.recipientCheckedInAt != nil {
-                return "heading over"
-            }
-            return nil
-        case .bothHere:
-            let times = [meetup.proposerCheckedInAt, meetup.recipientCheckedInAt].compactMap { $0 }
-            guard let latest = times.max() else { return nil }
-            return MeetupMessageCodec.displayString(from: latest)
         case .paid:
             guard meetup.status == .completed else { return nil }
             return MeetupMessageCodec.displayString(from: meetup.updatedAt)
@@ -368,6 +352,17 @@ struct MeetupDetailView: View {
                 HStack(spacing: 10) {
                     primaryButton("Accept") { Task { await respond(accepted: true) } }
                     secondaryButton("Deny") { Task { await respond(accepted: false) } }
+                }
+            } else if meetup.status == .proposed, meetup.waitingOnThem(meId: meId) {
+                HStack(spacing: 10) {
+                    secondaryButton("Reschedule") {
+                        Motion.haptic(.light)
+                        showMeetupPicker = true
+                    }
+                    secondaryButton("Cancel") {
+                        Motion.haptic(.light)
+                        showCancelSheet = true
+                    }
                 }
             } else if meetup.status == .confirmed {
                 if meetup.isLive {
@@ -615,16 +610,12 @@ struct MeetupDetailView: View {
 private enum TimelineStep: Int, CaseIterable {
     case proposed
     case confirmed
-    case onTheWay
-    case bothHere
     case paid
 
     var title: String {
         switch self {
         case .proposed: return "Proposed"
         case .confirmed: return "Confirmed"
-        case .onTheWay: return "On the way"
-        case .bothHere: return "Both here"
         case .paid: return "Paid"
         }
     }

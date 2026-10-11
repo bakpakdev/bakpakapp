@@ -164,16 +164,10 @@ struct SetDiscountView: View {
                 Text("$")
                     .font(Theme.syne(24, weight: .bold))
                     .foregroundStyle(campusTheme.primary)
-                TextField("", text: $customPriceText, prompt: Text("New price").foregroundColor(campusTheme.textMuted))
-                    .keyboardType(.decimalPad)
-                    .font(Theme.syne(24, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .tint(campusTheme.primary)
-                    .focused($customFocused)
+                MoneyCentsField(text: $customPriceText, fontSize: 24, textColor: campusTheme.textPrimary)
+                    .frame(height: 30)
                     .onChange(of: customPriceText) { value in
-                        let cleaned = MoneyAmount.sanitized(value)
-                        if cleaned != value { customPriceText = cleaned }
-                        if !cleaned.isEmpty { selectedPercent = nil } else if selectedPercent == nil { selectedPercent = 15 }
+                        if value != "0.00" && !value.isEmpty { selectedPercent = nil } else if selectedPercent == nil { selectedPercent = 15 }
                     }
                 if !customPriceText.isEmpty {
                     Button {

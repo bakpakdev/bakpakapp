@@ -62,17 +62,22 @@ struct ContentView: View {
             }
         }
         .onChange(of: authVM.isAuthenticated) { isAuth in
-            appState.resetAccountSessionCaches()
             if isAuth {
+                appState.resetAccountSessionCaches()
                 appState.resetToHome(reload: true)
                 if !authVM.needsOnboarding {
                     DispatchQueue.main.async { appState.consumePendingShareProfile() }
                 }
             } else {
-                appState.resetToHome(reload: false)
+                // Don't mutate the signed-in NavigationStack in the same frame it's removed.
+                DispatchQueue.main.async {
+                    appState.resetToHome(reload: false)
+                    appState.resetAccountSessionCaches()
+                }
             }
         }
-        .onChange(of: authVM.user?.id) { _ in
+        .onChange(of: authVM.user?.id) { newId in
+            guard newId != nil else { return }
             appState.resetAccountSessionCaches()
         }
         .onChange(of: authVM.needsOnboarding) { needs in
@@ -83,6 +88,7 @@ struct ContentView: View {
         }
         .task(id: authVM.isAuthenticated ? (authVM.user?.id ?? "auth") : "out") {
             if authVM.isAuthenticated {
+                await BlockStore.shared.refresh()
                 await meetupStore.start()
             } else {
                 meetupStore.stop()

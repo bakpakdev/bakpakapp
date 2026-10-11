@@ -32,6 +32,7 @@ private let maxRecentSearches = 24
 struct SearchView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var blockStore: BlockStore
     @Environment(\.campusTheme) private var campusTheme
 
     @State private var query = ""
@@ -53,9 +54,11 @@ struct SearchView: View {
     }
 
     private var filteredProducts: [Product] {
+        let _ = blockStore.revision
+        let visible = blockStore.filterProducts(products)
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return products }
-        return products.filter { item in
+        guard !q.isEmpty else { return visible }
+        return visible.filter { item in
             item.title.lowercased().contains(q)
                 || (item.user?.username.lowercased().contains(q) ?? false)
                 || (item.description?.lowercased().contains(q) ?? false)
@@ -138,13 +141,25 @@ struct SearchView: View {
         .onDisappear {
             searchDebounceTask?.cancel()
             suggestDebounceTask?.cancel()
+            if appState.selectedTab == .search {
+                appState.hidesTabBar = false
+            }
         }
         .onChange(of: query) { _ in
             scheduleSearch()
             scheduleSuggestions()
         }
         .onChange(of: searchFieldFocused) { focused in
-            if focused { scheduleSuggestions() }
+            appState.hidesTabBar = focused
+            if focused {
+                scheduleSuggestions()
+            }
+        }
+        .onChange(of: appState.selectedTab) { tab in
+            if tab != .search {
+                searchFieldFocused = false
+                appState.hidesTabBar = false
+            }
         }
         .onChange(of: category) { _ in
             Task { await performSearch() }
@@ -872,7 +887,7 @@ struct SearchView: View {
         do {
             let fetched = try await ProductService().search(query: q, category: cat, school: campusTheme.schoolID)
             await MainActor.run {
-                products = fetched
+                products = BlockStore.shared.filterProducts(fetched)
                 loading = false
             }
             await SearchSuggestService().logEvent(

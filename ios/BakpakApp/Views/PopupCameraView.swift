@@ -46,16 +46,18 @@ struct PopupCameraView: View {
                 .padding(.vertical, 120)
                 .allowsHitTesting(false)
 
-            VStack(spacing: 0) {
-                topBar
-                    .padding(.horizontal, 18)
-                    .padding(.top, 10)
+            GeometryReader { geo in
+                VStack(spacing: 0) {
+                    topBar
+                        .padding(.horizontal, 18)
+                        .padding(.top, max(geo.safeAreaInsets.top, 12))
 
-                Spacer()
+                    Spacer()
 
-                bottomBar
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 28)
+                    bottomBar
+                        .padding(.horizontal, 28)
+                        .padding(.bottom, max(geo.safeAreaInsets.bottom, 16) + 16)
+                }
             }
 
             if captureFlash {

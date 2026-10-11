@@ -10,9 +10,11 @@ final class AuthViewModel: ObservableObject {
     }
     @Published var isLoading = false
     @Published var errorMessage: String?
-    /// Mid-signup: waiting for the student to click the verification link in email.
+    /// Mid-signup: waiting for the student to open the verification link in email.
     @Published var isAwaitingEmailVerification = false
-    /// Mid-signup: verification link was opened / email confirmed.
+    /// Deep link from the email was opened and Supabase confirmed the address server-side.
+    @Published var emailConfirmationLinkOpened = false
+    /// Student tapped **Confirm email** in the app (required before Continue / password).
     @Published var hasVerifiedSignupEmail = false
     /// First-time signup only — profile setup before home.
     @Published var needsOnboarding = false
@@ -22,11 +24,40 @@ final class AuthViewModel: ObservableObject {
     private let legacyAuth = AuthService()
     private static let baseURLDefaultsKey = "popup.apiBaseURL"
     private static let onboardingRequiredPrefix = "popup.onboarding.required."
+    private static let awaitingEmailKey = "popup.signup.awaitingEmail"
+    private static let signupEmailKey = "popup.signup.email"
+    private static let linkOpenedKey = "popup.signup.linkOpened"
     /// Temporary password used only until the student sets their real password.
-    private var pendingTempPassword: String?
-    private var pendingSignupEmail: String?
+    private var pendingTempPassword: String? {
+        get { KeychainManager.shared.readSignupTempPassword() }
+        set {
+            if let newValue, !newValue.isEmpty {
+                KeychainManager.shared.saveSignupTempPassword(newValue)
+            } else {
+                KeychainManager.shared.clearSignupTempPassword()
+            }
+        }
+    }
+    private var pendingSignupEmail: String? {
+        get { UserDefaults.standard.string(forKey: Self.signupEmailKey) }
+        set {
+            if let newValue, !newValue.isEmpty {
+                UserDefaults.standard.set(newValue, forKey: Self.signupEmailKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.signupEmailKey)
+            }
+        }
+    }
 
     var usesSupabase: Bool { SupabaseConfig.isConfigured }
+
+    /// Show the in-app confirm gate (link opened, Confirm not tapped yet).
+    var needsInAppEmailConfirm: Bool {
+        isAwaitingEmailVerification && emailConfirmationLinkOpened && !hasVerifiedSignupEmail
+    }
+
+    /// Email address mid-signup (for restoring the verify screen).
+    var pendingVerificationEmail: String? { pendingSignupEmail }
 
     init() {
         // The editable "API server" override only exists for the legacy Express auth path.
@@ -38,6 +69,7 @@ final class AuthViewModel: ObservableObject {
             baseURL = saved
         }
         APIClient.shared.setBaseURL(baseURL)
+        restorePersistedSignupGate()
 
         if usesSupabase {
             Task { @MainActor in await restoreSupabaseSession() }
@@ -45,6 +77,18 @@ final class AuthViewModel: ObservableObject {
             isAuthenticated = true
             Task { @MainActor in await refreshMeLegacy() }
         }
+    }
+
+    private func restorePersistedSignupGate() {
+        isAwaitingEmailVerification = UserDefaults.standard.bool(forKey: Self.awaitingEmailKey)
+        emailConfirmationLinkOpened = UserDefaults.standard.bool(forKey: Self.linkOpenedKey)
+        // Never restore "confirmed in app" — that tap must happen this session after the link.
+        hasVerifiedSignupEmail = false
+    }
+
+    private func persistSignupGate() {
+        UserDefaults.standard.set(isAwaitingEmailVerification, forKey: Self.awaitingEmailKey)
+        UserDefaults.standard.set(emailConfirmationLinkOpened, forKey: Self.linkOpenedKey)
     }
 
     func applyServerURL() {
@@ -60,6 +104,17 @@ final class AuthViewModel: ObservableObject {
             let session = try await client.auth.session
             guard session.user.emailConfirmedAt != nil else {
                 try? await client.auth.signOut()
+                isAuthenticated = false
+                user = nil
+                needsOnboarding = false
+                return
+            }
+            // Mid-signup: keep them on auth until they Confirm in-app and set a password.
+            if isAwaitingEmailVerification {
+                if session.user.emailConfirmedAt != nil {
+                    emailConfirmationLinkOpened = true
+                    persistSignupGate()
+                }
                 isAuthenticated = false
                 user = nil
                 needsOnboarding = false
@@ -146,12 +201,12 @@ final class AuthViewModel: ObservableObject {
                 let session = try await client.auth.signIn(email: email, password: password)
                 if session.user.emailConfirmedAt == nil {
                     try? await client.auth.signOut()
-                    errorMessage = "Confirm your campus email first. Open the popup link we sent, then sign in."
+                    errorMessage = "Confirm your campus email first. Open the popup link we sent, tap Confirm email in the app, then sign in."
                     isAuthenticated = false
                     user = nil
                     needsOnboarding = false
-                    isAwaitingEmailVerification = true
                     pendingSignupEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    beginAwaitingEmailVerification()
                     return
                 }
                 user = try await Self.fetchProfile(client: client)
@@ -198,8 +253,7 @@ final class AuthViewModel: ObservableObject {
         }
 
         pendingSignupEmail = trimmedEmail
-        isAwaitingEmailVerification = true
-        hasVerifiedSignupEmail = false
+        beginAwaitingEmailVerification()
         isAuthenticated = false
 
         var sentConfirm = false
@@ -300,8 +354,7 @@ final class AuthViewModel: ObservableObject {
                     type: .signup,
                     emailRedirectTo: SupabaseConfig.authRedirectURL
                 )
-                isAwaitingEmailVerification = true
-                hasVerifiedSignupEmail = false
+                beginAwaitingEmailVerification()
                 isAuthenticated = false
                 return true
             } catch {
@@ -324,19 +377,18 @@ final class AuthViewModel: ObservableObject {
             pendingSignupEmail = trimmedEmail
 
             if session != nil {
-                // Confirm email is OFF in the Supabase project — no confirmation email is sent.
+                // Confirm email is OFF — sign out and refuse to continue until it's turned on.
+                try? await client.auth.signOut()
                 errorMessage =
                     "Supabase has “Confirm email” turned off, so no email was sent. Turn it ON under Authentication → Providers → Email, then tap Resend."
-                hasVerifiedSignupEmail = false
-                isAwaitingEmailVerification = true
+                beginAwaitingEmailVerification()
                 isAuthenticated = false
                 user = nil
                 return false
             }
 
             // No session means confirmation is required — Supabase should have queued the email.
-            isAwaitingEmailVerification = true
-            hasVerifiedSignupEmail = false
+            beginAwaitingEmailVerification()
             isAuthenticated = false
             user = nil
             return true
@@ -357,8 +409,7 @@ final class AuthViewModel: ObservableObject {
                     )
                     pendingSignupEmail = trimmedEmail
                     pendingTempPassword = tempPassword
-                    isAwaitingEmailVerification = true
-                    hasVerifiedSignupEmail = false
+                    beginAwaitingEmailVerification()
                     isAuthenticated = false
                     return true
                 } catch {
@@ -370,6 +421,13 @@ final class AuthViewModel: ObservableObject {
             errorMessage = friendlyAuthError(error)
             return false
         }
+    }
+
+    private func beginAwaitingEmailVerification() {
+        isAwaitingEmailVerification = true
+        emailConfirmationLinkOpened = false
+        hasVerifiedSignupEmail = false
+        persistSignupGate()
     }
 
     /// Signs up and asks Supabase to email a confirmation link.
@@ -422,6 +480,7 @@ final class AuthViewModel: ObservableObject {
     }
 
     /// Handles `popup://auth-callback` after the student taps the email confirmation link.
+    /// Does **not** unlock Continue — they must tap Confirm email in the app.
     func handleAuthRedirect(_ url: URL) async {
         guard usesSupabase, let client = SupabaseManager.shared.client() else { return }
 
@@ -430,38 +489,113 @@ final class AuthViewModel: ObservableObject {
             guard session.user.emailConfirmedAt != nil else {
                 try? await client.auth.signOut()
                 errorMessage = "That link didn’t confirm your email. Request a new popup email and try again."
+                emailConfirmationLinkOpened = false
                 hasVerifiedSignupEmail = false
                 isAuthenticated = false
                 user = nil
+                persistSignupGate()
                 return
             }
-            if isAwaitingEmailVerification {
-                hasVerifiedSignupEmail = true
+
+            let midSignup = isAwaitingEmailVerification
+                || pendingSignupEmail != nil
+                || UserDefaults.standard.bool(forKey: Self.awaitingEmailKey)
+
+            if midSignup {
+                isAwaitingEmailVerification = true
+                emailConfirmationLinkOpened = true
+                hasVerifiedSignupEmail = false
                 isAuthenticated = false
                 user = nil
-            } else {
-                user = try await Self.fetchProfileWithRetry(client: client)
-                isAuthenticated = true
-                KeychainManager.shared.clearToken()
+                needsOnboarding = false
+                if let email = session.user.email?.lowercased(), !email.isEmpty {
+                    pendingSignupEmail = email
+                }
+                persistSignupGate()
+                // Keep the confirmed session so they can set a password after Confirm.
+                return
             }
+
+            // Returning user (e.g. magic link / recovery) — only sign in if email is confirmed.
+            user = try await Self.fetchProfileWithRetry(client: client)
+            isAuthenticated = true
+            KeychainManager.shared.clearToken()
+            refreshOnboardingFlag()
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    /// Unlocks the password step once the email is confirmed (e.g. link opened outside the app).
-    func checkSignupEmailVerification() async {
-        guard isAwaitingEmailVerification, !hasVerifiedSignupEmail else { return }
-        guard usesSupabase, let client = SupabaseManager.shared.client() else { return }
-        guard let email = pendingSignupEmail, let temp = pendingTempPassword else { return }
+    /// Called when the student taps **Confirm email** in the app after opening the link.
+    @discardableResult
+    func confirmSignupEmailInApp() async -> Bool {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
 
+        guard usesSupabase, let client = SupabaseManager.shared.client() else {
+            errorMessage = "Supabase is not configured."
+            return false
+        }
+        guard isAwaitingEmailVerification else {
+            errorMessage = "Start signup and open the email we sent first."
+            return false
+        }
+
+        do {
+            let session: Session
+            if let existing = try? await client.auth.session, existing.user.emailConfirmedAt != nil {
+                session = existing
+            } else if let email = pendingSignupEmail, let temp = pendingTempPassword {
+                session = try await client.auth.signIn(email: email, password: temp)
+            } else {
+                errorMessage = "Open the link in your popup email first, then tap Confirm."
+                return false
+            }
+
+            guard session.user.emailConfirmedAt != nil else {
+                try? await client.auth.signOut()
+                errorMessage = "Your email isn’t confirmed yet. Open the popup link we sent, then try again."
+                emailConfirmationLinkOpened = false
+                hasVerifiedSignupEmail = false
+                persistSignupGate()
+                return false
+            }
+
+            emailConfirmationLinkOpened = true
+            hasVerifiedSignupEmail = true
+            isAuthenticated = false
+            user = nil
+            persistSignupGate()
+            return true
+        } catch {
+            errorMessage = "Open the link in your popup email first, then tap Confirm."
+            return false
+        }
+    }
+
+    /// Detects that the email link confirmed the address (does not unlock Continue).
+    func pollSignupEmailLinkStatus() async {
+        guard isAwaitingEmailVerification, !emailConfirmationLinkOpened, !hasVerifiedSignupEmail else { return }
+        guard usesSupabase, let client = SupabaseManager.shared.client() else { return }
+
+        if let session = try? await client.auth.session, session.user.emailConfirmedAt != nil {
+            emailConfirmationLinkOpened = true
+            persistSignupGate()
+            isAuthenticated = false
+            user = nil
+            return
+        }
+
+        guard let email = pendingSignupEmail, let temp = pendingTempPassword else { return }
         do {
             let session = try await client.auth.signIn(email: email, password: temp)
             guard session.user.emailConfirmedAt != nil else {
                 try? await client.auth.signOut()
                 return
             }
-            hasVerifiedSignupEmail = true
+            emailConfirmationLinkOpened = true
+            persistSignupGate()
             isAuthenticated = false
             user = nil
         } catch {
@@ -471,9 +605,13 @@ final class AuthViewModel: ObservableObject {
 
     func clearSignupVerificationState() {
         isAwaitingEmailVerification = false
+        emailConfirmationLinkOpened = false
         hasVerifiedSignupEmail = false
         pendingTempPassword = nil
         pendingSignupEmail = nil
+        UserDefaults.standard.removeObject(forKey: Self.awaitingEmailKey)
+        UserDefaults.standard.removeObject(forKey: Self.linkOpenedKey)
+        UserDefaults.standard.removeObject(forKey: Self.signupEmailKey)
     }
 
     /// After email is verified, set password and finish signing the student in.
@@ -615,11 +753,10 @@ final class AuthViewModel: ObservableObject {
                 if session == nil || session?.user.emailConfirmedAt == nil {
                     try? await client.auth.signOut()
                     pendingSignupEmail = trimmedEmail
-                    isAwaitingEmailVerification = true
-                    hasVerifiedSignupEmail = false
+                    beginAwaitingEmailVerification()
                     isAuthenticated = false
                     user = nil
-                    errorMessage = "Confirm your campus email first. Open the popup link we sent, then sign in."
+                    errorMessage = "Confirm your campus email first. Open the popup link we sent, tap Confirm email in the app, then sign in."
                     return
                 }
 
@@ -679,16 +816,13 @@ final class AuthViewModel: ObservableObject {
     }
 
     func logout() {
-        if usesSupabase, let client = SupabaseManager.shared.client() {
-            Task {
-                try? await client.auth.signOut()
-            }
-        }
         KeychainManager.shared.clearToken()
         isAuthenticated = false
         user = nil
         needsOnboarding = false
         clearSignupVerificationState()
-        AccountScopedDefaults.bind(userId: nil)
+        if usesSupabase, let client = SupabaseManager.shared.client() {
+            Task { try? await client.auth.signOut() }
+        }
     }
 }

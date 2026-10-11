@@ -286,6 +286,22 @@ CREATE TABLE public.listing_reports (
   )
 );
 
+CREATE TABLE public.user_reports (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reporter_id     UUID NOT NULL REFERENCES public.profiles (id) ON DELETE CASCADE,
+  reported_id     UUID NOT NULL REFERENCES public.profiles (id) ON DELETE CASCADE,
+  conversation_id UUID REFERENCES public.conversations (id) ON DELETE SET NULL,
+  product_id      UUID REFERENCES public.products (id) ON DELETE SET NULL,
+  reason          TEXT NOT NULL,
+  details         TEXT,
+  status          TEXT NOT NULL DEFAULT 'open',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT user_reports_status_check CHECK (
+    status IN ('open', 'reviewed', 'actioned', 'dismissed')
+  ),
+  CONSTRAINT user_reports_not_self CHECK (reporter_id <> reported_id)
+);
+
 CREATE TABLE public.notifications (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id    UUID NOT NULL REFERENCES public.profiles (id) ON DELETE CASCADE,
@@ -471,6 +487,7 @@ ALTER TABLE public.product_views ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cart_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.listing_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saved_searches ENABLE ROW LEVEL SECURITY;
 
@@ -844,17 +861,39 @@ CREATE POLICY "offers_update_parties"
     )
   );
 
--- blocks
+-- blocks (mutual read; blocker-only write)
 DROP POLICY IF EXISTS "blocks_own" ON public.user_blocks;
-CREATE POLICY "blocks_own"
-  ON public.user_blocks FOR ALL TO authenticated
-  USING (blocker_id = auth.uid()) WITH CHECK (blocker_id = auth.uid());
+DROP POLICY IF EXISTS "blocks_select_involved" ON public.user_blocks;
+CREATE POLICY "blocks_select_involved"
+  ON public.user_blocks FOR SELECT TO authenticated
+  USING (blocker_id = auth.uid() OR blocked_id = auth.uid());
+
+DROP POLICY IF EXISTS "blocks_insert_own" ON public.user_blocks;
+CREATE POLICY "blocks_insert_own"
+  ON public.user_blocks FOR INSERT TO authenticated
+  WITH CHECK (blocker_id = auth.uid());
+
+DROP POLICY IF EXISTS "blocks_delete_own" ON public.user_blocks;
+CREATE POLICY "blocks_delete_own"
+  ON public.user_blocks FOR DELETE TO authenticated
+  USING (blocker_id = auth.uid());
 
 -- listing_reports
 DROP POLICY IF EXISTS "reports_insert" ON public.listing_reports;
 CREATE POLICY "reports_insert"
   ON public.listing_reports FOR INSERT TO authenticated
   WITH CHECK (reporter_id = auth.uid());
+
+-- user_reports
+DROP POLICY IF EXISTS "user_reports_insert" ON public.user_reports;
+CREATE POLICY "user_reports_insert"
+  ON public.user_reports FOR INSERT TO authenticated
+  WITH CHECK (reporter_id = auth.uid());
+
+DROP POLICY IF EXISTS "user_reports_select_own" ON public.user_reports;
+CREATE POLICY "user_reports_select_own"
+  ON public.user_reports FOR SELECT TO authenticated
+  USING (reporter_id = auth.uid());
 
 -- notifications
 DROP POLICY IF EXISTS "notif_own" ON public.notifications;

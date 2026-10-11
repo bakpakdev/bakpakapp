@@ -403,7 +403,6 @@ struct NotificationCenterView: View {
             try? await messageService.markRead(conversationId: conversationId)
             InboxReadStore.markRead(conversationId)
             await appState.refreshInboxUnread()
-            dismiss()
             appState.openInboxChat(
                 conversationId: conversationId,
                 otherUserId: item.otherUserId,

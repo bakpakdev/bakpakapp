@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HelpSupportView: View {
+    @EnvironmentObject private var appState: AppState
     @Environment(\.campusTheme) private var campusTheme
     @State private var expandedFAQ: String?
 
@@ -50,7 +51,7 @@ struct HelpSupportView: View {
                             faqRow(
                                 id: "report",
                                 question: "How do I report someone?",
-                                answer: "Block them from their profile, then email us with their username and a screenshot of the chat. We’ll review it.",
+                                answer: "In a chat, tap ⋯ → Report. Pick a reason, add details if you want, and submit. We’ll get the report at \(SupportMail.address). You can also block them at the same time.",
                                 showDivider: false
                             )
                         }
@@ -60,13 +61,18 @@ struct HelpSupportView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         SettingsSectionTitle(title: "contact")
                         VStack(spacing: 0) {
-                            if let mail = URL(string: "mailto:hello@popup.app?subject=popup%20support") {
-                                Link(destination: mail) {
-                                    navLabel(icon: "envelope", title: "Email support", subtitle: "hello@popup.app")
-                                }
-                                .buttonStyle(.plain)
-                                divider
+                            Button {
+                                Motion.haptic(.light)
+                                appState.path.append(.contactSupport)
+                            } label: {
+                                navLabel(
+                                    icon: "envelope",
+                                    title: "Email support",
+                                    subtitle: SupportMail.address
+                                )
                             }
+                            .buttonStyle(.plain)
+                            divider
                             navLabel(icon: "doc.text", title: "Community guidelines", subtitle: "Be decent. No scams, hate, or off-campus pickups.")
                             divider
                             navLabel(icon: "lock.doc", title: "Privacy", subtitle: "We use your campus email to keep listings on campus. We don’t sell your data.")

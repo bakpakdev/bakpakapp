@@ -6,6 +6,7 @@ struct PopupApp: App {
     @UIApplicationDelegateAdaptor(PopupAppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
     @StateObject private var meetupStore = MeetupStore()
+    @StateObject private var blockStore = BlockStore.shared
 
     init() {
         SquareConfig.initializeSDKIfNeeded()
@@ -19,8 +20,10 @@ struct PopupApp: App {
                 .environmentObject(appState)
                 .environmentObject(appState.authVM)
                 .environmentObject(meetupStore)
+                .environmentObject(blockStore)
                 .onAppear {
                     MeetupNotificationScheduler.shared.bind(appState: appState, meetupStore: meetupStore)
+                    Task { await blockStore.refresh() }
                 }
                 .onOpenURL { url in
                     Task { @MainActor in

@@ -232,16 +232,10 @@ struct SendOffersView: View {
                 Text("$")
                     .font(Theme.syne(22, weight: .bold))
                     .foregroundStyle(campusTheme.primary)
-                TextField("", text: $customAmountText, prompt: Text("Custom amount").foregroundColor(campusTheme.textMuted))
-                    .keyboardType(.decimalPad)
-                    .font(Theme.syne(22, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .tint(campusTheme.primary)
-                    .focused($customFocused)
+                MoneyCentsField(text: $customAmountText, fontSize: 22, textColor: campusTheme.textPrimary, floorAtZero: true)
+                    .frame(height: 28)
                     .onChange(of: customAmountText) { value in
-                        let cleaned = MoneyAmount.sanitized(value)
-                        if cleaned != value { customAmountText = cleaned }
-                        if !cleaned.isEmpty { selectedPercent = nil } else if selectedPercent == nil { selectedPercent = 15 }
+                        if value != "0.00" && !value.isEmpty { selectedPercent = nil } else if selectedPercent == nil { selectedPercent = 15 }
                     }
                 if !customAmountText.isEmpty {
                     Button {
@@ -376,7 +370,7 @@ struct SendOffersView: View {
             async let buyersTask = productService.interestedBuyers(id: productId)
             let (p, b) = try await (productTask, buyersTask)
             product = p
-            buyers = b.filter { !AccountPrefsStore.isBlocked($0.id) }
+            buyers = b.filter { !BlockStore.shared.isHidden($0.id) }
             selected = Set(buyers.map(\.id))
         } catch {
             loadError = error.localizedDescription

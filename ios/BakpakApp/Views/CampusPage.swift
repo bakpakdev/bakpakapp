@@ -229,7 +229,8 @@ struct CampusProductGridScreen: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            products = try await load()
+            await BlockStore.shared.refreshIfNeeded()
+            products = BlockStore.shared.filterProducts(try await load())
             error = nil
         } catch {
             self.error = error.localizedDescription

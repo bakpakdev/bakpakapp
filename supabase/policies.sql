@@ -437,17 +437,47 @@ CREATE POLICY "offers_update_parties"
     )
   );
 
--- blocks
+-- blocks (either party can read so mutual hide works; only blocker can write)
 DROP POLICY IF EXISTS "blocks_own" ON public.user_blocks;
-CREATE POLICY "blocks_own"
-  ON public.user_blocks FOR ALL TO authenticated
-  USING (blocker_id = auth.uid()) WITH CHECK (blocker_id = auth.uid());
+DROP POLICY IF EXISTS "blocks_select_involved" ON public.user_blocks;
+CREATE POLICY "blocks_select_involved"
+  ON public.user_blocks FOR SELECT TO authenticated
+  USING (blocker_id = auth.uid() OR blocked_id = auth.uid());
+
+DROP POLICY IF EXISTS "blocks_insert_own" ON public.user_blocks;
+CREATE POLICY "blocks_insert_own"
+  ON public.user_blocks FOR INSERT TO authenticated
+  WITH CHECK (blocker_id = auth.uid());
+
+DROP POLICY IF EXISTS "blocks_delete_own" ON public.user_blocks;
+CREATE POLICY "blocks_delete_own"
+  ON public.user_blocks FOR DELETE TO authenticated
+  USING (blocker_id = auth.uid());
+
+DROP POLICY IF EXISTS "blocks_update_own" ON public.user_blocks;
+CREATE POLICY "blocks_update_own"
+  ON public.user_blocks FOR UPDATE TO authenticated
+  USING (blocker_id = auth.uid())
+  WITH CHECK (blocker_id = auth.uid());
 
 -- listing_reports
 DROP POLICY IF EXISTS "reports_insert" ON public.listing_reports;
 CREATE POLICY "reports_insert"
   ON public.listing_reports FOR INSERT TO authenticated
   WITH CHECK (reporter_id = auth.uid());
+
+-- user_reports
+ALTER TABLE public.user_reports ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "user_reports_insert" ON public.user_reports;
+CREATE POLICY "user_reports_insert"
+  ON public.user_reports FOR INSERT TO authenticated
+  WITH CHECK (reporter_id = auth.uid());
+
+DROP POLICY IF EXISTS "user_reports_select_own" ON public.user_reports;
+CREATE POLICY "user_reports_select_own"
+  ON public.user_reports FOR SELECT TO authenticated
+  USING (reporter_id = auth.uid());
 
 -- notifications
 DROP POLICY IF EXISTS "notif_own" ON public.notifications;

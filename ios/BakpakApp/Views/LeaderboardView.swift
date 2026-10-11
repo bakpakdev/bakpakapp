@@ -281,7 +281,8 @@ struct LeaderboardView: View {
     private func reload() async {
         isLoading = true
         defer { isLoading = false }
-        entries = await SellerRankService.shared.loadLeaderboard(
+        await BlockStore.shared.refreshIfNeeded()
+        let loaded = await SellerRankService.shared.loadLeaderboard(
             schoolID: campusTheme.schoolID,
             schoolName: authVM.user?.country,
             shortName: campusTheme.shortName,
@@ -291,6 +292,7 @@ struct LeaderboardView: View {
             currentSoldHint: nil,
             range: range
         )
+        entries = loaded.filter { !BlockStore.shared.isHidden($0.id) }
     }
 
     private func scrollToCurrentUser(_ proxy: ScrollViewProxy) {

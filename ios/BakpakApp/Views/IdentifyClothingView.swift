@@ -235,11 +235,11 @@ struct IdentifyClothingView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 24)
+                .padding(.bottom, PopupTabBar.clearance)
             }
 
-            VStack(spacing: 10) {
-                if !photos.isEmpty {
+            if !photos.isEmpty {
+                VStack(spacing: 10) {
                     Button {
                         Motion.haptic(.medium)
                         Task { await identifyPhotos() }
@@ -251,21 +251,40 @@ struct IdentifyClothingView: View {
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
                     .disabled(isIdentifying)
-                }
 
-                Button {
-                    onSkip()
-                } label: {
-                    Text("Enter details manually")
-                        .font(Theme.syne(13, weight: .semibold))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .padding(.top, photos.isEmpty ? 2 : 0)
+                    skipScanButton
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, PopupTabBar.clearance)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 24)
         }
+    }
+
+    private var skipScanButton: some View {
+        Button {
+            Motion.haptic(.light)
+            onSkip()
+        } label: {
+            VStack(spacing: 4) {
+                Text("Skip scan, type details")
+                    .font(Theme.syne(15, weight: .bold))
+                Text("Fill in title, brand, and price yourself")
+                    .font(Theme.syne(12, weight: .medium))
+                    .opacity(0.8)
+            }
+            .foregroundStyle(campusTheme.textPrimary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(campusTheme.elevatedSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(campusTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+        .accessibilityLabel("Skip scan and type listing details yourself")
     }
 
     private var cameraFirstPrompt: some View {
@@ -311,7 +330,9 @@ struct IdentifyClothingView: View {
             Text("Pick up to 5 photos from your camera roll")
                 .font(Theme.syne(12))
                 .foregroundStyle(campusTheme.textMuted)
-                .padding(.bottom, 4)
+
+            skipScanButton
+                .padding(.top, 4)
         }
         .padding(16)
         .frame(maxWidth: .infinity)
@@ -464,8 +485,8 @@ struct IdentifyClothingView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 16)
             .padding(.top, 8)
+            .padding(.bottom, PopupTabBar.clearance)
         }
     }
 
@@ -577,13 +598,17 @@ struct IdentifyClothingView: View {
                     }
                     .pickerStyle(.segmented)
                 case .price:
-                    TextField("Price", text: $draftPrice)
-                        .keyboardType(.decimalPad)
-                        .textFieldStyle(IdentifyFieldStyle())
-                        .onChange(of: draftPrice) { value in
-                            let cleaned = MoneyAmount.sanitized(value)
-                            if cleaned != value { draftPrice = cleaned }
-                        }
+                    HStack(spacing: 8) {
+                        Text("$")
+                            .font(Theme.syne(18, weight: .semibold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                        MoneyCentsField(text: $draftPrice, fontSize: 18, textColor: campusTheme.textPrimary)
+                            .frame(height: 24)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(campusTheme.elevatedSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 case .condition:
                     Picker("Condition", selection: $draftConditionID) {
                         Text("Select").tag("")
@@ -745,7 +770,7 @@ struct IdentifyClothingView: View {
         draftDepartment = identified.department ?? "unisex"
         draftConditionID = SellListingLookups.conditionID(from: identified.condition)
         draftSizeID = SellListingLookups.sizeID(from: identified.size)
-        draftPrice = SellListingLookups.priceString(identified.suggestedPrice)
+        draftPrice = MoneyAmount.formatted(identified.suggestedPrice ?? 0)
         draftPriceMin = identified.suggestedPriceMin
         draftPriceMax = identified.suggestedPriceMax
         if draftPriceMin != nil, draftPriceMax != nil {

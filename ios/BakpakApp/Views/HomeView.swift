@@ -147,6 +147,7 @@ struct HomeView: View {
     @StateObject private var vm = ProductListViewModel()
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var blockStore: BlockStore
     @Environment(\.campusTheme) private var campusTheme
 
     @State private var selectedCategory: String? = "All"
@@ -161,10 +162,9 @@ struct HomeView: View {
     ]
 
     private var clothingProducts: [Product] {
+        let _ = blockStore.revision
         let filtered = vm.products.filter { product in
-            if let sellerId = product.user?.id, AccountPrefsStore.isBlocked(sellerId) {
-                return false
-            }
+            guard blockStore.isVisibleSeller(of: product) else { return false }
             guard let category = product.category?.lowercased() else { return false }
             return homeClothingCategories.contains(category)
         }
@@ -259,6 +259,7 @@ struct HomeView: View {
             }
         }
         .task {
+            await blockStore.refreshIfNeeded()
             await reloadProducts()
             await loadNotificationBadge()
         }

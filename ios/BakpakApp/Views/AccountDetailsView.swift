@@ -5,9 +5,16 @@ struct AccountDetailsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.campusTheme) private var campusTheme
 
-    @State private var graduationDate = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 15)) ?? Date()
+    @State private var graduationMonth = 6
+    @State private var graduationYear = 2026
+    @State private var draftMonth = 6
+    @State private var draftYear = 2026
+    @State private var showGraduationPicker = false
     @State private var isSaving = false
     @State private var comingSoonMessage: String?
+
+    private let graduationMonths = Calendar.current.monthSymbols
+    private let graduationYears = Array(2020...2034)
 
     private var emailDisplay: String {
         let email = authVM.user?.email?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -16,6 +23,10 @@ struct AccountDetailsView: View {
 
     private var universityDisplay: String {
         campusTheme.fullName
+    }
+
+    private var graduationLabel: String {
+        "\(graduationMonths[graduationMonth - 1]) \(graduationYear)"
     }
 
     var body: some View {
@@ -79,25 +90,45 @@ struct AccountDetailsView: View {
                                 .multilineTextAlignment(.trailing)
                                 .frame(maxWidth: 200, alignment: .trailing)
                         }
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Graduation")
-                                .font(Theme.syne(15, weight: .medium))
-                                .foregroundStyle(campusTheme.textPrimary)
-                            DatePicker(
-                                "Graduation date",
-                                selection: $graduationDate,
-                                in: graduationRange,
-                                displayedComponents: .date
-                            )
-                            .datePickerStyle(.wheel)
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 140)
-                            .clipped()
+                        EditProfileRow(label: "Graduation", showDivider: false) {
+                            Button {
+                                draftMonth = graduationMonth
+                                draftYear = graduationYear
+                                showGraduationPicker = true
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text(graduationLabel)
+                                        .font(Theme.syne(15, weight: .medium))
+                                        .foregroundStyle(campusTheme.primary)
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(campusTheme.textMuted)
+                                }
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 12)
                     }
+
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        Group {
+                            if isSaving {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("Save")
+                                    .font(Theme.syne(15, weight: .semibold))
+                            }
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(campusTheme.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                    .disabled(isSaving)
+                    .padding(.top, 28)
 
                     Button {
                         // Account deletion flow — hook to backend when available
@@ -111,7 +142,7 @@ struct AccountDetailsView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-                    .padding(.top, 28)
+                    .padding(.top, 12)
                     .padding(.bottom, 40)
                 }
                 .padding(.horizontal, 16)
@@ -124,25 +155,6 @@ struct AccountDetailsView: View {
                     .font(Theme.syne(17, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
             }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    Task { await save() }
-                } label: {
-                    if isSaving {
-                        ProgressView().tint(campusTheme.primary)
-                    } else {
-                        Text("Save")
-                            .font(Theme.syne(14, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .background(campusTheme.primary)
-                            .clipShape(Capsule())
-                    }
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
-                .disabled(isSaving)
-            }
         }
         .toolbarBackground(campusTheme.surface.opacity(0.9), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
@@ -150,6 +162,12 @@ struct AccountDetailsView: View {
         .preferredColorScheme(campusTheme.isDark ? .dark : .light)
         .tint(campusTheme.primary)
         .onAppear { load() }
+        .sheet(isPresented: $showGraduationPicker) {
+            graduationPickerSheet
+                .environment(\.campusTheme, campusTheme)
+                .presentationDetents([.height(340)])
+                .presentationDragIndicator(.visible)
+        }
         .alert("Account", isPresented: Binding(
             get: { comingSoonMessage != nil },
             set: { if !$0 { comingSoonMessage = nil } }
@@ -160,11 +178,60 @@ struct AccountDetailsView: View {
         }
     }
 
-    private var graduationRange: ClosedRange<Date> {
-        let cal = Calendar.current
-        let start = cal.date(from: DateComponents(year: 2020, month: 1, day: 1)) ?? Date()
-        let end = cal.date(from: DateComponents(year: 2034, month: 12, day: 31)) ?? Date()
-        return start...end
+    private var graduationPickerSheet: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button("Cancel") {
+                    showGraduationPicker = false
+                }
+                .font(Theme.syne(15, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+
+                Spacer()
+
+                Text("Graduation")
+                    .font(Theme.syne(16, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+
+                Spacer()
+
+                Button("Save") {
+                    graduationMonth = draftMonth
+                    graduationYear = draftYear
+                    showGraduationPicker = false
+                }
+                .font(Theme.syne(15, weight: .bold))
+                .foregroundStyle(campusTheme.primary)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 8)
+
+            HStack(spacing: 0) {
+                Picker("Month", selection: $draftMonth) {
+                    ForEach(1...12, id: \.self) { month in
+                        Text(graduationMonths[month - 1]).tag(month)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(maxWidth: .infinity)
+                .clipped()
+
+                Picker("Year", selection: $draftYear) {
+                    ForEach(graduationYears, id: \.self) { year in
+                        Text(String(year)).tag(year)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(maxWidth: .infinity)
+                .clipped()
+            }
+            .frame(height: 180)
+            .padding(.horizontal, 8)
+
+            Spacer(minLength: 0)
+        }
+        .background(campusTheme.background.ignoresSafeArea())
     }
 
     private func load() {
@@ -175,19 +242,19 @@ struct AccountDetailsView: View {
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.dateFormat = "yyyy-MM-dd"
             if let parsed = formatter.date(from: stored) {
-                graduationDate = parsed
-            } else if let year = Int(stored), year >= 2020, year <= 2034 {
-                graduationDate = Calendar.current.date(from: DateComponents(year: year, month: 6, day: 15)) ?? graduationDate
+                let parts = Calendar.current.dateComponents([.year, .month], from: parsed)
+                if let month = parts.month { graduationMonth = month }
+                if let year = parts.year, graduationYears.contains(year) { graduationYear = year }
+            } else if let year = Int(stored), graduationYears.contains(year) {
+                graduationYear = year
+                graduationMonth = 6
             }
         }
     }
 
     private func saveLocal() {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        UserDefaults.standard.set(formatter.string(from: graduationDate), forKey: EditProfilePrefs.gradYear)
+        let value = String(format: "%04d-%02d-15", graduationYear, graduationMonth)
+        UserDefaults.standard.set(value, forKey: EditProfilePrefs.gradYear)
     }
 
     private func save() async {

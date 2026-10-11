@@ -1,21 +1,29 @@
 <!DOCTYPE html>
 <html>
-<body style="margin:0;padding:32px;background:#0A0A0A;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#FAFAFA;">
-  <div style="max-width:440px;margin:0 auto;">
-    <p style="font-size:28px;font-weight:800;letter-spacing:1px;margin:0 0 24px;">popup</p>
-    <p style="font-size:18px;font-weight:600;margin:0 0 12px;">Confirm your campus email</p>
-    <p style="font-size:15px;line-height:1.5;color:#A3A3A3;margin:0 0 28px;">
-      Tap below to verify this is your school email and finish creating your popup account.
-      This link expires, so use it soon.
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Confirm your email · popup</title>
+</head>
+<body style="margin:0;padding:0;background:#0A0A0A;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#FAFAFA;">
+  <div style="max-width:440px;margin:0 auto;padding:40px 28px;">
+    <p style="font-size:32px;font-weight:900;letter-spacing:-0.5px;margin:0 0 36px;">popup</p>
+
+    <p style="font-size:22px;font-weight:700;letter-spacing:-0.3px;margin:0 0 12px;">Confirm your campus email</p>
+    <p style="font-size:15px;line-height:1.55;color:#A3A3A3;margin:0 0 28px;">
+      You’re almost in. Tap the button below to open the popup app, then tap
+      <strong style="color:#FAFAFA;">Confirm email</strong> to finish verifying your school address.
     </p>
-    <p>
+
+    <p style="margin:0 0 16px;">
       <a href="{{ .ConfirmationURL }}"
-         style="display:inline-block;background:#FAFAFA;color:#0A0A0A;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:999px;">
-        Open popup
+         style="display:inline-block;background:#FAFAFA;color:#0A0A0A;text-decoration:none;font-weight:700;font-size:16px;padding:16px 28px;border-radius:999px;">
+        Open popup &amp; confirm
       </a>
     </p>
-    <p style="font-size:12px;color:#737373;margin-top:32px;">
-      If you didn’t sign up for popup, you can ignore this email.
+
+    <p style="font-size:13px;line-height:1.5;color:#737373;margin:28px 0 0;">
+      This link expires soon. If you didn’t create a popup account, you can ignore this email.
     </p>
   </div>
 </body>

@@ -23,6 +23,7 @@ struct UserProfileView: View {
 
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var blockStore: BlockStore
     @Environment(\.campusTheme) private var campusTheme
 
     @State private var user: User?
@@ -40,6 +41,7 @@ struct UserProfileView: View {
     @State private var showLeaveReview = false
     @State private var isBlocked = false
     @State private var showBlockConfirm = false
+    @State private var isUnavailable = false
 
     private let service = ProductService()
     private let feedColumns = 3
@@ -104,7 +106,19 @@ struct UserProfileView: View {
                     .offset(x: 175, y: 20)
                     .allowsHitTesting(false)
 
-                if isLoading && user == nil {
+                if isUnavailable {
+                    VStack(spacing: 12) {
+                        Image(systemName: "person.slash")
+                            .font(.system(size: 36, weight: .medium))
+                            .foregroundStyle(campusTheme.textMuted)
+                        Text("User unavailable")
+                            .font(Theme.syne(17, weight: .bold))
+                        Text("You can’t view this profile.")
+                            .font(Theme.syne(14))
+                            .foregroundStyle(campusTheme.textMuted)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if isLoading && user == nil {
                     ProgressView()
                         .tint(campusTheme.primary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -165,13 +179,15 @@ struct UserProfileView: View {
         .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !isOwnProfile {
+            if !isOwnProfile && !isUnavailable {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         if isBlocked {
-                            AccountPrefsStore.unblock(userId: userId)
-                            isBlocked = false
-                            Motion.haptic(.light)
+                            Task {
+                                await blockStore.unblock(userId: userId)
+                                isBlocked = false
+                                Motion.haptic(.light)
+                            }
                         } else {
                             showBlockConfirm = true
                         }
@@ -183,22 +199,39 @@ struct UserProfileView: View {
                 }
             }
         }
-        .confirmationDialog("Block \(displayName)?", isPresented: $showBlockConfirm, titleVisibility: .visible) {
-            Button("Block", role: .destructive) {
-                AccountPrefsStore.block(userId: userId, name: displayName)
-                isBlocked = true
-                if isFollowing {
-                    Task { await toggleFollow() }
-                }
-                Motion.haptic(.medium)
+        .overlay {
+            if showBlockConfirm {
+                ConfirmActionCard(
+                    title: "block \(displayName)?",
+                    message: "You won’t see each other in search, shop, or chat. Unblock anytime in Privacy.",
+                    confirmTitle: "Block",
+                    confirmIcon: "hand.raised.fill",
+                    onConfirm: {
+                        showBlockConfirm = false
+                        Task {
+                            await blockStore.block(userId: userId, name: displayName)
+                            isBlocked = true
+                            if isFollowing {
+                                await toggleFollow()
+                            }
+                            Motion.haptic(.medium)
+                        }
+                    },
+                    onCancel: { showBlockConfirm = false }
+                )
+                .ignoresSafeArea()
+                .zIndex(20)
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("They won’t show in your inbox, and you can unblock them later in Privacy.")
         }
         .campusScreenStyle()
         .task {
-            isBlocked = AccountPrefsStore.isBlocked(userId)
+            await blockStore.refreshIfNeeded()
+            isBlocked = blockStore.didIBlock(userId)
+            if blockStore.isHidden(userId) && !isBlocked && !isOwnProfile {
+                isUnavailable = true
+                isLoading = false
+                return
+            }
             await reload()
         }
         .sheet(isPresented: $showLeaveReview) {
@@ -335,15 +368,23 @@ struct UserProfileView: View {
                     .clipShape(Capsule())
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+        } else if isUnavailable {
+            Text("This user isn’t available.")
+                .font(Theme.syne(14, weight: .semibold))
+                .foregroundStyle(campusTheme.textMuted)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
         } else if isBlocked {
             VStack(spacing: 10) {
                 Text("you blocked this person")
                     .font(Theme.syne(14, weight: .semibold))
                     .foregroundStyle(campusTheme.textMuted)
                 Button {
-                    AccountPrefsStore.unblock(userId: userId)
-                    isBlocked = false
-                    Motion.haptic(.light)
+                    Task {
+                        await blockStore.unblock(userId: userId)
+                        isBlocked = false
+                        Motion.haptic(.light)
+                    }
                 } label: {
                     Text("unblock")
                         .font(Theme.syne(15, weight: .semibold))

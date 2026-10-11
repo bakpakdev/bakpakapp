@@ -879,16 +879,11 @@ struct CreateListingView: View {
                             Text("$")
                                 .font(Theme.syne(18, weight: .semibold))
                                 .padding(.leading, 14)
-                            TextField("0", text: $price)
-                                .keyboardType(.decimalPad)
-                                .font(Theme.syne(18, weight: .semibold))
+                            MoneyCentsField(text: $price, fontSize: 18, textColor: campusTheme.textPrimary)
+                                .frame(height: 24)
                                 .padding(.leading, 4)
                                 .padding(.trailing, 14)
                                 .padding(.vertical, 12)
-                                .onChange(of: price) { value in
-                                    let cleaned = MoneyAmount.sanitized(value)
-                                    if cleaned != value { price = cleaned }
-                                }
                         }
                         .background(campusTheme.elevatedSurface)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -1195,10 +1190,11 @@ struct CreateListingView: View {
 
     private func priceQuickPickButton(title: String, value: Double) -> some View {
         let label = SellListingLookups.priceString(value)
-        let isSelected = price == label
+        let seeded = MoneyAmount.formatted(value)
+        let isSelected = price == seeded || price == label
         return Button {
             Motion.haptic(.light)
-            price = label
+            price = seeded
         } label: {
             VStack(spacing: 4) {
                 Text(title)
@@ -1287,8 +1283,7 @@ struct CreateListingView: View {
             postError = "Sign in to post a listing."
             return
         }
-        let normalized = price.replacingOccurrences(of: ",", with: ".")
-        guard let priceValue = Double(normalized), priceValue > 0 else {
+        guard let priceValue = MoneyAmount.parse(price), priceValue > 0 else {
             postError = "Enter a valid price."
             return
         }
@@ -1384,12 +1379,11 @@ struct CreateListingView: View {
         selectedBrand = prefill.brand
         selectedConditionID = prefill.conditionID
         selectedSizeID = prefill.sizeID
-        price = prefill.price
+        price = MoneyAmount.formatted(MoneyAmount.parse(prefill.price) ?? 0)
         priceRangeMin = prefill.priceMin
         priceRangeMax = prefill.priceMax
-        if price.isEmpty, let min = prefill.priceMin, let max = prefill.priceMax {
-            let mid = (min + max) / 2
-            price = SellListingLookups.priceString(mid)
+        if price == "0.00" || price.isEmpty, let min = prefill.priceMin, let max = prefill.priceMax {
+            price = MoneyAmount.formatted((min + max) / 2)
         }
         if !prefill.garmentType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            let match = matchSellCatalog(type: prefill.garmentType, department: prefill.department) {

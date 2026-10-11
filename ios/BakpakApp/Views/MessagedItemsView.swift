@@ -138,7 +138,9 @@ struct MessagedItemsView: View {
         isLoading = true
         errorMessage = nil
         do {
-            items = try await service.messagedListings()
+            await BlockStore.shared.refreshIfNeeded()
+            let fetched = try await service.messagedListings()
+            items = fetched.filter { !BlockStore.shared.isHidden($0.otherUserId) }
         } catch {
             errorMessage = error.localizedDescription
         }

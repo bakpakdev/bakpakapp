@@ -1,6 +1,14 @@
 import SwiftUI
 import UIKit
 
+/// Custom tab chrome sits in a `safeAreaInset`, but some full-height tabs still draw under it.
+/// Keep this in sync with `customTabBar` (58pt sell button + 12 inner + 12 outer).
+enum PopupTabBar {
+    static let height: CGFloat = 82
+    static let gap: CGFloat = 18
+    static var clearance: CGFloat { height + gap }
+}
+
 struct MainTabView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.campusTheme) private var campusTheme
@@ -36,10 +44,9 @@ struct MainTabView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !appState.hidesTabBar {
                 customTabBar
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(Motion.snappy, value: appState.hidesTabBar)
+        .animation(nil, value: appState.hidesTabBar)
         .toolbar(.hidden, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
         .navigationBarHidden(true)
@@ -60,8 +67,11 @@ struct MainTabView: View {
         }
         .onChange(of: appState.selectedTab) { tab in
             nukeSystemTabBar()
-            if tab != .messages {
+            // Chat and focused search manage tab-bar visibility themselves.
+            if tab != .messages && tab != .search {
                 appState.hidesTabBar = false
+            }
+            if tab != .messages {
                 Task { await appState.refreshInboxUnread() }
             }
         }

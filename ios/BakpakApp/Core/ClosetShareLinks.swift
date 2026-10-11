@@ -50,6 +50,7 @@ enum ClosetShareLinks {
             if host == "profile" {
                 let id = pathToken(url)
                 guard !id.isEmpty else { return false }
+                if BlockStore.shared.isHidden(id) { return true }
                 appState.openSharedCloset(userId: id)
                 return true
             }

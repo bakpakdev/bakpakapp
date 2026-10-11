@@ -5,6 +5,7 @@ struct ProductDetailView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
     @EnvironmentObject private var meetupStore: MeetupStore
+    @EnvironmentObject private var blockStore: BlockStore
     @Environment(\.campusTheme) private var campusTheme
     @Environment(\.dismiss) private var dismiss
 
@@ -797,14 +798,10 @@ struct ProductDetailView: View {
                     Text("$")
                         .font(Theme.syne(22, weight: .bold))
                         .foregroundStyle(campusTheme.primary)
-                    TextField("Custom offer", text: $customOfferText)
-                        .keyboardType(.decimalPad)
-                        .font(Theme.syne(22, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
+                    MoneyCentsField(text: $customOfferText, fontSize: 22, textColor: campusTheme.textPrimary, floorAtZero: true)
+                        .frame(height: 28)
                         .onChange(of: customOfferText) { newValue in
-                            let cleaned = MoneyAmount.sanitized(newValue)
-                            if cleaned != newValue { customOfferText = cleaned }
-                            if !cleaned.isEmpty {
+                            if newValue != "0.00" && !newValue.isEmpty {
                                 selectedOfferPercent = nil
                             } else if selectedOfferPercent == nil {
                                 selectedOfferPercent = 15
@@ -1204,7 +1201,14 @@ struct ProductDetailView: View {
         errorMessage = nil
         defer { isLoading = false }
         do {
-            product = try await productService.product(id: productId)
+            await blockStore.refreshIfNeeded()
+            let fetched = try await productService.product(id: productId)
+            if blockStore.isHidden(fetched.user?.id) {
+                product = nil
+                errorMessage = "This listing isn’t available."
+                return
+            }
+            product = fetched
             stats = await productService.listingStats(id: productId)
             await loadReactions()
             if let sellerId = product?.user?.id,

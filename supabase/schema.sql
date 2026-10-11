@@ -284,6 +284,22 @@ CREATE TABLE public.listing_reports (
   )
 );
 
+CREATE TABLE public.user_reports (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reporter_id     UUID NOT NULL REFERENCES public.profiles (id) ON DELETE CASCADE,
+  reported_id     UUID NOT NULL REFERENCES public.profiles (id) ON DELETE CASCADE,
+  conversation_id UUID REFERENCES public.conversations (id) ON DELETE SET NULL,
+  product_id      UUID REFERENCES public.products (id) ON DELETE SET NULL,
+  reason          TEXT NOT NULL,
+  details         TEXT,
+  status          TEXT NOT NULL DEFAULT 'open',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT user_reports_status_check CHECK (
+    status IN ('open', 'reviewed', 'actioned', 'dismissed')
+  ),
+  CONSTRAINT user_reports_not_self CHECK (reporter_id <> reported_id)
+);
+
 CREATE TABLE public.notifications (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id    UUID NOT NULL REFERENCES public.profiles (id) ON DELETE CASCADE,

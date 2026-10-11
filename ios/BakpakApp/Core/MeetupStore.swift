@@ -38,10 +38,11 @@ final class MeetupStore: ObservableObject {
             .sorted { $0.scheduledAt > $1.scheduledAt }
     }
 
-    /// Soonest open meetup (pending or confirmed), preferring live then needs-response.
-    var heroMeetup: Meetup? {
+    /// Open meetups (pending or confirmed), sooner first — for the inbox carousel.
+    var heroMeetups: [Meetup] {
         meetups
             .filter { $0.status.isOpen && !isPast($0) }
+            .filter { !BlockStore.shared.isHidden($0.otherUserId(meId: meId)) }
             .sorted { lhs, rhs in
                 if lhs.isLive != rhs.isLive { return lhs.isLive }
                 let lNeed = lhs.needsMyResponse(meId: meId)
@@ -49,8 +50,10 @@ final class MeetupStore: ObservableObject {
                 if lNeed != rNeed { return lNeed }
                 return lhs.scheduledAt < rhs.scheduledAt
             }
-            .first
     }
+
+    /// Soonest open meetup (pending or confirmed), preferring live then needs-response.
+    var heroMeetup: Meetup? { heroMeetups.first }
 
     private func isPast(_ meetup: Meetup) -> Bool {
         if meetup.status.isTerminal { return true }
@@ -87,12 +90,14 @@ final class MeetupStore: ObservableObject {
     }
 
     func stop() {
-        Task { await teardownChannel() }
-        meetups = []
-        meId = ""
-        peersById = [:]
-        listingsById = [:]
-        MeetupNotificationScheduler.shared.clearAll()
+        Task { @MainActor in
+            await teardownChannel()
+            meetups = []
+            meId = ""
+            peersById = [:]
+            listingsById = [:]
+            MeetupNotificationScheduler.shared.clearAll()
+        }
     }
 
     func refresh() async {

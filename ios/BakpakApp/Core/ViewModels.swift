@@ -130,25 +130,19 @@ final class MessagesViewModel: ObservableObject {
             createdAt: now,
             sender: nil
         )
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.78, blendDuration: 0.12)) {
-            messages.append(optimistic)
-        }
+        messages.append(optimistic)
         isSending = true
         errorMessage = nil
 
         do {
             let sent = try await service.send(conversationId: conversationId, content: trimmed)
             if let idx = messages.firstIndex(where: { $0.id == tempId }) {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    messages[idx] = sent
-                }
+                messages[idx] = sent
             } else {
                 upsertMessage(sent)
             }
         } catch {
-            withAnimation {
-                messages.removeAll { $0.id == tempId }
-            }
+            messages.removeAll { $0.id == tempId }
             errorMessage = error.localizedDescription
         }
         isSending = false
