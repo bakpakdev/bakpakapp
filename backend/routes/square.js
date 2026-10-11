@@ -420,11 +420,13 @@ router.post('/cashout', protectSupabase, requireSquareOAuth, async (req, res) =>
       .single();
     if (balanceError) throw balanceError;
 
+    // Ledger-only for now: debit popup wallet + record a pending payout.
+    // Do not mark paid / claim bank arrival until a real Square transfer ships.
     await supabase
       .from('seller_payouts')
       .update({
-        status: 'paid',
-        stripe_transfer_id: `square:${payoutRow.id}`,
+        status: 'pending',
+        stripe_transfer_id: `square-ledger:${payoutRow.id}`,
         updated_at: new Date().toISOString(),
       })
       .eq('id', payoutRow.id);
@@ -432,12 +434,15 @@ router.post('/cashout', protectSupabase, requireSquareOAuth, async (req, res) =>
     res.json({
       requiresOnboarding: false,
       amountCents,
-      message: 'Cash out sent. Funds usually arrive in 1–2 business days.',
+      message:
+        'Cash out recorded in your popup wallet. Bank transfers aren’t live yet — your balance is reserved until payouts ship.',
+      ledgerOnly: true,
       status: {
         configured: true,
         connected: true,
         onboardingComplete: true,
-        payoutsEnabled: true,
+        // Connected + bank linked for UI, but cash-out is still ledger-only.
+        payoutsEnabled: false,
         chargesEnabled: true,
         detailsSubmitted: true,
         requiresAction: false,

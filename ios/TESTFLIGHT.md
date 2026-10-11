@@ -60,9 +60,46 @@ Heads-up: 38BTDK54M3 is an **Individual** team. That's fine for TestFlight, App 
 Apple Pay, but Apple only grants **Tap to Pay on iPhone** to Organization teams (needs a
 D-U-N-S number / legal entity). Ship with the default `PopupApp.entitlements` until that's sorted.
 
-## 3. Payments (can come after the first TestFlight build)
+## 3. Payments (sandbox on Render — do this before TestFlight pay smoke)
 
-Apple Pay
+Live API host: `https://popup-api-hwbg.onrender.com`
+
+### 3a. Render environment (copy from local `backend/.env`)
+
+In Render → `popup-api-hwbg` → Environment, set:
+
+| Key | Value |
+|---|---|
+| `SQUARE_ENVIRONMENT` | `sandbox` |
+| `SQUARE_APPLICATION_ID` | from local `.env` |
+| `SQUARE_APPLICATION_SECRET` | from local `.env` |
+| `SQUARE_ACCESS_TOKEN` | from local `.env` |
+| `SQUARE_LOCATION_ID` | from local `.env` |
+| `PUBLIC_BASE_URL` | `https://popup-api-hwbg.onrender.com` |
+| `SQUARE_OAUTH_REDIRECT_URI` | `https://popup-api-hwbg.onrender.com/api/payments/square/oauth/callback` |
+| `SQUARE_WEBHOOK_NOTIFICATION_URL` | `https://popup-api-hwbg.onrender.com/api/payments/square/webhook` |
+| `SQUARE_WEBHOOK_SIGNATURE_KEY` | from Square webhook (after 3b) |
+
+Redeploy, then open `https://popup-api-hwbg.onrender.com/api/payments/health`.
+Expect `squareConfigured: true`, `squareCanTakePayments: true`, and `publicBaseUrl` = the hwbg host.
+`missingSquareEnv` should be `[]`.
+
+### 3b. Square Developer Dashboard (sandbox app)
+
+1. OAuth → Redirect URL:  
+   `https://popup-api-hwbg.onrender.com/api/payments/square/oauth/callback`
+2. Webhooks → `payment.created` + `payment.updated` →  
+   `https://popup-api-hwbg.onrender.com/api/payments/square/webhook`  
+   Paste the signature key into Render `SQUARE_WEBHOOK_SIGNATURE_KEY`.
+
+### 3c. Smoke test (card entry; Apple Pay optional)
+
+1. iOS Secrets already has `API_BASE_URL_RELEASE` → hwbg `/api` and sandbox `SQUARE_APPLICATION_ID`.
+2. Buyer meetup pay → **Pay with card** → Square sandbox test card.
+3. Expect charge `COMPLETED`, listing sold, seller wallet credited.
+4. Cash out is **ledger-only** for now (wallet reserved; no bank push yet).
+
+Apple Pay (later)
 1. Identifiers → Merchant IDs → `merchant.com.popup.app`.
 2. App ID `com.popup.app` → enable Apple Pay → select that merchant.
 3. Square dashboard → Apple Pay → upload the payment processing certificate for that merchant.
@@ -78,6 +115,7 @@ Tap to Pay on iPhone (sellers collecting in person)
 Square production
 - Swap `SQUARE_APPLICATION_ID` to the `sq0idp-...` production app ID and the backend
   `SQUARE_ENVIRONMENT=production` + production tokens before real money moves.
+  Also switch scanner `OPENAI_MODEL=openai-sol` on Render when you go live.
 
 ## 4. Archive and upload
 

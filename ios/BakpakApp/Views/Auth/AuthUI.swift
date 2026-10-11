@@ -1,5 +1,29 @@
 import SwiftUI
 
+// MARK: - Soft glow background (same treatment as CampusPageBackground, PopupBrand colors)
+
+struct AuthPageBackground: View {
+    var body: some View {
+        ZStack(alignment: .top) {
+            PopupBrand.background.ignoresSafeArea()
+
+            Circle()
+                .fill(Color.white.opacity(0.07))
+                .frame(width: 300, height: 300)
+                .blur(radius: 55)
+                .offset(x: -150, y: -110)
+
+            Circle()
+                .fill(Color.white.opacity(0.045))
+                .frame(width: 260, height: 260)
+                .blur(radius: 60)
+                .offset(x: 175, y: 20)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .allowsHitTesting(false)
+    }
+}
+
 // MARK: - Shared auth field / button
 
 struct AuthFieldStyle: ViewModifier {
@@ -7,10 +31,12 @@ struct AuthFieldStyle: ViewModifier {
         content
             .padding(.horizontal, 12)
             .frame(height: 46)
-            .background(PopupBrand.field)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(PopupBrand.field)
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(PopupBrand.border, lineWidth: 1)
             )
             .foregroundStyle(PopupBrand.textPrimary)
@@ -40,8 +66,10 @@ struct AuthPrimaryButton<Label: View>: View {
             .foregroundStyle(PopupBrand.buttonText)
             .frame(maxWidth: .infinity)
             .frame(height: 52)
-            .background(PopupBrand.button)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(PopupBrand.button)
+            )
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
     }
@@ -53,7 +81,7 @@ struct AuthScreenChrome<Content: View>: View {
 
     var body: some View {
         ZStack {
-            PopupBrand.background.ignoresSafeArea()
+            AuthPageBackground()
 
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 12) {
@@ -65,8 +93,14 @@ struct AuthScreenChrome<Content: View>: View {
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(PopupBrand.textPrimary)
                             .frame(width: 36, height: 36)
-                            .background(PopupBrand.field)
-                            .clipShape(Circle())
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(PopupBrand.field)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(PopupBrand.border, lineWidth: 1)
+                            )
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
 

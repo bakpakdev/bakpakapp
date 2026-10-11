@@ -435,7 +435,7 @@ struct SellerCashOutSetupView: View {
             Text("Cash out is ready")
                 .font(Theme.syne(20, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
-            Text("When you have a balance from Tap to Pay sales, tap Cash out in Account settings. Funds usually arrive in 1–2 business days.")
+            Text("When you have a balance from sales, tap Cash out in Account settings. Bank transfers aren’t live yet — cash out reserves your popup wallet until payouts ship.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
         }

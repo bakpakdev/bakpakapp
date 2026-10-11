@@ -195,23 +195,6 @@ struct CampusTheme: Equatable {
         }
     }
 
-    var tags: [String] {
-        switch shortName {
-        case "OSU":
-            return [
-                "Beaver Nation", "Reser Ready", "Thrift Queen", "Study Grind",
-                "Dorm Glow-Up", "Coffee Runner", "Game Day Fits", "Textbook Flipper",
-                "Late Night Library", "Orange Out Fits", "Vintage Hunter", "Campus Connector",
-            ]
-        default:
-            return [
-                "Duck Energy", "Autzen Ready", "Thrift Queen", "Study Grind",
-                "Dorm Glow-Up", "Coffee Runner", "Game Day Fits", "Textbook Flipper",
-                "Late Night Library", "Rainy Day Layers", "Vintage Hunter", "Campus Connector",
-            ]
-        }
-    }
-
     var wash: LinearGradient {
         LinearGradient(
             colors: [

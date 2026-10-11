@@ -6,7 +6,7 @@ struct WelcomeView: View {
 
     var body: some View {
         ZStack {
-            PopupBrand.background.ignoresSafeArea()
+            AuthPageBackground()
 
             VStack(spacing: 16) {
                 Spacer()
@@ -35,8 +35,10 @@ struct WelcomeView: View {
                             .foregroundStyle(PopupBrand.buttonText)
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
-                            .background(PopupBrand.button)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(PopupBrand.button)
+                            )
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
 

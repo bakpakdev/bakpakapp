@@ -186,7 +186,10 @@ struct ProductDetailView: View {
                 if isOwner { ownerManageScroll(product) }
                 else { buyerScroll(product) }
             } else if isLoading {
-                ProgressView().tint(campusTheme.primary)
+                SoftListingCardSkeleton()
+                    .padding(.horizontal, 20)
+                    .padding(.top, 80)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 Text(errorMessage ?? "Listing unavailable")
                     .font(Theme.syne(15, weight: .medium))

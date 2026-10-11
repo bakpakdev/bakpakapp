@@ -297,11 +297,11 @@ struct RegisterView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 14)
                     .background(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .fill(selectedSchool == school ? PopupBrand.field : PopupBrand.surface)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .stroke(
                                 selectedSchool == school ? PopupBrand.textPrimary.opacity(0.35) : PopupBrand.border,
                                 lineWidth: 1
@@ -344,10 +344,12 @@ struct RegisterView: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(PopupBrand.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(PopupBrand.surface)
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(PopupBrand.border, lineWidth: 1)
             )
 

@@ -7,7 +7,6 @@ private enum OnboardingStep: Int, CaseIterable {
     case campusWelcome = 1
     case username
     case photo
-    case tags
     case style
 }
 
@@ -16,7 +15,6 @@ private let onboardingStyleOptions = [
 ]
 
 private enum OnboardingPrefs {
-    static var tags: String { EditProfilePrefs.tags }
     static var styles: String { EditProfilePrefs.styles }
     static func requiredKey(userId: String) -> String { "popup.onboarding.required.\(userId)" }
 }
@@ -30,7 +28,6 @@ struct OnboardingFlowView: View {
     @State private var username = ""
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var photoImage: UIImage?
-    @State private var selectedTags: Set<String> = []
     @State private var selectedStyles: Set<String> = []
     @State private var localError: String?
     @State private var isSaving = false
@@ -55,8 +52,6 @@ struct OnboardingFlowView: View {
                         usernameStep
                     case .photo:
                         photoStep
-                    case .tags:
-                        tagsStep
                     case .style:
                         styleStep
                     }
@@ -74,11 +69,23 @@ struct OnboardingFlowView: View {
             } else {
                 ZStack {
                     PopupBrand.background
+                    // Soft campus glows (same language as CampusPageBackground).
+                    Circle()
+                        .fill(campus.primary.opacity(0.55))
+                        .frame(width: 300, height: 300)
+                        .blur(radius: 55)
+                        .offset(x: -150, y: -110)
+                    Circle()
+                        .fill(campus.secondary.opacity(0.4))
+                        .frame(width: 260, height: 260)
+                        .blur(radius: 60)
+                        .offset(x: 175, y: 20)
                     LinearGradient(
                         colors: [campus.primary, campus.secondary.opacity(0.85), campus.primary],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
+                    .opacity(0.88)
                 }
             }
         }
@@ -114,12 +121,14 @@ struct OnboardingFlowView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 14)
-                .background(Color.white.opacity(0.14))
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.white.opacity(0.14))
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .stroke(Color.white.opacity(0.28), lineWidth: 1)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
     }
@@ -134,7 +143,7 @@ struct OnboardingFlowView: View {
             canContinue: true,
             onContinue: { Task { await savePhotoAndAdvance() } },
             showSkip: true,
-            onSkip: { advance(to: .tags) }
+            onSkip: { advance(to: .style) }
         ) {
             VStack(spacing: 16) {
                 ZStack {
@@ -161,38 +170,16 @@ struct OnboardingFlowView: View {
                         .foregroundStyle(campus.primary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color.white)
+                        )
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                 .onChange(of: selectedPhoto) { item in
                     Task { await loadPhoto(item) }
                 }
             }
-        }
-    }
-
-    // MARK: Tags
-
-    private var tagsStep: some View {
-        onboardingChrome(
-            title: "Pick your campus tags",
-            subtitle: "Fun vibes for your profile. Choose any that feel like you.",
-            primaryTitle: "Continue",
-            canContinue: true,
-            onContinue: {
-                saveTags()
-                advance(to: .style)
-            },
-            showSkip: true,
-            onSkip: { advance(to: .style) }
-        ) {
-            FlowChipGrid(
-                options: campus.tags,
-                selection: $selectedTags,
-                accent: campus.primary,
-                campusTheme: true
-            )
         }
     }
 
@@ -268,8 +255,10 @@ struct OnboardingFlowView: View {
                     .foregroundStyle(campus.primary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color.white)
+                    )
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                 .opacity(canContinue && !isSaving ? 1 : 0.45)
@@ -362,7 +351,7 @@ struct OnboardingFlowView: View {
     private func savePhotoAndAdvance() async {
         localError = nil
         guard let photoImage else {
-            advance(to: .tags)
+            advance(to: .style)
             return
         }
 
@@ -371,7 +360,7 @@ struct OnboardingFlowView: View {
 
         guard let client = await SupabaseManager.shared.clientWithValidSession(),
               let data = photoImage.jpegData(compressionQuality: 0.82) else {
-            advance(to: .tags)
+            advance(to: .style)
             return
         }
 
@@ -386,21 +375,16 @@ struct OnboardingFlowView: View {
                 patch: .init(avatar_url: url.absoluteString)
             )
             authVM.user = updated
-            advance(to: .tags)
+            advance(to: .style)
         } catch {
             localError = "Couldn’t upload photo — you can skip or try again."
         }
-    }
-
-    private func saveTags() {
-        UserDefaults.standard.set(Array(selectedTags), forKey: OnboardingPrefs.tags)
     }
 
     private func finishOnboarding() async {
         isSaving = true
         defer { isSaving = false }
         UserDefaults.standard.set(Array(selectedStyles), forKey: OnboardingPrefs.styles)
-        saveTags()
         withAnimation(.easeInOut(duration: 0.55)) {
             contentOpacity = 0
         }
@@ -433,6 +417,20 @@ private struct CampusWelcomeStep: View {
     var body: some View {
         ZStack {
             PopupBrand.background.ignoresSafeArea()
+
+            // Soft campus glows under the existing color wash.
+            Circle()
+                .fill(campus.primary.opacity(0.55))
+                .frame(width: 300, height: 300)
+                .blur(radius: 55)
+                .offset(x: -150, y: -110)
+                .opacity(washOpacity)
+            Circle()
+                .fill(campus.secondary.opacity(0.4))
+                .frame(width: 260, height: 260)
+                .blur(radius: 60)
+                .offset(x: 175, y: 20)
+                .opacity(washOpacity)
 
             LinearGradient(
                 colors: [campus.primary, campus.secondary.opacity(0.85), campus.primary],
@@ -504,8 +502,10 @@ private struct CampusWelcomeStep: View {
                     .foregroundStyle(campus.primary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color.white)
+                    )
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
             .padding(.horizontal, 24)
@@ -602,11 +602,11 @@ private struct FlowChipGrid: View {
                         .padding(.vertical, 12)
                         .frame(maxWidth: .infinity)
                         .background(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .fill(chipFill(selected: selected))
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .stroke(chipStroke(selected: selected), lineWidth: 1)
                         )
                 }

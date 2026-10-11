@@ -794,11 +794,18 @@ final class AuthViewModel: ObservableObject {
                     user = nil
                     return
                 }
-                user = try await Self.fetchProfile(client: client)
+                let profile = try await Self.fetchProfile(client: client)
+                guard !Task.isCancelled else { return }
+                user = profile
                 isAuthenticated = true
+            } catch is CancellationError {
+                // Tab switches cancel Profile's `.task` — don't bounce to login.
+                return
             } catch {
-                isAuthenticated = false
-                user = nil
+                // Keep a signed-in session on transient network blips.
+                if !isAuthenticated {
+                    user = nil
+                }
             }
             return
         }
@@ -807,11 +814,16 @@ final class AuthViewModel: ObservableObject {
 
     private func refreshMeLegacy() async {
         do {
-            user = try await legacyAuth.me()
+            let me = try await legacyAuth.me()
+            guard !Task.isCancelled else { return }
+            user = me
             isAuthenticated = true
+        } catch is CancellationError {
+            return
         } catch {
-            isAuthenticated = false
-            user = nil
+            if !isAuthenticated {
+                user = nil
+            }
         }
     }
 

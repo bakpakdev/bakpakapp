@@ -36,7 +36,6 @@ private let styleOptions: [StyleOption] = [
 enum EditProfilePrefs {
     static var sizes: String { AccountScopedDefaults.key("popup.editProfile.sizes") }
     static var styles: String { AccountScopedDefaults.key("popup.editProfile.styles") }
-    static var tags: String { AccountScopedDefaults.key("popup.editProfile.tags") }
     static var tradesOpen: String { AccountScopedDefaults.key("popup.editProfile.tradesOpen") }
     static var showBadge: String { AccountScopedDefaults.key("popup.editProfile.showBadge") }
     static var allowDMs: String { AccountScopedDefaults.key("popup.editProfile.allowDMs") }
@@ -232,7 +231,6 @@ struct EditProfileView: View {
     @State private var bio = ""
     @State private var selectedSizes: Set<String> = []
     @State private var selectedStyles: Set<String> = []
-    @State private var selectedTags: [String] = []
     @State private var isTradesOpen = true
     @State private var showBadge = true
     @State private var instagram = ""
@@ -252,13 +250,8 @@ struct EditProfileView: View {
     @State private var isUploadingPhoto = false
 
     private let bioLimit = 150
-    private let maxTags = 10
 
     private var avatarURL: String { authVM.user?.avatar ?? "" }
-
-    private var suggestedTags: [String] {
-        campusTheme.tags
-    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -357,25 +350,6 @@ struct EditProfileView: View {
                                     }
                                 }
                             }
-                        }
-                        .padding(16)
-                    }
-
-                    EditProfileSectionHeader(title: "Profile Tags", subtitle: "Pick tags to show on your profile")
-                    EditProfileCard {
-                        VStack(alignment: .leading, spacing: 14) {
-                            EditProfileFlowLayout(spacing: 8) {
-                                ForEach(suggestedTags, id: \.self) { tag in
-                                    let selected = selectedTags.contains(tag)
-                                    EditProfileChip(label: tag, selected: selected) {
-                                        toggleTag(tag)
-                                    }
-                                }
-                            }
-
-                            Text("\(selectedTags.count)/\(maxTags) tags")
-                                .font(Theme.syne(11, weight: .medium))
-                                .foregroundStyle(campusTheme.textMuted)
                         }
                         .padding(16)
                     }
@@ -670,15 +644,6 @@ struct EditProfileView: View {
         }
     }
 
-    private func toggleTag(_ tag: String) {
-        if let idx = selectedTags.firstIndex(of: tag) {
-            selectedTags.remove(at: idx)
-        } else if selectedTags.count < maxTags {
-            selectedTags.append(tag)
-        }
-        Motion.haptic(.light)
-    }
-
     private var photoSection: some View {
         EditProfileCard {
             VStack(spacing: 14) {
@@ -763,10 +728,6 @@ struct EditProfileView: View {
         if let styles = d.array(forKey: EditProfilePrefs.styles) as? [String] {
             selectedStyles = Set(styles)
         }
-        if let tags = d.array(forKey: EditProfilePrefs.tags) as? [String] {
-            let allowed = Set(suggestedTags)
-            selectedTags = tags.filter { allowed.contains($0) }
-        }
         if d.object(forKey: EditProfilePrefs.tradesOpen) != nil {
             isTradesOpen = d.bool(forKey: EditProfilePrefs.tradesOpen)
         }
@@ -784,7 +745,6 @@ struct EditProfileView: View {
         let d = UserDefaults.standard
         d.set(Array(selectedSizes), forKey: EditProfilePrefs.sizes)
         d.set(Array(selectedStyles), forKey: EditProfilePrefs.styles)
-        d.set(selectedTags, forKey: EditProfilePrefs.tags)
         d.set(isTradesOpen, forKey: EditProfilePrefs.tradesOpen)
         d.set(showBadge, forKey: EditProfilePrefs.showBadge)
         d.set(instagram, forKey: EditProfilePrefs.instagram)

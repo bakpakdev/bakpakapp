@@ -207,7 +207,6 @@ struct NotificationCenterView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
     @Environment(\.campusTheme) private var campusTheme
-    @Environment(\.dismiss) private var dismiss
 
     @State private var notifications: [AppNotification] = []
     @State private var isLoading = false
@@ -396,24 +395,95 @@ struct NotificationCenterView: View {
             notifications[idx].isRead = true
         }
 
-        if let meetupId = item.meetupId, !meetupId.isEmpty {
-            dismiss()
-            appState.openMeetupDetail(meetupId)
-        } else if let conversationId = item.conversationId, !conversationId.isEmpty {
-            try? await messageService.markRead(conversationId: conversationId)
-            InboxReadStore.markRead(conversationId)
-            await appState.refreshInboxUnread()
-            appState.openInboxChat(
-                conversationId: conversationId,
-                otherUserId: item.otherUserId,
-                productId: item.productId
-            )
-        } else if let productId = item.productId, !productId.isEmpty {
-            dismiss()
-            appState.path.append(.productDetail(productId))
-        } else {
-            dismiss()
+        let destination = NotificationKeywordRouter.destination(for: item)
+        await openDestination(destination, for: item)
+    }
+
+    /// Leave the notifications list, then open the screen the keyword router picked.
+    private func openDestination(
+        _ destination: NotificationKeywordRouter.Destination,
+        for item: AppNotification
+    ) async {
+        // Drop notifications from the stack so Back lands on the home tab, not this list.
+        appState.path.removeAll {
+            if case .notificationCenter = $0 { return true }
+            return false
+        }
+
+        switch destination {
+        case .meetupDetail(let meetupId):
+            if let meetupId, !meetupId.isEmpty {
+                appState.openMeetupDetail(meetupId)
+            } else {
+                appState.path.append(.meetupsHub)
+            }
+
+        case .meetupsHub:
+            appState.path.append(.meetupsHub)
+
+        case .inboxChat(let conversationId, let otherUserId, let productId):
+            if let conversationId, !conversationId.isEmpty {
+                try? await messageService.markRead(conversationId: conversationId)
+                InboxReadStore.markRead(conversationId)
+                await appState.refreshInboxUnread()
+                appState.openInboxChat(
+                    conversationId: conversationId,
+                    otherUserId: otherUserId ?? item.otherUserId,
+                    productId: productId ?? item.productId
+                )
+            } else {
+                appState.selectedTab = .messages
+            }
+
+        case .messagesTab:
             appState.selectedTab = .messages
+
+        case .productDetail(let productId):
+            if let productId, !productId.isEmpty {
+                appState.path.append(.productDetail(productId))
+            } else {
+                appState.path.append(.myListings)
+            }
+
+        case .likedItems:
+            appState.openProfileLikes()
+
+        case .savedItems:
+            appState.openProfileSaved()
+
+        case .messagedItems:
+            appState.path.append(.messagedItems)
+
+        case .orders:
+            appState.path.append(.orders)
+
+        case .myListings:
+            appState.path.append(.myListings)
+
+        case .leaderboard:
+            appState.path.append(.leaderboard)
+
+        case .badgeCollection:
+            appState.path.append(.badgeCollection)
+
+        case .sellerCashOut:
+            appState.path.append(.sellerCashOutSetup)
+
+        case .accountSettings:
+            appState.path.append(.accountSettings)
+
+        case .helpSupport:
+            appState.path.append(.helpSupport)
+
+        case .cart:
+            appState.modal = .cart
+
+        case .userProfile(let userId):
+            if let userId, !userId.isEmpty {
+                appState.path.append(.userProfile(userId))
+            } else {
+                appState.selectedTab = .profile
+            }
         }
     }
 

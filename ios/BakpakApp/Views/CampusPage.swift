@@ -1,5 +1,76 @@
 import SwiftUI
 
+/// Soft pulsing image stand-in — used instead of a spinner while listings load.
+struct SoftListingImagePlaceholder: View {
+    @Environment(\.campusTheme) private var campusTheme
+    @State private var pulse = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(campusTheme.elevatedSurface.opacity(0.45))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(campusTheme.textPrimary.opacity(pulse ? 0.06 : 0.02))
+            )
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.15).repeatForever(autoreverses: true)) {
+                    pulse = true
+                }
+            }
+    }
+}
+
+/// Card-shaped skeleton matching `HomeProductCard` proportions.
+struct SoftListingCardSkeleton: View {
+    @Environment(\.campusTheme) private var campusTheme
+    @State private var pulse = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(campusTheme.textPrimary.opacity(pulse ? 0.1 : 0.05))
+                .frame(height: 14)
+                .frame(maxWidth: .infinity)
+
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(campusTheme.textPrimary.opacity(pulse ? 0.07 : 0.03))
+                .frame(width: 96, height: 10)
+
+            SoftListingImagePlaceholder()
+                .aspectRatio(0.95, contentMode: .fit)
+        }
+        .padding(12)
+        .background(campusTheme.surface.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(campusTheme.border.opacity(0.7), lineWidth: 1)
+        )
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.15).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+        }
+    }
+}
+
+/// Two-column soft skeleton grid for listing feeds.
+struct SoftListingSkeletonGrid: View {
+    var count: Int = 6
+    private let columns: [GridItem] = [
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12),
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(0..<count, id: \.self) { _ in
+                SoftListingCardSkeleton()
+            }
+        }
+    }
+}
+
 /// Background with the soft campus glows used by the main tabs and pushed screens.
 struct CampusPageBackground: View {
     @Environment(\.campusTheme) private var campusTheme

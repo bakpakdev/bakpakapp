@@ -34,13 +34,27 @@ async function cancelOpenRequestsForProduct(supabase, productId) {
 }
 
 router.get('/health', (_req, res) => {
+  const missing = [];
+  if (!(process.env.SQUARE_APPLICATION_ID || '').trim()) missing.push('SQUARE_APPLICATION_ID');
+  if (!(process.env.SQUARE_ACCESS_TOKEN || '').trim()) missing.push('SQUARE_ACCESS_TOKEN');
+  if (!(process.env.SQUARE_LOCATION_ID || '').trim()) missing.push('SQUARE_LOCATION_ID');
+  if (!(process.env.SQUARE_APPLICATION_SECRET || '').trim()) missing.push('SQUARE_APPLICATION_SECRET');
+  if (!(process.env.PUBLIC_BASE_URL || '').trim()) missing.push('PUBLIC_BASE_URL');
+  if (!(process.env.SQUARE_OAUTH_REDIRECT_URI || '').trim()) missing.push('SQUARE_OAUTH_REDIRECT_URI');
+  if (!(process.env.SQUARE_WEBHOOK_NOTIFICATION_URL || '').trim()) missing.push('SQUARE_WEBHOOK_NOTIFICATION_URL');
+  // Signature key is optional until a webhook is registered; still surface when empty.
+  const webhookKeyMissing = !(process.env.SQUARE_WEBHOOK_SIGNATURE_KEY || '').trim();
+
   res.json({
     squareConfigured: square.isSquareConfigured(),
     squareCanTakePayments: square.canTakePayments(),
+    squareCanOAuthSellers: square.canOAuthSellers(),
     squareEnvironment: square.squareEnvironment(),
     supabaseUrl: !!process.env.SUPABASE_URL,
     supabaseServiceRole: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     publicBaseUrl: process.env.PUBLIC_BASE_URL || null,
+    missingSquareEnv: missing,
+    missingWebhookSignatureKey: webhookKeyMissing,
   });
 });
 

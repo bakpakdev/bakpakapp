@@ -179,9 +179,8 @@ struct ProfileView: View {
                             )
                             .padding(.horizontal, horizontalPad)
                         } else if currentLoading {
-                            ProgressView()
-                                .tint(campusTheme.primary)
-                                .padding(40)
+                            SoftListingSkeletonGrid(count: 4)
+                                .padding(.horizontal, horizontalPad)
                         } else if activeTab == .shop {
                             shopFeed(itemSize: itemSize, horizontalPad: horizontalPad, gridGap: gridGap)
                         } else if currentItems.isEmpty {

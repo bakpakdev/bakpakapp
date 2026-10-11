@@ -1,7 +1,15 @@
 # Render blueprint for the popup backend (https://render.com/docs/blueprint-spec).
 # Deploy: Render dashboard → New → Blueprint → pick this repo. Render reads this file,
-# builds backend/Dockerfile, and gives you an HTTPS URL like https://popup-api.onrender.com.
-# Put that URL + "/api" into ios/Config: API_BASE_URL_RELEASE = https:/$()/popup-api.onrender.com/api
+# builds backend/Dockerfile. Live service host (sandbox):
+#   https://popup-api-hwbg.onrender.com
+# iOS Secrets: API_BASE_URL_RELEASE = https:/$()/popup-api-hwbg.onrender.com/api
+#
+# Required Square sandbox env (set in Render dashboard; sync: false = never in git):
+#   PUBLIC_BASE_URL=https://popup-api-hwbg.onrender.com
+#   SQUARE_OAUTH_REDIRECT_URI=https://popup-api-hwbg.onrender.com/api/payments/square/oauth/callback
+#   SQUARE_WEBHOOK_NOTIFICATION_URL=https://popup-api-hwbg.onrender.com/api/payments/square/webhook
+# Register those two URLs in the Square Developer Dashboard (sandbox app), then paste
+# SQUARE_WEBHOOK_SIGNATURE_KEY. Probe: GET /api/payments/health
 services:
   - type: web
     name: popup-api
@@ -33,8 +41,8 @@ services:
         sync: false
       - key: SQUARE_WEBHOOK_SIGNATURE_KEY
         sync: false
-      # Must be this service's public HTTPS URL; also register the OAuth redirect and
-      # webhook URLs in the Square developer dashboard.
+      # Must match the live host (popup-api-hwbg.onrender.com). Also register OAuth
+      # redirect + webhook URLs in the Square developer dashboard (sandbox).
       - key: PUBLIC_BASE_URL
         sync: false
       - key: SQUARE_OAUTH_REDIRECT_URI

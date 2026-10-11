@@ -61,13 +61,12 @@ extension Product {
 
 struct HomeProductImage: View {
     let product: Product
-    let placeholder: Color
 
     var body: some View {
         AsyncImage(url: URL(string: product.primaryListingImage?.url ?? "")) { image in
             image.resizable().scaledToFill()
         } placeholder: {
-            placeholder
+            SoftListingImagePlaceholder()
         }
     }
 }
@@ -125,7 +124,7 @@ struct HomeProductCard: View {
 
             Color.clear
                 .aspectRatio(0.95, contentMode: .fit)
-                .overlay { HomeProductImage(product: product, placeholder: campusTheme.elevatedSurface) }
+                .overlay { HomeProductImage(product: product) }
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .padding(12)
@@ -251,13 +250,6 @@ struct HomeView: View {
         .navigationBarHidden(true)
         .hidesSystemNavigationBar(true)
         .ignoresSafeArea(edges: .top)
-        .overlay {
-            if vm.isLoading && vm.products.isEmpty {
-                campusTheme.background
-                    .ignoresSafeArea()
-                    .overlay { ProgressView().tint(campusTheme.primary) }
-            }
-        }
         .task {
             await blockStore.refreshIfNeeded()
             await reloadProducts()
@@ -483,7 +475,9 @@ struct HomeView: View {
                     .padding(.bottom, 12)
             }
 
-            if clothingProducts.isEmpty, !vm.isLoading {
+            if clothingProducts.isEmpty, vm.isLoading {
+                SoftListingSkeletonGrid()
+            } else if clothingProducts.isEmpty {
                 VStack(spacing: 10) {
                     Text("No thrift finds yet")
                         .font(Theme.syne(18, weight: .bold))

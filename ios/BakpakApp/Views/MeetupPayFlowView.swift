@@ -37,9 +37,15 @@ struct MeetupPayFlowView: View {
     @State private var sellerWaitingRequestId: String?
     @State private var lastMeetupPayment: CreateMeetupPaymentResponse?
     @State private var paymentOutcome: PaymentOutcomeKind?
+    /// True only after Square confirm succeeds (nonce or Tap to Pay payment id).
+    @State private var paymentConfirmed = false
 
     @StateObject private var paymentPresenter = PaymentSheetPresenter()
     @StateObject private var tapToPay = TapToPayCollector()
+
+    private var canUseApplePayUI: Bool {
+        SquareConfig.isApplePayConfigured
+    }
 
     private let paymentService = MeetupPaymentService.shared
 
@@ -144,7 +150,8 @@ struct MeetupPayFlowView: View {
         .onChange(of: paymentPresenter.didComplete) { completed in
             guard completed else { return }
             paymentPresenter.didComplete = false
-            selectedMethod = "Apple Pay"
+            paymentConfirmed = true
+            selectedMethod = canUseApplePayUI ? "Apple Pay" : "Card"
             showBuyerPaymentSheet = false
             presentPaymentOutcome(.success)
         }
@@ -233,9 +240,7 @@ struct MeetupPayFlowView: View {
                 .font(Theme.syne(18, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
 
-            Text(isCollecting
-                 ? "The buyer pays with Apple Pay on your phone, right in the app."
-                 : "Pay the seller with Apple Pay, right in the app.")
+            Text(payStepSubtitle)
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, -8)
@@ -254,18 +259,36 @@ struct MeetupPayFlowView: View {
                 .background(CampusCardBackground())
             }
 
-            ApplePayButton(
-                title: isCollecting ? "Receive with Apple Pay" : "Pay with Apple Pay",
-                receiving: isCollecting,
-                isLoading: isPaymentBusy
-            ) {
-                Task { await startApplePayFlow() }
+            if isCollecting || canUseApplePayUI {
+                ApplePayButton(
+                    title: isCollecting ? "Receive with Apple Pay" : "Pay with Apple Pay",
+                    receiving: isCollecting,
+                    isLoading: isPaymentBusy
+                ) {
+                    Task { await startApplePayFlow() }
+                }
+                .disabled(isPaymentBusy || (item.productId ?? "").isEmpty)
+            } else {
+                Button {
+                    Task { await startApplePayFlow() }
+                } label: {
+                    Text(isPaymentBusy ? "Opening…" : "Pay with card")
+                        .font(Theme.syne(16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(campusTheme.primary)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                .disabled(isPaymentBusy || (item.productId ?? "").isEmpty)
             }
-            .disabled(isPaymentBusy || (item.productId ?? "").isEmpty)
 
-            Text(isCollecting
-                 ? "After you receive payment, continue to confirm."
-                 : "After you pay, continue to confirm.")
+            Text(paymentConfirmed
+                 ? "Payment went through — tap Continue."
+                 : (isCollecting
+                    ? "Payment must succeed in Square before you can finish."
+                    : "Payment must succeed in Square before you can finish."))
                 .font(Theme.syne(13, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, 4)
@@ -273,15 +296,25 @@ struct MeetupPayFlowView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var payStepSubtitle: String {
+        if isCollecting {
+            return "The buyer pays on your phone, right in the app."
+        }
+        if canUseApplePayUI {
+            return "Pay the seller with Apple Pay, right in the app."
+        }
+        return "Pay the seller with a card, right in the app (sandbox test cards work)."
+    }
+
     private var doneStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(isCollecting ? "confirm you were paid" : "confirm payment")
+            Text(isCollecting ? "payment received" : "payment complete")
                 .font(Theme.syne(18, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
 
             Text(isCollecting
-                 ? "Only tap below once the buyer has sent you the money."
-                 : "Only tap below once you’ve sent payment to the seller.")
+                 ? "Square confirmed the charge. Finish to close out this meetup."
+                 : "Square confirmed your charge. Finish to close out this meetup.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, -8)
@@ -435,15 +468,26 @@ struct MeetupPayFlowView: View {
             .onChange(of: tapToPay.phase) { phase in
                 if phase == .succeeded {
                     Task {
+                        var confirmed = false
                         if let requestId = sellerWaitingRequestId {
-                            try? await paymentService.confirm(
-                                requestId: requestId,
-                                squarePaymentId: tapToPay.lastSquarePaymentId
-                            )
+                            do {
+                                try await paymentService.confirm(
+                                    requestId: requestId,
+                                    squarePaymentId: tapToPay.lastSquarePaymentId
+                                )
+                                confirmed = true
+                            } catch {
+                                paymentError = error.localizedDescription
+                            }
                         }
                         selectedMethod = "Apple Pay"
                         showSellerPaymentSheet = false
-                        presentPaymentOutcome(.success)
+                        if confirmed {
+                            paymentConfirmed = true
+                            presentPaymentOutcome(.success)
+                        } else {
+                            presentPaymentOutcome(.failure)
+                        }
                     }
                 } else if case .failed = phase {
                     showSellerPaymentSheet = false
@@ -462,18 +506,22 @@ struct MeetupPayFlowView: View {
                     RoundedRectangle(cornerRadius: 38, style: .continuous)
                         .fill(campusTheme.elevatedSurface)
                         .frame(width: 120, height: 120)
-                    Image(systemName: "applelogo")
+                    Image(systemName: canUseApplePayUI ? "applelogo" : "creditcard.fill")
                         .font(.system(size: 44, weight: .semibold))
                         .foregroundStyle(campusTheme.textPrimary)
                 }
                 .padding(.top, 20)
 
-                Text("Pay with Apple Pay")
+                Text(canUseApplePayUI ? "Pay with Apple Pay" : "Pay with card")
                     .font(Theme.syne(24, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .multilineTextAlignment(.center)
 
-                Text("Pay securely on your phone. The seller gets paid in popup.")
+                Text(
+                    canUseApplePayUI
+                        ? "Pay securely on your phone. The seller gets paid in popup."
+                        : "Enter a card to pay. Sandbox test cards work while Square is in sandbox."
+                )
                     .font(Theme.syne(15))
                     .foregroundStyle(campusTheme.textMuted)
                     .multilineTextAlignment(.center)
@@ -487,13 +535,29 @@ struct MeetupPayFlowView: View {
 
                 Spacer()
 
-                ApplePayButton(
-                    title: "Pay with Apple Pay",
-                    isLoading: isPaymentBusy
-                ) {
-                    Task { await presentBuyerCheckout() }
+                if canUseApplePayUI {
+                    ApplePayButton(
+                        title: "Pay with Apple Pay",
+                        isLoading: isPaymentBusy
+                    ) {
+                        Task { await presentBuyerCheckout() }
+                    }
+                    .disabled(isPaymentBusy)
+                } else {
+                    Button {
+                        Task { await presentBuyerCheckout() }
+                    } label: {
+                        Text(isPaymentBusy ? "Opening…" : "Enter card")
+                            .font(Theme.syne(16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .background(campusTheme.primary)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                    .disabled(isPaymentBusy)
                 }
-                .disabled(isPaymentBusy)
 
                 Button("Cancel") {
                     showBuyerPaymentSheet = false
@@ -569,15 +633,17 @@ struct MeetupPayFlowView: View {
                     .clipShape(Capsule())
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-            .disabled(step == .pay && selectedMethod == nil)
-            .opacity(step == .pay && selectedMethod == nil ? 0.5 : 1)
+            .disabled(step == .pay && (item.productId ?? "").isEmpty)
+            .opacity(step == .pay && (item.productId ?? "").isEmpty ? 0.5 : 1)
         }
     }
 
     private var primaryButtonTitle: String {
         switch step {
         case .confirm: return isCollecting ? "Continue to collect" : "Continue to pay"
-        case .pay: return isCollecting ? "I received payment" : "I sent payment"
+        case .pay:
+            if paymentConfirmed { return "Continue" }
+            return isCollecting ? "Collect payment" : "Pay now"
         case .done: return "Finish"
         }
     }
@@ -587,8 +653,18 @@ struct MeetupPayFlowView: View {
         case .confirm:
             withAnimation(Motion.snappy) { step = .pay }
         case .pay:
-            withAnimation(Motion.snappy) { step = .done }
+            // Only advance after Square confirm succeeds — no honor-system skip.
+            if paymentConfirmed {
+                withAnimation(Motion.snappy) { step = .done }
+            } else {
+                Task { await startApplePayFlow() }
+            }
         case .done:
+            guard paymentConfirmed else {
+                paymentError = "Complete payment before finishing."
+                withAnimation(Motion.snappy) { step = .pay }
+                return
+            }
             if let productId = item.productId {
                 Task { await meetupStore.markCompleted(productId: productId) }
             }
@@ -628,7 +704,7 @@ struct MeetupPayFlowView: View {
             return
         }
         Motion.haptic(.medium)
-        selectedMethod = "Apple Pay"
+        selectedMethod = isCollecting || canUseApplePayUI ? "Apple Pay" : "Card"
         if isCollecting {
             await startSellerReceive(productId: productId)
         } else {

@@ -36,7 +36,7 @@ struct HelpSupportView: View {
                             faqRow(
                                 id: "cashout",
                                 question: "How do I cash out?",
-                                answer: "Tap to Pay sales sit in your popup balance. Open Settings → Cash out setup, connect Square, then cash out to your bank."
+                                answer: "Meetup sales sit in your popup balance. Open Settings → Cash out setup, connect Square, then cash out. Bank transfers aren’t live yet — cash out reserves your wallet until payouts ship."
                             )
                             faqRow(
                                 id: "meetup",

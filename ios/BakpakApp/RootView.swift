@@ -3,29 +3,57 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
+    /// Covers the auth → app swap, then fades into the user's light/dark theme.
+    @State private var themeEnterCover: Double = 0
 
     private var campusTheme: CampusTheme {
         CampusTheme.from(schoolName: authVM.user?.country, appearance: appState.appearance)
     }
 
     var body: some View {
-        Group {
-            if authVM.isAuthenticated {
-                NavigationStack(path: $appState.path) {
-                    Group {
-                        if authVM.needsOnboarding {
-                            OnboardingFlowView()
-                        } else {
-                            MainTabView()
+        ZStack {
+            Group {
+                if authVM.isAuthenticated {
+                    NavigationStack(path: $appState.path) {
+                        Group {
+                            if authVM.needsOnboarding {
+                                OnboardingFlowView()
+                            } else {
+                                MainTabView()
+                            }
+                        }
+                        .animation(.easeInOut(duration: 0.55), value: authVM.needsOnboarding)
+                        .navigationDestination(for: Route.self) { route in
+                            destination(for: route)
                         }
                     }
-                    .animation(.easeInOut(duration: 0.55), value: authVM.needsOnboarding)
-                    .navigationDestination(for: Route.self) { route in
-                        destination(for: route)
-                    }
+                    .transition(.opacity)
+                } else {
+                    AuthContainerView()
+                        .transition(.opacity)
                 }
-            } else {
-                AuthContainerView()
+            }
+
+            if themeEnterCover > 0.001 {
+                campusTheme.background
+                    .ignoresSafeArea()
+                    .opacity(themeEnterCover)
+                    .allowsHitTesting(false)
+                    .zIndex(20)
+            }
+        }
+        .animation(.easeInOut(duration: 0.5), value: authVM.isAuthenticated)
+        .onChange(of: authVM.isAuthenticated) { isAuth in
+            if isAuth, !authVM.needsOnboarding {
+                playThemeEnterFade()
+            } else if !isAuth {
+                themeEnterCover = 0
+            }
+        }
+        .onChange(of: authVM.needsOnboarding) { needs in
+            // Onboarding finish → main tabs fades into the user's light/dark theme.
+            if !needs, authVM.isAuthenticated {
+                playThemeEnterFade()
             }
         }
         .sheet(item: $appState.modal) { route in
@@ -67,6 +95,18 @@ struct RootView: View {
         .preferredColorScheme(appState.appearance.colorScheme)
         .onChange(of: appState.appearance) { _ in
             CampusAppearance.apply(campusTheme)
+        }
+    }
+
+    private func playThemeEnterFade() {
+        // Snap to the destination theme color, then ease it away so the app reveals underneath.
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            themeEnterCover = 1
+        }
+        withAnimation(.easeInOut(duration: 0.7)) {
+            themeEnterCover = 0
         }
     }
 
