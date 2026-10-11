@@ -1,6 +1,5 @@
 const express = require('express');
 const multer = require('multer');
-const Anthropic = require('@anthropic-ai/sdk');
 const { protectSupabase } = require('../middleware/supabaseAuth');
 const { identifyRateLimit } = require('../middleware/identifyRateLimit');
 
@@ -12,8 +11,36 @@ const upload = multer({
 });
 
 const ALLOWED_MEDIA = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
-const WEB_SEARCH_TOOL_TYPE = process.env.ANTHROPIC_WEB_SEARCH_TOOL || 'web_search_20260209';
+const MODEL = process.env.OPENAI_MODEL || 'gpt-6-luna';
+const REASONING_EFFORT = process.env.OPENAI_REASONING_EFFORT || 'low';
+const SEARCH_CONTEXT_SIZE = process.env.OPENAI_SEARCH_CONTEXT_SIZE || 'low';
+const REQUEST_TIMEOUT_MS = 90_000;
+
+// Strict structured output: every key is required and there is no top-level union, so the
+// success shape and the error shape share one object. errorCode is null on success.
+const nullable = (type) => ({ type: [type, 'null'] });
+const RESULT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    errorCode: { type: ['string', 'null'], enum: ['NO_GARMENT', 'AMBIGUOUS', null] },
+    brand: nullable('string'),
+    color: nullable('string'),
+    garmentType: nullable('string'),
+    title: nullable('string'),
+    size: nullable('string'),
+    condition: { type: ['string', 'null'], enum: ['new', 'like-new', 'good', 'fair', null] },
+    suggestedPrice: nullable('number'),
+    suggestedPriceMin: nullable('number'),
+    suggestedPriceMax: nullable('number'),
+    confidence: { type: ['string', 'null'], enum: ['low', 'medium', 'high', null] },
+    matchedProductName: nullable('string'),
+    sourceUrls: { type: 'array', items: { type: 'string' } },
+    department: { type: ['string', 'null'], enum: ['mens', 'womens', 'unisex', null] },
+    warningCode: { type: ['string', 'null'], enum: ['NO_BRAND', null] },
+  },
+};
+RESULT_SCHEMA.required = Object.keys(RESULT_SCHEMA.properties);
 
 const SYSTEM_PROMPT = `You are popup's clothing identification agent for a campus thrift marketplace.
 
@@ -110,21 +137,18 @@ function extractImages(req) {
   return out.slice(0, 5);
 }
 
-function collectSourceUrls(content) {
+function collectSourceUrls(output) {
   const urls = new Set();
-  for (const block of content || []) {
-    if (block.type === 'web_search_tool_result') {
-      const items = Array.isArray(block.content) ? block.content : [];
-      for (const item of items) {
-        if (item && typeof item.url === 'string' && item.url.startsWith('http')) {
-          urls.add(item.url);
-        }
+  for (const item of output || []) {
+    if (item.type === 'web_search_call') {
+      for (const source of item.action?.sources || []) {
+        if (source && typeof source.url === 'string' && source.url.startsWith('http')) urls.add(source.url);
       }
     }
-    if (block.type === 'text' && Array.isArray(block.citations)) {
-      for (const citation of block.citations) {
-        if (citation?.url && String(citation.url).startsWith('http')) {
-          urls.add(citation.url);
+    if (item.type === 'message') {
+      for (const part of item.content || []) {
+        for (const note of part.annotations || []) {
+          if (note?.type === 'url_citation' && String(note.url || '').startsWith('http')) urls.add(note.url);
         }
       }
     }
@@ -132,12 +156,14 @@ function collectSourceUrls(content) {
   return [...urls];
 }
 
-function lastTextBlock(content) {
-  const texts = (content || [])
-    .filter((block) => block.type === 'text' && typeof block.text === 'string')
-    .map((block) => block.text.trim())
-    .filter(Boolean);
-  return texts.length ? texts[texts.length - 1] : '';
+function outputText(response) {
+  if (typeof response.output_text === 'string' && response.output_text) return response.output_text;
+  let text = '';
+  for (const item of response.output || []) {
+    if (item.type !== 'message') continue;
+    for (const part of item.content || []) if (part.type === 'output_text') text += part.text || '';
+  }
+  return text.trim();
 }
 
 function parseModelJson(text) {
@@ -253,49 +279,69 @@ function normalizePayload(parsed, fallbackUrls) {
   };
 }
 
-async function callClaude(images, toolType = WEB_SEARCH_TOOL_TYPE) {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const imageBlocks = images.map((img) => ({
-    type: 'image',
-    source: {
-      type: 'base64',
-      media_type: img.mediaType,
-      data: img.base64,
-    },
-  }));
+async function callOpenAI(images) {
   const count = images.length;
-  try {
-    return await client.messages.create({
-      model: MODEL,
-      max_tokens: 1024,
-      tools: [
-        {
-          type: toolType,
-          name: 'web_search',
-          max_uses: 3,
-        },
-      ],
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            ...imageBlocks,
-            {
-              type: 'text',
-              text:
-                count > 1
-                  ? `These ${count} photos are the same listing item. Use every photo to identify title, brand, color, garment type, size (if a tag is visible), and condition. Search the web if a logo, tag, or distinctive design needs confirmation.`
-                  : 'Identify this item. Search the web if a logo, tag, or distinctive design needs confirmation.',
-            },
-          ],
-        },
-      ],
+  const body = {
+    model: MODEL,
+    instructions: SYSTEM_PROMPT,
+    input: [
+      {
+        role: 'user',
+        content: [
+          ...images.map((img) => ({
+            type: 'input_image',
+            image_url: `data:${img.mediaType};base64,${img.base64}`,
+          })),
+          {
+            type: 'input_text',
+            text:
+              count > 1
+                ? `These ${count} photos are the same listing item. Use every photo to identify title, brand, color, garment type, size (if a tag is visible), and condition. Search the web if a logo, tag, or distinctive design needs confirmation.`
+                : 'Identify this item. Search the web if a logo, tag, or distinctive design needs confirmation.',
+          },
+        ],
+      },
+    ],
+    tools: [{ type: 'web_search', search_context_size: SEARCH_CONTEXT_SIZE }],
+    include: ['web_search_call.action.sources'],
+    // OpenAI counts reasoning tokens against this limit, so it is higher than a plain answer needs.
+    max_output_tokens: 4096,
+    text: {
+      format: { type: 'json_schema', name: 'clothing_identification', strict: true, schema: RESULT_SCHEMA },
+    },
+  };
+  if (REASONING_EFFORT && REASONING_EFFORT !== 'none') body.reasoning = { effort: REASONING_EFFORT };
+
+  const post = async () => {
+    const res = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
+    const text = await res.text();
+    let json = null;
+    try {
+      json = JSON.parse(text);
+    } catch {}
+    if (!res.ok) {
+      const err = new Error(json?.error?.message || `OpenAI HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    return json;
+  };
+
+  try {
+    return await post();
   } catch (err) {
-    const msg = String(err?.message || err);
-    if (toolType !== 'web_search_20250305' && /web_search/i.test(msg)) {
-      return callClaude(images, 'web_search_20250305');
+    // Some models reject the reasoning option; retry once without it.
+    if (body.reasoning && err.status === 400 && /reasoning/i.test(err.message)) {
+      delete body.reasoning;
+      return post();
     }
     throw err;
   }
@@ -308,7 +354,7 @@ router.post(
   upload.array('images', 5),
   async (req, res) => {
     try {
-      if (!process.env.ANTHROPIC_API_KEY) {
+      if (!process.env.OPENAI_API_KEY) {
         return fail(
           res,
           503,
@@ -331,13 +377,13 @@ router.post(
 
       let response;
       try {
-        response = await callClaude(images);
+        response = await callOpenAI(images);
       } catch (err) {
         const status = err?.status;
         if (status === 429) {
           return fail(res, 429, 'RATE_LIMITED', 'The identifier is busy. Try again in a moment.');
         }
-        console.error('Anthropic identify error:', err?.message || err);
+        console.error('OpenAI identify error:', err?.status || '', err?.message || err);
         return fail(
           res,
           503,
@@ -346,8 +392,8 @@ router.post(
         );
       }
 
-      const fallbackUrls = collectSourceUrls(response.content);
-      const parsed = parseModelJson(lastTextBlock(response.content));
+      const fallbackUrls = collectSourceUrls(response.output);
+      const parsed = parseModelJson(outputText(response));
       if (!parsed) {
         return fail(res, 502, 'IDENTIFY_FAILED', 'Could not read a result from that photo. Try another angle.');
       }
