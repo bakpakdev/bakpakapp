@@ -21,6 +21,9 @@ API_BASE_URL_RELEASE =
 //   PopupApp.ApplePay.entitlements Apple Pay (needs APPLE_PAY_MERCHANT_ID + Merchant ID in the portal)
 //   PopupApp.Payments.entitlements Apple Pay + Tap to Pay on iPhone (needs Apple's entitlement approval)
 POPUP_RELEASE_ENTITLEMENTS = PopupApp.entitlements
+// Must be YES only when Release uses PopupApp.Payments.entitlements (and Apple approved Tap to Pay).
+// Without this, Receive shows a clear setup error instead of freezing on TestFlight.
+TAP_TO_PAY_ENABLED = NO
 
 // Square application ID (sandbox-sq0idb-... or sq0idp-...). Secret stays in backend/.env.
 SQUARE_APPLICATION_ID =

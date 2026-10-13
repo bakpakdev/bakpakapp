@@ -153,6 +153,26 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Empty the NavigationStack *before* flipping `isAuthenticated`.
+    /// Destroying a stack with a non-empty path mid-animation crashes / freezes on device.
+    func prepareForLogout() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            selectedTab = .home
+            path.removeAll()
+            modal = nil
+            hidesTabBar = false
+            profileFocusTab = nil
+            pendingProfileProductId = nil
+            pendingInboxConversationId = nil
+            pendingInboxOtherUserId = nil
+            pendingInboxProductId = nil
+            inboxUnreadBuying = 0
+            inboxUnreadSelling = 0
+        }
+    }
+
     func resetAccountSessionCaches() {
         inboxUnreadBuying = 0
         inboxUnreadSelling = 0

@@ -5,12 +5,14 @@ enum MeetupError: LocalizedError {
     case notConfigured
     case notSignedIn
     case notFound
+    case listingSold
 
     var errorDescription: String? {
         switch self {
         case .notConfigured: return "Supabase isn’t configured for this build."
         case .notSignedIn: return "Sign in to continue."
         case .notFound: return "That meetup isn’t available."
+        case .listingSold: return "This listing is sold."
         }
     }
 }
@@ -40,6 +42,17 @@ enum MeetupService {
         return trimmed.isEmpty ? nil : trimmed.lowercased()
     }
 
+    private static func ensureListingAvailable(client: SupabaseClient, productId: String) async throws {
+        struct Row: Decodable { let is_sold: Bool? }
+        let row: Row = try await client.from("products")
+            .select("is_sold")
+            .eq("id", value: productId)
+            .single()
+            .execute()
+            .value
+        if row.is_sold == true { throw MeetupError.listingSold }
+    }
+
     static func fetchMyMeetups() async throws -> [Meetup] {
         let c = try await client()
         return try await c.from(table)
@@ -63,6 +76,9 @@ enum MeetupService {
         let conversation = conversationId.lowercased()
         let recipient = recipientId.lowercased()
         guard me != recipient else { throw MeetupError.notFound }
+        if let pid = uuidOrNil(productId) {
+            try await ensureListingAvailable(client: c, productId: pid)
+        }
 
         if let existing = try await openMeetup(client: c, conversationId: conversation) {
             let row = try await replaceOpenMeetup(
@@ -122,20 +138,103 @@ enum MeetupService {
         return row
     }
 
+    /// Listing-first request: no chat until the seller accepts.
+    static func proposeFromListing(
+        productId: String,
+        sellerId: String,
+        spot: CampusMeetupSpot,
+        at scheduledAt: Date,
+        school: String? = nil
+    ) async throws -> Meetup {
+        let c = try await client()
+        let me = try await myId(c)
+        let seller = sellerId.lowercased()
+        let product = productId.lowercased()
+        guard !product.isEmpty, me != seller else { throw MeetupError.notFound }
+        try await ensureListingAvailable(client: c, productId: product)
+
+        if let existing = try await openListingRequest(client: c, productId: product, proposerId: me) {
+            let row = try await replaceOpenMeetup(
+                client: c,
+                existing: existing,
+                me: me,
+                recipientId: seller,
+                productId: product,
+                sellerId: seller,
+                spot: spot,
+                at: scheduledAt,
+                school: school
+            )
+            MeetupNotificationScheduler.shared.noteUserCommittedToMeetup()
+            await notifyPeer(meetup: row, me: me, event: .proposed)
+            return row
+        }
+
+        struct Insert: Encodable {
+            let product_id: String
+            let proposer_id: String
+            let recipient_id: String
+            let seller_id: String
+            let spot_id: String
+            let spot_name: String
+            let school: String?
+            let scheduled_at: String
+            let status: String
+            let expires_at: String
+        }
+
+        let stamp = Meetup.isoString(from: scheduledAt)
+        let row: Meetup = try await c.from(table)
+            .insert(
+                Insert(
+                    product_id: product,
+                    proposer_id: me,
+                    recipient_id: seller,
+                    seller_id: seller,
+                    spot_id: spot.id,
+                    spot_name: spot.name,
+                    school: school,
+                    scheduled_at: stamp,
+                    status: MeetupStatus.proposed.rawValue,
+                    expires_at: stamp
+                )
+            )
+            .select(selectColumns)
+            .single()
+            .execute()
+            .value
+        MeetupNotificationScheduler.shared.noteUserCommittedToMeetup()
+        await notifyPeer(meetup: row, me: me, event: .proposed)
+        return row
+    }
+
     static func respond(id: String, accept: Bool) async throws -> Meetup {
         let c = try await client()
         let me = try await myId(c)
+        let existing = try await fetch(client: c, id: id)
+        let hadConversation = !existing.conversationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
         struct Patch: Encodable { let status: String }
-        let row = try await update(
+        var row = try await update(
             client: c,
             id: id,
             Patch(status: (accept ? MeetupStatus.confirmed : MeetupStatus.declined).rawValue)
         )
         if accept {
             MeetupNotificationScheduler.shared.noteUserCommittedToMeetup()
+            if !hadConversation {
+                row = try await attachConversationAndSeedChat(client: c, meetup: row, me: me)
+            }
             await notifyPeer(meetup: row, me: me, event: .accepted)
+        } else {
+            await notifyPeer(meetup: row, me: me, event: .declined)
         }
         return row
+    }
+
+    /// True when accept should also post chat status (conversation already existed).
+    static func shouldPostChatStatus(for meetupBeforeRespond: Meetup) -> Bool {
+        !meetupBeforeRespond.conversationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// Resets to proposed with the other person as recipient.
@@ -222,6 +321,36 @@ enum MeetupService {
             .execute()
     }
 
+    /// Marks unanswered proposals past `expires_at` (meetup time) as expired so they disappear.
+    @discardableResult
+    static func expireStaleProposals() async throws -> [Meetup] {
+        let c = try await client()
+        let me = try await myId(c)
+        let now = Meetup.isoString(from: Date())
+        struct Patch: Encodable { let status: String }
+        let patch = Patch(status: MeetupStatus.expired.rawValue)
+
+        let asProposer: [Meetup] = try await c.from(table)
+            .update(patch)
+            .eq("status", value: MeetupStatus.proposed.rawValue)
+            .eq("proposer_id", value: me)
+            .lte("expires_at", value: now)
+            .select(selectColumns)
+            .execute()
+            .value
+
+        let asRecipient: [Meetup] = try await c.from(table)
+            .update(patch)
+            .eq("status", value: MeetupStatus.proposed.rawValue)
+            .eq("recipient_id", value: me)
+            .lte("expires_at", value: now)
+            .select(selectColumns)
+            .execute()
+            .value
+
+        return asProposer + asRecipient
+    }
+
     /// Publishes inserts/updates/deletes on `meetups`. Caller owns the channel lifetime.
     static func subscribe(
         onChange: @escaping @MainActor (Meetup) -> Void,
@@ -289,6 +418,80 @@ enum MeetupService {
         return rows.first
     }
 
+    private static func openListingRequest(
+        client: SupabaseClient,
+        productId: String,
+        proposerId: String
+    ) async throws -> Meetup? {
+        let rows: [Meetup] = try await client.from(table)
+            .select(selectColumns)
+            .eq("product_id", value: productId)
+            .eq("proposer_id", value: proposerId)
+            .eq("status", value: MeetupStatus.proposed.rawValue)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
+    }
+
+    private static func attachConversationAndSeedChat(
+        client: SupabaseClient,
+        meetup: Meetup,
+        me: String
+    ) async throws -> Meetup {
+        let other = meetup.otherUserId(meId: me).lowercased()
+        let conversationId = try await SupabaseMessageService.openOrCreateConversation(
+            client: client,
+            otherUserId: other,
+            productId: meetup.productId
+        )
+
+        struct Patch: Encodable { let conversation_id: String }
+        let linked = try await update(
+            client: client,
+            id: meetup.id,
+            Patch(conversation_id: conversationId.lowercased())
+        )
+
+        if let productId = linked.productId, !productId.isEmpty {
+            if let product = try? await SupabaseProductService.fetchProduct(client: client, id: productId) {
+                _ = try? await MessageService().send(
+                    conversationId: conversationId,
+                    content: ListingRefMessageCodec.encode(product)
+                )
+            } else {
+                _ = try? await MessageService().send(
+                    conversationId: conversationId,
+                    content: ListingRefMessageCodec.encode(
+                        payload: ListingRefPayload(
+                            productId: productId,
+                            title: "Listing",
+                            price: 0,
+                            imageURL: nil
+                        )
+                    )
+                )
+            }
+        }
+
+        let spot = CampusMeetupSpot(
+            id: linked.spotId,
+            name: linked.spotName,
+            latitude: 0,
+            longitude: 0
+        )
+        // Confirmed meetup card in chat (both users see this thread).
+        _ = try? await MessageService().send(
+            conversationId: conversationId,
+            content: MeetupMessageCodec.encode(
+                kind: .accepted,
+                spot: spot,
+                proposedAt: linked.scheduledAt
+            )
+        )
+        return linked
+    }
+
     private static func replaceOpenMeetup(
         client: SupabaseClient,
         existing: Meetup,
@@ -350,6 +553,7 @@ enum MeetupService {
     enum MeetupPeerEvent {
         case proposed
         case accepted
+        case declined
         case rescheduled
         case cancelled
     }
@@ -430,6 +634,9 @@ enum MeetupService {
         case .accepted:
             title = "Meetup confirmed"
             body = "\(name) accepted your meetup at \(spotBit)."
+        case .declined:
+            title = "Meetup declined"
+            body = "\(name) declined your meetup at \(spotBit)."
         case .rescheduled:
             title = "Meetup updated"
             body = "\(name) suggested a new time at \(spotBit)."

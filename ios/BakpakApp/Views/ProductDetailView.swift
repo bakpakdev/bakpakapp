@@ -36,12 +36,33 @@ struct ProductDetailView: View {
     @State private var reactionBusy = false
     @State private var sellerRating: ReviewSummary?
     @State private var paymentOutcome: PaymentOutcomeKind?
+    @State private var showMeetupRequestSheet = false
+    @State private var isSendingMeetupRequest = false
 
     private let productService = ProductService()
     private let socialService = SocialService()
     private let paymentService = MeetupPaymentService.shared
     private let messageService = MessageService()
     private let offerPercents = [10, 15, 20, 25]
+
+    private var pendingMeetupRequest: Meetup? {
+        meetupStore.pendingOutgoing(productId: productId)
+    }
+
+    private var hasPendingMeetupRequest: Bool {
+        pendingMeetupRequest != nil
+    }
+
+    private var confirmedMeetupForListing: Meetup? {
+        let me = (authVM.user?.id ?? "").lowercased()
+        guard !me.isEmpty else { return nil }
+        return meetupStore.meetups.first {
+            ($0.productId ?? "").lowercased() == productId.lowercased()
+                && $0.status == .confirmed
+                && !$0.conversationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && ($0.proposerId.lowercased() == me || $0.recipientId.lowercased() == me)
+        }
+    }
 
     private var isOwner: Bool {
         guard let mine = authVM.user?.id.lowercased(),
@@ -72,6 +93,26 @@ struct ProductDetailView: View {
                 if let product {
                     sendOfferPopup(product)
                 }
+            }
+            .fullScreenCover(isPresented: $showMeetupRequestSheet) {
+                MeetupComposeView(
+                    spots: campusTheme.meetupLocations,
+                    screenTitle: "Meetup request",
+                    confirmTitle: isSendingMeetupRequest ? "Sending…" : "Request meetup",
+                    onSend: { spot, time in
+                        guard let product, let sellerId = product.user?.id else { return }
+                        Task {
+                            await sendMeetupRequest(
+                                for: product,
+                                sellerId: sellerId,
+                                spot: spot,
+                                at: time
+                            )
+                        }
+                    },
+                    onCancel: { showMeetupRequestSheet = false }
+                )
+                .environment(\.campusTheme, campusTheme)
             }
             .background(PaymentSheetHost(presenter: paymentPresenter))
             .onChange(of: paymentPresenter.didComplete) { completed in
@@ -106,12 +147,20 @@ struct ProductDetailView: View {
                 }
             }
             .toolbar(paymentOutcome == nil && !isShowingConfirm ? .visible : .hidden, for: .navigationBar)
-            .hidesSystemNavigationBar(paymentOutcome != nil || isShowingConfirm)
+            // Only fight the UIKit nav bar for payment overlays. Confirm cards are SwiftUI
+            // overlays — toggling hidesSystemNavigationBar here caused layout thrash + freezes.
+            .hidesSystemNavigationBar(paymentOutcome != nil)
             .onChange(of: paymentOutcome) { value in
-                appState.hidesTabBar = value != nil || isShowingConfirm
+                appState.hidesTabBar = value != nil
             }
             .onChange(of: isShowingConfirm) { showing in
+                // Cover the custom tab bar without nuking UIKit tab bars on every confirm.
                 appState.hidesTabBar = showing || paymentOutcome != nil
+            }
+            .onDisappear {
+                if isShowingConfirm || paymentOutcome != nil {
+                    appState.hidesTabBar = false
+                }
             }
             // onAppear (not .task) so the screen refreshes after Edit / Discount / Offers pop back.
             .onAppear { Task { await load() } }
@@ -237,7 +286,7 @@ struct ProductDetailView: View {
                             title: "Send offers",
                             subtitle: offersSubtitle
                         ) {
-                            appState.path.append(.sendOffers(productId))
+                            pushOwnerRoute(.sendOffers(productId))
                         }
                         SettingsNavRow(
                             icon: "percent",
@@ -245,7 +294,7 @@ struct ProductDetailView: View {
                             subtitle: discountSubtitle(product),
                             showDivider: false
                         ) {
-                            appState.path.append(.setDiscount(productId))
+                            pushOwnerRoute(.setDiscount(productId))
                         }
                     }
                     .background(CampusCardBackground())
@@ -259,7 +308,7 @@ struct ProductDetailView: View {
                             title: "Edit listing",
                             subtitle: "Title, description, brand, size"
                         ) {
-                            appState.path.append(.editListing(productId))
+                            pushOwnerRoute(.editListing(productId))
                         }
                         SettingsNavRow(
                             icon: "doc.on.doc",
@@ -324,20 +373,26 @@ struct ProductDetailView: View {
                     .foregroundStyle(campusTheme.textPrimary)
                     .lineLimit(2)
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("$\(formattedPrice(product.price))")
-                        .font(Theme.syne(22, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
-                    if product.hasDiscount, let original = product.originalPrice {
-                        Text("$\(formattedPrice(original))")
-                            .font(Theme.syne(14, weight: .semibold))
-                            .foregroundStyle(campusTheme.textMuted)
-                            .strikethrough()
+                    if product.isSold == true {
+                        Text("SOLD")
+                            .font(Theme.syne(22, weight: .bold))
+                            .foregroundStyle(Color(hex: "#E11D48"))
+                    } else {
+                        Text("$\(formattedPrice(product.price))")
+                            .font(Theme.syne(22, weight: .bold))
+                            .foregroundStyle(campusTheme.primary)
+                        if product.hasDiscount, let original = product.originalPrice {
+                            Text("$\(formattedPrice(original))")
+                                .font(Theme.syne(14, weight: .semibold))
+                                .foregroundStyle(campusTheme.textMuted)
+                                .strikethrough()
+                        }
                     }
                 }
                 HStack(spacing: 6) {
                     statusChip(
                         product.isSold == true ? "Sold" : "Live",
-                        tint: product.isSold == true ? campusTheme.textMuted : campusTheme.primary
+                        tint: product.isSold == true ? Color(hex: "#E11D48") : campusTheme.primary
                     )
                     if let pct = product.discountPercent {
                         statusChip("\(pct)% off", tint: campusTheme.primary)
@@ -420,52 +475,41 @@ struct ProductDetailView: View {
     // MARK: - Buyer product layout
 
     private func buyerScroll(_ product: Product) -> some View {
-        ZStack(alignment: .bottom) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    imageHero
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 16) {
+                imageHero
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let brand = product.brand?.trimmingCharacters(in: .whitespacesAndNewlines), !brand.isEmpty {
-                            Text(brand.uppercased())
-                                .font(Theme.syne(11, weight: .semibold))
-                                .tracking(0.6)
-                                .foregroundStyle(campusTheme.textMuted)
-                        }
-                        Text(product.title)
-                            .font(Theme.syne(24, weight: .bold))
-                            .foregroundStyle(campusTheme.textPrimary)
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Text("$\(formattedPrice(product.price))")
-                                .font(Theme.syne(26, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
-                            if product.hasDiscount, let original = product.originalPrice {
-                                Text("$\(formattedPrice(original))")
-                                    .font(Theme.syne(16, weight: .semibold))
-                                    .foregroundStyle(campusTheme.textMuted)
-                                    .strikethrough()
-                                if let pct = product.discountPercent {
-                                    Text("\(pct)% off")
-                                        .font(Theme.syne(11, weight: .bold))
-                                        .foregroundStyle(campusTheme.primary)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(campusTheme.primary.opacity(0.12))
-                                        .clipShape(Capsule())
-                                }
-                            }
-                        }
+                VStack(alignment: .leading, spacing: 8) {
+                    if let brand = product.brand?.trimmingCharacters(in: .whitespacesAndNewlines), !brand.isEmpty {
+                        Text(brand.uppercased())
+                            .font(Theme.syne(11, weight: .semibold))
+                            .tracking(0.6)
+                            .foregroundStyle(campusTheme.textMuted)
                     }
+                    Text(product.title)
+                        .font(Theme.syne(24, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
 
-                    metaChips(product)
-                    descriptionBlock(product)
-                    sellerCard(product)
+                    if product.hasDiscount, let pct = product.discountPercent {
+                        Text("\(pct)% off")
+                            .font(Theme.syne(11, weight: .bold))
+                            .foregroundStyle(campusTheme.primary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(campusTheme.primary.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 120)
-            }
 
+                metaChips(product)
+                descriptionBlock(product)
+                sellerCard(product)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             buyerBottomBar(product)
         }
     }
@@ -620,55 +664,113 @@ struct ProductDetailView: View {
     @ViewBuilder
     private func buyerBottomBar(_ product: Product) -> some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Button {
-                    Motion.haptic(.medium)
-                    guard let userId = product.user?.id else { return }
-                    Task { await startMessage(for: product, sellerId: userId) }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "bubble.left.and.bubble.right.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text("Message")
-                            .font(Theme.syne(14, weight: .bold))
+            Rectangle()
+                .fill(campusTheme.border)
+                .frame(height: 1)
+
+            HStack(alignment: .center, spacing: 12) {
+                let sold = product.isSold == true
+                VStack(alignment: .leading, spacing: 2) {
+                    if sold {
+                        Text("SOLD")
+                            .font(Theme.syne(22, weight: .bold))
+                            .foregroundStyle(Color(hex: "#E11D48"))
                             .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    } else {
+                        Text("$\(formattedPrice(product.price))")
+                            .font(Theme.syne(22, weight: .bold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                        if product.hasDiscount, let original = product.originalPrice {
+                            Text("$\(formattedPrice(original))")
+                                .font(Theme.syne(12, weight: .semibold))
+                                .foregroundStyle(campusTheme.textMuted)
+                                .strikethrough()
+                        }
                     }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(campusTheme.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                .frame(minWidth: 64, alignment: .leading)
 
                 Button {
                     Motion.haptic(.light)
+                    guard product.isSold != true else { return }
                     selectedOfferPercent = 15
                     customOfferText = ""
                     showOfferSheet = true
                 } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "tag.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text("Offer")
-                            .font(Theme.syne(14, weight: .bold))
-                            .lineLimit(1)
-                    }
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(glassFill)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(campusTheme.primary.opacity(0.45), lineWidth: 1.5)
-                    )
+                    Text("Offer")
+                        .font(Theme.syne(14, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(width: 88)
+                        .frame(height: 48)
+                        .background(campusTheme.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(campusTheme.border.opacity(1), lineWidth: 1.5)
+                        )
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-                .disabled(product.isSold == true)
+                .disabled(sold)
+                .opacity(sold ? 0.45 : 1)
+
+                Button {
+                    Motion.haptic(.medium)
+                    if let confirmed = confirmedMeetupForListing {
+                        appState.openInboxChat(
+                            conversationId: confirmed.conversationId,
+                            otherUserId: confirmed.otherUserId(meId: authVM.user?.id ?? ""),
+                            productId: confirmed.productId ?? product.id
+                        )
+                        return
+                    }
+                    // Sold listings can't start new meetup / chat threads.
+                    guard product.isSold != true else { return }
+                    guard product.user?.id != nil, !hasPendingMeetupRequest else { return }
+                    showMeetupRequestSheet = true
+                } label: {
+                    Text(meetupRequestButtonTitle)
+                        .font(Theme.syne(14, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .foregroundStyle(
+                            (sold && confirmedMeetupForListing == nil) || hasPendingMeetupRequest
+                            ? campusTheme.textMuted
+                            : .white
+                        )
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(
+                            (sold && confirmedMeetupForListing == nil) || hasPendingMeetupRequest
+                            ? campusTheme.elevatedSurface
+                            : campusTheme.primary
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(
+                                    (sold && confirmedMeetupForListing == nil) || hasPendingMeetupRequest
+                                    ? campusTheme.border
+                                    : Color.clear,
+                                    lineWidth: 1
+                                )
+                        )
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                .disabled(
+                    (sold && confirmedMeetupForListing == nil)
+                        || hasPendingMeetupRequest
+                        || product.user?.id == nil
+                )
+                .opacity(
+                    (sold && confirmedMeetupForListing == nil) || hasPendingMeetupRequest ? 0.72 : 1
+                )
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, activePayment?.canPay == true ? 8 : 10)
+            .padding(.top, 12)
+            .padding(.bottom, activePayment?.canPay == true || (activePayment?.active == true && activePayment?.role == "buyer") ? 8 : 12)
 
             if activePayment?.canPay == true, product.isSold != true {
                 Button {
@@ -702,9 +804,8 @@ struct ProductDetailView: View {
                     .padding(.bottom, 10)
             }
         }
-        .padding(.top, 10)
         .background(
-            campusTheme.background.opacity(0.92)
+            campusTheme.background.opacity(0.94)
                 .background(.ultraThinMaterial)
                 .ignoresSafeArea(edges: .bottom)
         )
@@ -875,17 +976,49 @@ struct ProductDetailView: View {
         .environment(\.campusTheme, campusTheme)
     }
 
-    private func startMessage(for product: Product, sellerId: String) async {
+    private var meetupRequestButtonTitle: String {
+        if confirmedMeetupForListing != nil { return "Open chat" }
+        if product?.isSold == true { return "Sold" }
+        if hasPendingMeetupRequest { return "Meetup requested" }
+        return "Meetup request"
+    }
+
+    private func sendMeetupRequest(
+        for product: Product,
+        sellerId: String,
+        spot: CampusMeetupSpot,
+        at scheduledAt: Date
+    ) async {
+        guard !isSendingMeetupRequest else { return }
+        guard product.isSold != true else {
+            actionError = "This listing is sold."
+            showMeetupRequestSheet = false
+            return
+        }
+        isSendingMeetupRequest = true
+        defer { isSendingMeetupRequest = false }
         do {
-            let convo = try await messageService.openOrCreate(otherUserId: sellerId, productId: product.id)
-            appState.path.append(.conversation(convo.id, sellerId, product.id))
+            let meetup = try await MeetupService.proposeFromListing(
+                productId: product.id,
+                sellerId: sellerId,
+                spot: spot,
+                at: scheduledAt,
+                school: campusTheme.schoolID
+            )
+            meetupStore.apply(meetup)
+            showMeetupRequestSheet = false
+            Motion.haptic(.medium)
         } catch {
-            // Still open the chat; ConversationView will create/reuse the thread.
-            appState.path.append(.conversation("", sellerId, product.id))
+            actionError = error.localizedDescription
         }
     }
 
     private func sendOffer(amount: Double, sellerId: String, product: Product) async {
+        guard product.isSold != true else {
+            actionError = "This listing is sold."
+            showOfferSheet = false
+            return
+        }
         isSendingOffer = true
         defer { isSendingOffer = false }
         do {
@@ -960,7 +1093,7 @@ struct ProductDetailView: View {
         do {
             let copy = try await productService.duplicateListing(id: productId)
             Motion.haptic(.medium)
-            appState.path.append(.editListing(copy.id))
+            pushOwnerRoute(.editListing(copy.id))
         } catch {
             actionError = error.localizedDescription
         }
@@ -1039,6 +1172,15 @@ struct ProductDetailView: View {
                 }
             }
             .campusScreenStyle()
+            .onAppear {
+                guard let lastMeetupPayment else { return }
+                switch tapToPay.phase {
+                case .idle, .failed:
+                    tapToPay.start(from: lastMeetupPayment)
+                default:
+                    break
+                }
+            }
             .onChange(of: tapToPay.phase) { phase in
                 if phase == .succeeded {
                     Task {
@@ -1116,7 +1258,7 @@ struct ProductDetailView: View {
     }
 
     private func startSellerPayment() async {
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = SquareConfig.tapToPayBlocker {
             actionError = blocker
             return
         }
@@ -1126,9 +1268,10 @@ struct ProductDetailView: View {
             let response = try await paymentService.createRequest(productId: productId)
             sellerWaitingRequestId = response.paymentRequest.id
             lastMeetupPayment = response
-            showSellerPaymentSheet = true
             Motion.haptic(.medium)
-            tapToPay.start(from: response)
+            // Present our status sheet first; start Tap to Pay after it appears
+            // so Square’s UI isn’t presented mid-transition (TestFlight freeze).
+            showSellerPaymentSheet = true
             await refreshActivePayment()
         } catch {
             actionError = error.localizedDescription
@@ -1136,6 +1279,10 @@ struct ProductDetailView: View {
     }
 
     private func retryTapToPay() async {
+        if let blocker = SquareConfig.tapToPayBlocker {
+            actionError = blocker
+            return
+        }
         if let lastMeetupPayment {
             tapToPay.start(from: lastMeetupPayment)
             return
@@ -1199,10 +1346,21 @@ struct ProductDetailView: View {
         price.rounded() == price ? String(Int(price)) : String(format: "%.2f", price)
     }
 
+    /// Push owner tools on the next run loop so the button release / scroll gesture can finish
+    /// before NavigationStack mutates (avoids freezes on device when path is updated mid-tap).
+    private func pushOwnerRoute(_ route: Route) {
+        Motion.haptic(.light)
+        DispatchQueue.main.async {
+            if appState.path.last == route { return }
+            appState.path.append(route)
+        }
+    }
+
     private func load() async {
-        isLoading = true
+        let showSkeleton = product == nil
+        if showSkeleton { isLoading = true }
         errorMessage = nil
-        defer { isLoading = false }
+        defer { if showSkeleton { isLoading = false } }
         do {
             await blockStore.refreshIfNeeded()
             let fetched = try await productService.product(id: productId)

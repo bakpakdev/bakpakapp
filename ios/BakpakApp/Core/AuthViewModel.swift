@@ -827,14 +827,31 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
+    /// Clears the local session. Prefer `logoutAsync()` so callers can reset navigation first.
     func logout() {
+        Task { await logoutAsync() }
+    }
+
+    /// Local UI clears immediately; remote `signOut` is bounded so TestFlight can't hang.
+    func logoutAsync() async {
         KeychainManager.shared.clearToken()
+        clearSignupVerificationState()
+
+        // Drop the authenticated shell without waiting on the network.
         isAuthenticated = false
         user = nil
         needsOnboarding = false
-        clearSignupVerificationState()
-        if usesSupabase, let client = SupabaseManager.shared.client() {
-            Task { try? await client.auth.signOut() }
+
+        guard usesSupabase, let client = SupabaseManager.shared.client() else { return }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                try? await client.auth.signOut()
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+            }
+            _ = await group.next()
+            group.cancelAll()
         }
     }
 }

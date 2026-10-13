@@ -72,6 +72,8 @@
 	<string>$(SUPABASE_AUTH_REDIRECT_URL)</string>
 	<key>SUPABASE_URL</key>
 	<string>$(SUPABASE_URL)</string>
+	<key>TAP_TO_PAY_ENABLED</key>
+	<string>$(TAP_TO_PAY_ENABLED)</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Syne-wght.ttf</string>

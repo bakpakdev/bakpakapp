@@ -527,10 +527,12 @@ enum MeetupChecklistStore {
 
 enum MeetupChatActions {
     static func send(_ kind: MeetupMessageKind, meetup: Meetup, spots: [CampusMeetupSpot]) async {
+        let conversationId = meetup.conversationId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !conversationId.isEmpty else { return }
         let spot = spots.first(where: { $0.id == meetup.spotId })
             ?? CampusMeetupSpot(id: meetup.spotId, name: meetup.spotName, latitude: 0, longitude: 0)
         _ = try? await MessageService().send(
-            conversationId: meetup.conversationId,
+            conversationId: conversationId,
             content: MeetupMessageCodec.encode(kind: kind, spot: spot, proposedAt: meetup.scheduledAt)
         )
     }
@@ -1282,7 +1284,7 @@ struct MeetupInviteBubble: View {
         switch effectiveKind {
         case .invite: return "MEETUP INVITE"
         case .rescheduled: return "MEETUP RESCHEDULE"
-        case .accepted: return "MEETUP ACCEPTED"
+        case .accepted: return "MEETUP CONFIRMED"
         case .declined: return "MEETUP DECLINED"
         case .cancelled: return "MEETUP CANCELLED"
         }
@@ -1315,7 +1317,7 @@ struct MeetupInviteBubble: View {
                 ? "Waiting for them to confirm the new time."
                 : "Accept the new time to update your reminder."
         case .accepted:
-            return "You’re set — reschedule or cancel anytime."
+            return "Meetup confirmed — you’re both set. Reschedule or cancel anytime."
         case .declined:
             return "This meetup invite was declined."
         case .cancelled:
@@ -1325,7 +1327,7 @@ struct MeetupInviteBubble: View {
 
     private func statusLabel(_ status: MeetupMessageKind) -> String {
         switch status {
-        case .accepted: return "Accepted"
+        case .accepted: return "Confirmed"
         case .declined: return "Declined"
         case .cancelled: return "Cancelled"
         case .rescheduled: return "Reschedule pending"

@@ -94,13 +94,14 @@ struct MyListingsView: View {
                             .font(Theme.syne(15, weight: .semibold))
                             .foregroundStyle(campusTheme.textPrimary)
                             .lineLimit(2)
-                        Text("$\(Int(product.price))")
-                            .font(Theme.syne(14, weight: .bold))
-                            .foregroundStyle(campusTheme.primary)
                         if product.isSold == true {
-                            Text("Sold")
-                                .font(Theme.syne(11, weight: .semibold))
-                                .foregroundStyle(campusTheme.textMuted)
+                            Text("SOLD")
+                                .font(Theme.syne(14, weight: .bold))
+                                .foregroundStyle(Color(hex: "#E11D48"))
+                        } else {
+                            Text("$\(Int(product.price))")
+                                .font(Theme.syne(14, weight: .bold))
+                                .foregroundStyle(campusTheme.primary)
                         }
                     }
                     Spacer(minLength: 0)

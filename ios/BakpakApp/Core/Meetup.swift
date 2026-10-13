@@ -111,7 +111,9 @@ struct Meetup: Codable, Identifiable, Hashable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
-        conversationId = try c.decode(String.self, forKey: .conversationId)
+        // Empty until the seller accepts a listing-first meetup request.
+        conversationId = (try c.decodeIfPresent(String.self, forKey: .conversationId) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         productId = try c.decodeIfPresent(String.self, forKey: .productId)
         proposerId = try c.decode(String.self, forKey: .proposerId)
         recipientId = try c.decode(String.self, forKey: .recipientId)
@@ -134,7 +136,11 @@ struct Meetup: Codable, Identifiable, Hashable {
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
-        try c.encode(conversationId, forKey: .conversationId)
+        if conversationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            try c.encodeNil(forKey: .conversationId)
+        } else {
+            try c.encode(conversationId, forKey: .conversationId)
+        }
         try c.encodeIfPresent(productId, forKey: .productId)
         try c.encode(proposerId, forKey: .proposerId)
         try c.encode(recipientId, forKey: .recipientId)
@@ -208,11 +214,17 @@ struct Meetup: Codable, Identifiable, Hashable {
         proposerId.caseInsensitiveCompare(meId) == .orderedSame ? recipientCheckedInAt : proposerCheckedInAt
     }
 
-    /// Pay / collect once both people are here, or within 15 minutes of the meetup time.
+    /// Pay / Receive once the meetup is confirmed.
     func canShowPayment(now: Date = Date()) -> Bool {
-        guard status == .confirmed else { return false }
-        if bothCheckedIn { return true }
-        return abs(scheduledAt.timeIntervalSince(now)) <= 15 * 60
+        _ = now
+        return status == .confirmed
+    }
+
+    /// Unanswered invites disappear at the scheduled meetup time.
+    var isInviteExpired: Bool {
+        guard status == .proposed else { return false }
+        let deadline = expiresAt ?? scheduledAt
+        return deadline <= Date()
     }
 
     func pillTitle(meId: String, otherFirstName: String) -> String {

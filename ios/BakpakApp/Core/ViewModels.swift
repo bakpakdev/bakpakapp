@@ -28,8 +28,12 @@ final class ProductListViewModel: ObservableObject {
             let fetched = try await service.discover(school: school)
             guard gen == loadGeneration else { return }
             products = fetched
+            errorMessage = nil
+        } catch is CancellationError {
+            // Pull-to-refresh / superseded loads cancel the task — not a user-facing failure.
+            return
         } catch {
-            guard gen == loadGeneration else { return }
+            guard gen == loadGeneration, !Task.isCancelled else { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -44,8 +48,11 @@ final class ProductListViewModel: ObservableObject {
             let fetched = try await service.search(query: query, category: category, school: school)
             guard gen == loadGeneration else { return }
             products = fetched
+            errorMessage = nil
+        } catch is CancellationError {
+            return
         } catch {
-            guard gen == loadGeneration else { return }
+            guard gen == loadGeneration, !Task.isCancelled else { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -174,10 +181,13 @@ final class MessagesViewModel: ObservableObject {
         activeConversationId = nil
         let channel = realtimeChannel
         realtimeChannel = nil
-        if let channel {
+        if let channel, let client = SupabaseManager.shared.client() {
             Task {
-                if let client = await SupabaseManager.shared.clientWithValidSession() {
-                    await client.removeChannel(channel)
+                await withTaskGroup(of: Void.self) { group in
+                    group.addTask { await client.removeChannel(channel) }
+                    group.addTask { try? await Task.sleep(nanoseconds: 1_500_000_000) }
+                    _ = await group.next()
+                    group.cancelAll()
                 }
             }
         }

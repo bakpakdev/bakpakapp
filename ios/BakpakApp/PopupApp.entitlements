@@ -2,9 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Default Release entitlements: none, so Archive/TestFlight works before Apple
-	     approves payment capabilities. Switch POPUP_RELEASE_ENTITLEMENTS in
-	     Config/SupabaseProject.xcconfig to PopupApp.ApplePay.entitlements or
-	     PopupApp.Payments.entitlements once the capabilities exist on the App ID. -->
+	<key>com.apple.developer.in-app-payments</key>
+	<array>
+		<string>merchant.com.popup.app</string>
+	</array>
 </dict>
 </plist>

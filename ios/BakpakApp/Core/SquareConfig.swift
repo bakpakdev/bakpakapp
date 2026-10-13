@@ -72,6 +72,12 @@ enum SquareConfig {
         return nil
     }
 
+    /// Seller Receive / Tap to Pay — separate from buyer Apple Pay.
+    static var tapToPayBlocker: String? {
+        if let base = userFacingBlocker { return base }
+        return TapToPayCollector.setupBlocker
+    }
+
     static func initializeSDKIfNeeded() {
         guard isConfigured else { return }
         #if canImport(SquareMobilePaymentsSDK)

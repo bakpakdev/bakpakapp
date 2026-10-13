@@ -365,6 +365,18 @@ struct MeetupDetailView: View {
                     }
                 }
             } else if meetup.status == .confirmed {
+                if meetup.canShowPayment() {
+                    primaryButton(
+                        meetup.amISeller(meId: meId) ? "Receive" : "Pay",
+                        systemImage: meetup.amISeller(meId: meId)
+                            ? "tray.and.arrow.down.fill"
+                            : "dollarsign.circle.fill"
+                    ) {
+                        Motion.haptic(.medium)
+                        appState.path.append(.meetupPay(meetup.id))
+                    }
+                }
+
                 if meetup.isLive {
                     HStack(spacing: 8) {
                         secondaryButton("On my way") { Task { await setOnMyWay() } }
@@ -388,22 +400,17 @@ struct MeetupDetailView: View {
                         }
                     }
                 }
-                if meetup.canShowPayment() {
-                    primaryButton(
-                        meetup.amISeller(meId: meId) ? "Collect payment" : "Pay",
-                        systemImage: meetup.amISeller(meId: meId) ? "tray.and.arrow.down.fill" : "dollarsign.circle.fill"
-                    ) {
-                        Motion.haptic(.medium)
-                        appState.path.append(.meetupPay(meetup.id))
-                    }
-                }
             }
 
-            secondaryButton("Open chat") {
-                Motion.haptic(.light)
-                appState.path.append(
-                    .conversation(meetup.conversationId, meetup.otherUserId(meId: meId), meetup.productId)
-                )
+            if !meetup.conversationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                secondaryButton("Open chat") {
+                    Motion.haptic(.light)
+                    appState.openInboxChat(
+                        conversationId: meetup.conversationId,
+                        otherUserId: meetup.otherUserId(meId: meId),
+                        productId: meetup.productId
+                    )
+                }
             }
         }
         .padding(.horizontal, 20)
@@ -523,9 +530,23 @@ struct MeetupDetailView: View {
         errorMessage = nil
         defer { isBusy = false }
         do {
+            let hadChat = MeetupService.shouldPostChatStatus(for: meetup)
             let updated = try await MeetupService.respond(id: meetup.id, accept: accepted)
             meetupStore.apply(updated)
-            await MeetupChatActions.send(accepted ? .accepted : .declined, meetup: meetup, spots: campusTheme.meetupLocations)
+            if hadChat {
+                await MeetupChatActions.send(
+                    accepted ? .accepted : .declined,
+                    meetup: updated,
+                    spots: campusTheme.meetupLocations
+                )
+            } else if accepted, !updated.conversationId.isEmpty {
+                let other = updated.otherUserId(meId: meetupStore.meId)
+                appState.openInboxChat(
+                    conversationId: updated.conversationId,
+                    otherUserId: other,
+                    productId: updated.productId
+                )
+            }
             Motion.haptic(.medium)
             if !accepted { dismiss() }
         } catch {

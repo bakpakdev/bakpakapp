@@ -106,11 +106,27 @@ Apple Pay (later)
 4. `Secrets.xcconfig`: `APPLE_PAY_MERCHANT_ID = merchant.com.popup.app`
    and `POPUP_RELEASE_ENTITLEMENTS = PopupApp.ApplePay.entitlements`.
 
-Tap to Pay on iPhone (sellers collecting in person)
+Tap to Pay on iPhone (sellers collecting in person — required for Receive → balance)
 1. Request the entitlement: developer.apple.com → Account → "Tap to Pay on iPhone Entitlement".
    Requires an Organization (not Individual) team; approval takes days to weeks.
-2. After approval, add the capability to the App ID and set
-   `POPUP_RELEASE_ENTITLEMENTS = PopupApp.Payments.entitlements`.
+2. After approval, App ID `com.popup.app` → enable **Tap to Pay on iPhone** (+ Apple Pay if buyers pay in-app).
+3. In `Secrets.xcconfig`:
+   ```
+   POPUP_RELEASE_ENTITLEMENTS = PopupApp.Payments.entitlements
+   TAP_TO_PAY_ENABLED = YES
+   ```
+4. Set `APPLE_PAY_MERCHANT_ID = merchant.com.popup.app` (create Merchant ID + Square Apple Pay cert)
+   so **buyer Apple Pay** works. Tap to Pay (seller Receive) uses the proximity-reader entitlement;
+   buyer Apple Pay uses the merchant ID — both are needed for the full meetup pay loop.
+5. Archive → new TestFlight. Without steps 3–4, Receive shows a setup error (or used to freeze)
+   and money never hits `seller_balances`.
+
+How money reaches the seller balance
+1. Seller taps **Receive** → backend creates `payment_requests` + returns Square token/location.
+2. Tap to Pay (or buyer Apple Pay/card) completes a Square charge on Popup’s merchant account.
+3. App calls `POST /payments/meetup/:id/confirm` with the Square payment id / nonce.
+4. Backend marks the listing sold and credits `seller_balances.available_cents` (popup wallet).
+5. Cash out later reserves that wallet (ledger); bank push ships separately.
 
 Square production
 - Swap `SQUARE_APPLICATION_ID` to the `sq0idp-...` production app ID and the backend

@@ -6,6 +6,7 @@ struct MeetupCard: View {
     var onTap: () -> Void
     var onAccept: (() -> Void)? = nil
     var onDeny: (() -> Void)? = nil
+    var onPayOrReceive: (() -> Void)? = nil
 
     @EnvironmentObject private var meetupStore: MeetupStore
     @Environment(\.campusTheme) private var campusTheme
@@ -14,6 +15,9 @@ struct MeetupCard: View {
     private var peer: MeetupPeer { meetupStore.peer(for: meetup) }
     private var listing: MeetupListingPreview? { meetupStore.listing(for: meetup) }
     private var needsAnswer: Bool { meetup.needsMyResponse(meId: meId) }
+    private var showPaymentAction: Bool {
+        showsActions && meetup.canShowPayment() && onPayOrReceive != nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -87,6 +91,26 @@ struct MeetupCard: View {
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                 }
+            } else if showPaymentAction {
+                Button {
+                    Motion.haptic(.medium)
+                    onPayOrReceive?()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: meetup.amISeller(meId: meId)
+                              ? "tray.and.arrow.down.fill"
+                              : "dollarsign.circle.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(meetup.amISeller(meId: meId) ? "Receive" : "Pay")
+                            .font(Theme.syne(14, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(campusTheme.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
             }
         }
         .padding(16)

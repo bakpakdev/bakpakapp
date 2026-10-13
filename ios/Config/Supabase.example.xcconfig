@@ -14,6 +14,7 @@
 // TestFlight / App Store (Release) builds, also in Secrets.xcconfig or SupabaseProject.xcconfig:
 //   API_BASE_URL_RELEASE = https:/$()/your-backend.example.com/api
 //   POPUP_RELEASE_ENTITLEMENTS = PopupApp.ApplePay.entitlements
+//   TAP_TO_PAY_ENABLED = YES   # only with PopupApp.Payments.entitlements after Apple approval
 //     PopupApp.entitlements          -> no payment entitlements (default, always archives)
 //     PopupApp.ApplePay.entitlements -> Apple Pay; requires the Merchant ID above to exist in the portal
 //     PopupApp.Payments.entitlements -> Apple Pay + Tap to Pay; requires Apple's approval of the

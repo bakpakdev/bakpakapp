@@ -671,14 +671,19 @@ struct MessagesView: View {
                                 appState.path.append(.meetupDetail(meetup.id))
                             },
                             onAccept: { Task { await respondToStoredMeetup(meetup, accept: true) } },
-                            onDeny: { Task { await respondToStoredMeetup(meetup, accept: false) } }
+                            onDeny: { Task { await respondToStoredMeetup(meetup, accept: false) } },
+                            onPayOrReceive: {
+                                appState.path.append(.meetupPay(meetup.id))
+                            }
                         )
                         .padding(.horizontal, 2)
                         .tag(index)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: open.count > 1 ? .automatic : .never))
-                .frame(height: open.contains(where: { $0.needsMyResponse(meId: meetupStore.meId) }) ? 250 : 210)
+                .frame(height: open.contains(where: {
+                    $0.needsMyResponse(meId: meetupStore.meId) || $0.canShowPayment()
+                }) ? 270 : 210)
                 .onChange(of: open.map(\.id)) { _ in
                     if heroPage >= open.count { heroPage = max(0, open.count - 1) }
                 }
@@ -726,9 +731,22 @@ struct MessagesView: View {
 
     private func respondToStoredMeetup(_ meetup: Meetup, accept: Bool) async {
         do {
+            let hadChat = MeetupService.shouldPostChatStatus(for: meetup)
             let updated = try await MeetupService.respond(id: meetup.id, accept: accept)
             meetupStore.apply(updated)
-            await MeetupChatActions.send(accept ? .accepted : .declined, meetup: meetup, spots: campusTheme.meetupLocations)
+            if hadChat {
+                await MeetupChatActions.send(
+                    accept ? .accepted : .declined,
+                    meetup: updated,
+                    spots: campusTheme.meetupLocations
+                )
+            } else if accept, !updated.conversationId.isEmpty {
+                appState.openInboxChat(
+                    conversationId: updated.conversationId,
+                    otherUserId: updated.otherUserId(meId: meetupStore.meId),
+                    productId: updated.productId
+                )
+            }
             Motion.haptic(.medium)
         } catch {}
     }

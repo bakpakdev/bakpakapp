@@ -41,6 +41,15 @@ final class BlockStore: ObservableObject {
         products.filter(isVisibleSeller(of:))
     }
 
+    /// Drop in-memory block state on logout so the next account doesn't inherit it.
+    func clearForLogout() {
+        hiddenUserIds = []
+        blockedByMe = []
+        lastRefresh = nil
+        isRefreshing = false
+        revision += 1
+    }
+
     func refreshIfNeeded(force: Bool = false) async {
         if !force, let lastRefresh, Date().timeIntervalSince(lastRefresh) < 8, !hiddenUserIds.isEmpty {
             return

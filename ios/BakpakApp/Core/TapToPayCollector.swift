@@ -28,20 +28,53 @@ final class TapToPayCollector: NSObject, ObservableObject {
     private var squareAmountCents: Int = 0
     private var squarePaymentRequestId: String?
     private var squareNote: String?
+    private var startGeneration = 0
     #if canImport(MockReaderUI)
     private var mockReader: MockReaderUI?
     #endif
+
+    /// Info.plist `TAP_TO_PAY_ENABLED=YES` when Release is signed with Payments.entitlements.
+    nonisolated static var isEntitled: Bool {
+        let raw = (Bundle.main.object(forInfoDictionaryKey: "TAP_TO_PAY_ENABLED") as? String ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return raw == "yes" || raw == "true" || raw == "1"
+    }
+
+    nonisolated static var setupBlocker: String? {
+        #if targetEnvironment(simulator)
+        return "Tap to Pay needs a physical iPhone (XS or later)."
+        #else
+        if !isEntitled {
+            return """
+            Tap to Pay isn’t enabled on this build. Request Apple’s “Tap to Pay on iPhone” entitlement \
+            (Organization team), enable it on App ID com.popup.app, set \
+            POPUP_RELEASE_ENTITLEMENTS=PopupApp.Payments.entitlements and TAP_TO_PAY_ENABLED=YES, \
+            then ship a new TestFlight.
+            """
+        }
+        if !SquareConfig.isConfigured {
+            return "Square isn’t configured for this build."
+        }
+        return nil
+        #endif
+    }
 
     static func configureIfNeeded() {
         SquareConfig.initializeSDKIfNeeded()
     }
 
-    func start(from response: CreateMeetupPaymentResponse) {
+    /// Starts after a short delay so SwiftUI sheets can finish presenting
+    /// (presenting Square’s UI mid-transition freezes TestFlight builds).
+    func start(from response: CreateMeetupPaymentResponse, settleDelayMs: UInt64 = 500) {
         lastSquarePaymentId = nil
-        startSquare(from: response)
+        startGeneration += 1
+        let generation = startGeneration
+        startSquare(from: response, generation: generation, settleDelayMs: settleDelayMs)
     }
 
     func cancel() {
+        startGeneration += 1
         #if canImport(MockReaderUI)
         mockReader?.dismiss()
         #endif
@@ -49,7 +82,17 @@ final class TapToPayCollector: NSObject, ObservableObject {
         statusMessage = "Cancelled"
     }
 
-    private func startSquare(from response: CreateMeetupPaymentResponse) {
+    private func startSquare(
+        from response: CreateMeetupPaymentResponse,
+        generation: Int,
+        settleDelayMs: UInt64
+    ) {
+        if let blocker = Self.setupBlocker {
+            phase = .failed(blocker)
+            statusMessage = blocker
+            return
+        }
+
         Self.configureIfNeeded()
         guard let token = response.accessToken, let locationId = response.locationId else {
             phase = .failed("Tap to Pay isn’t available right now.")
@@ -70,79 +113,162 @@ final class TapToPayCollector: NSObject, ObservableObject {
         phase = .preparing
         statusMessage = "Preparing Tap to Pay…"
 
-        #if targetEnvironment(simulator)
-        phase = .failed("Tap to Pay needs a physical iPhone. Buyers can still pay with Apple Pay or card.")
-        statusMessage = "Use a physical iPhone to collect, or have the buyer pay in the app."
-        return
-        #endif
-
         #if !canImport(SquareMobilePaymentsSDK)
         phase = .failed("Tap to Pay isn’t available in this build.")
         statusMessage = "Update the app and try again"
         #else
-        Task { await authorizeAndCollectSquare() }
+        Task { @MainActor in
+            if settleDelayMs > 0 {
+                try? await Task.sleep(nanoseconds: settleDelayMs * 1_000_000_000 / 1000)
+            }
+            guard generation == startGeneration else { return }
+            await authorizeAndCollectSquare(generation: generation)
+        }
         #endif
     }
 
     #if canImport(SquareMobilePaymentsSDK)
-    private func authorizeAndCollectSquare() async {
+    private func authorizeAndCollectSquare(generation: Int) async {
+        guard generation == startGeneration else { return }
         guard let token = squareAccessToken, let locationId = squareLocationId else { return }
         SquareConfig.initializeSDKIfNeeded()
         phase = .connecting
         statusMessage = "Getting ready…"
 
-        let authError: Error? = await withCheckedContinuation { continuation in
-            MobilePaymentsSDK.shared.authorizationManager.authorize(
-                withAccessToken: token,
-                locationID: locationId
-            ) { error in
-                continuation.resume(returning: error)
-            }
-        }
-        if let authError {
-            phase = .failed(authError.localizedDescription)
-            statusMessage = authError.localizedDescription
+        switch await raceAuth(token: token, locationId: locationId) {
+        case .timedOut:
+            guard generation == startGeneration else { return }
+            phase = .failed("Timed out connecting to Square. Check your network and try again.")
+            statusMessage = "Connection timed out"
             return
+        case .failed(let error):
+            guard generation == startGeneration else { return }
+            phase = .failed(Self.friendlyError(error))
+            statusMessage = Self.friendlyError(error)
+            return
+        case .ok:
+            break
         }
+
+        guard generation == startGeneration else { return }
 
         #if targetEnvironment(simulator)
         #if canImport(MockReaderUI)
         presentMockReaderIfPossible()
         #else
-        phase = .failed("Tap to Pay needs a real iPhone (XS or later). Simulator can’t collect contactless payments.")
+        phase = .failed("Tap to Pay needs a real iPhone (XS or later).")
         statusMessage = "Use a physical iPhone to collect payment"
         return
         #endif
         #else
-        await linkAppleAccountIfNeeded()
+        let linked = await linkAppleAccountIfNeeded(generation: generation)
+        guard generation == startGeneration else { return }
+        if !linked { return }
         #endif
 
-        await startSquarePaymentPrompt()
+        await startSquarePaymentPrompt(generation: generation)
     }
 
-    private func linkAppleAccountIfNeeded() async {
+    private enum AuthOutcome {
+        case ok
+        case failed(Error)
+        case timedOut
+    }
+
+    private func raceAuth(token: String, locationId: String) async -> AuthOutcome {
+        await withTaskGroup(of: AuthOutcome.self) { group in
+            group.addTask {
+                let error: Error? = await withCheckedContinuation { continuation in
+                    MobilePaymentsSDK.shared.authorizationManager.authorize(
+                        withAccessToken: token,
+                        locationID: locationId
+                    ) { error in
+                        continuation.resume(returning: error)
+                    }
+                }
+                if let error { return .failed(error) }
+                return .ok
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 20_000_000_000)
+                return .timedOut
+            }
+            let first = await group.next() ?? .timedOut
+            group.cancelAll()
+            return first
+        }
+    }
+
+    /// Returns false when linking failed hard enough to abort.
+    private func linkAppleAccountIfNeeded(generation: Int) async -> Bool {
         let settings = MobilePaymentsSDK.shared.readerManager.tapToPaySettings
         guard settings.isDeviceCapable else {
-            phase = .failed("This device can’t accept Tap to Pay. Use an iPhone XS or later.")
+            phase = .failed("This iPhone can’t accept Tap to Pay. Use an iPhone XS or later.")
             statusMessage = "Use an iPhone XS or later"
-            return
+            return false
         }
+
+        if (try? await settings.isAppleAccountLinked()) == true {
+            return true
+        }
+
         statusMessage = "Linking Apple ID for Tap to Pay…"
-        let linkError: Error? = await withCheckedContinuation { continuation in
-            settings.linkAppleAccount { error in
-                continuation.resume(returning: error)
+
+        let outcome: AuthOutcome = await withTaskGroup(of: AuthOutcome.self) { group in
+            group.addTask {
+                let error: Error? = await withCheckedContinuation { continuation in
+                    settings.linkAppleAccount { error in
+                        continuation.resume(returning: error)
+                    }
+                }
+                if let error { return .failed(error) }
+                return .ok
             }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+                return .timedOut
+            }
+            let first = await group.next() ?? .timedOut
+            group.cancelAll()
+            return first
         }
-        if let linkError {
-            print("Square Apple ID link: \(linkError.localizedDescription)")
+
+        guard generation == startGeneration else { return false }
+
+        switch outcome {
+        case .timedOut:
+            phase = .failed("Apple ID linking timed out. Open Settings → Wallet & Apple Pay, then try Receive again.")
+            statusMessage = "Apple ID linking timed out"
+            return false
+        case .ok:
+            return true
+        case .failed(let error):
+            if (try? await settings.isAppleAccountLinked()) == true { return true }
+            let message = Self.friendlyError(error)
+            let lower = message.lowercased()
+            if lower.contains("entitlement")
+                || lower.contains("not available")
+                || lower.contains("permission") {
+                phase = .failed(message)
+                statusMessage = message
+                return false
+            }
+            print("Square Apple ID link warning: \(message)")
+            return true
         }
     }
 
-    private func startSquarePaymentPrompt() async {
+    private func startSquarePaymentPrompt(generation: Int) async {
+        guard generation == startGeneration else { return }
         guard let host = Self.topViewController() else {
-            phase = .failed("Could not present payment sheet.")
-            statusMessage = "Try Receive with Apple Pay again"
+            phase = .failed("Could not present Tap to Pay.")
+            statusMessage = "Try Receive again"
             return
+        }
+
+        if host.isBeingDismissed || host.isBeingPresented {
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard generation == startGeneration else { return }
         }
 
         let processingMode: ProcessingMode = SquareConfig.isSandbox ? .onlineOnly : .autoDetect
@@ -179,13 +305,30 @@ final class TapToPayCollector: NSObject, ObservableObject {
         }
     }
     #endif
+
+    private static func friendlyError(_ error: Error) -> String {
+        let raw = error.localizedDescription
+        let lower = raw.lowercased()
+        if lower.contains("entitlement") || lower.contains("not entitled") {
+            return """
+            Tap to Pay isn’t approved for this app yet. Request Apple’s Tap to Pay entitlement, \
+            set POPUP_RELEASE_ENTITLEMENTS=PopupApp.Payments.entitlements and TAP_TO_PAY_ENABLED=YES, \
+            then upload a new TestFlight.
+            """
+        }
+        if lower.contains("cancel") {
+            return "Payment cancelled"
+        }
+        return raw.isEmpty ? "Couldn’t start Tap to Pay." : raw
+    }
     #endif
 
     private static func topViewController() -> UIViewController? {
-        let window = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let window = scenes
             .flatMap(\.windows)
-            .first { $0.isKeyWindow }
+            .first(where: \.isKeyWindow)
+            ?? scenes.flatMap(\.windows).first
         var controller = window?.rootViewController
         while let presented = controller?.presentedViewController {
             controller = presented
@@ -214,8 +357,8 @@ extension TapToPayCollector: PaymentManagerDelegate {
 
     nonisolated func paymentManager(_ paymentManager: PaymentManager, didFail payment: Payment, withError error: Error) {
         Task { @MainActor in
-            phase = .failed(error.localizedDescription)
-            statusMessage = error.localizedDescription
+            phase = .failed(Self.friendlyError(error))
+            statusMessage = Self.friendlyError(error)
         }
     }
 

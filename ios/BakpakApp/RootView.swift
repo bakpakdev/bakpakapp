@@ -42,7 +42,8 @@ struct RootView: View {
                     .zIndex(20)
             }
         }
-        .animation(.easeInOut(duration: 0.5), value: authVM.isAuthenticated)
+        // Animate sign-in only — animating the authenticated tree away mid-logout freezes/crashes on device.
+        .animation(authVM.isAuthenticated ? .easeInOut(duration: 0.5) : nil, value: authVM.isAuthenticated)
         .onChange(of: authVM.isAuthenticated) { isAuth in
             if isAuth, !authVM.needsOnboarding {
                 playThemeEnterFade()

@@ -57,6 +57,9 @@ struct ContentView: View {
                 appState.noteBackgrounded()
             case .active:
                 appState.handleBecameActive()
+                if authVM.isAuthenticated {
+                    Task { await meetupStore.expireStaleInvites() }
+                }
             default:
                 break
             }
@@ -69,11 +72,10 @@ struct ContentView: View {
                     DispatchQueue.main.async { appState.consumePendingShareProfile() }
                 }
             } else {
-                // Don't mutate the signed-in NavigationStack in the same frame it's removed.
-                DispatchQueue.main.async {
-                    appState.resetToHome(reload: false)
-                    appState.resetAccountSessionCaches()
-                }
+                // Nav is cleared in `prepareForLogout` before auth flips. Avoid touching
+                // path/tokens again in the same teardown frame (NavigationStack crash).
+                meetupStore.stop()
+                BlockStore.shared.clearForLogout()
             }
         }
         .onChange(of: authVM.user?.id) { newId in

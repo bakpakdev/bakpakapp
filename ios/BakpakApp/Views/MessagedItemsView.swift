@@ -80,16 +80,14 @@ struct MessagedItemsView: View {
                         .foregroundStyle(campusTheme.textMuted)
                         .lineLimit(1)
 
-                    HStack(spacing: 8) {
+                    if item.isSold {
+                        Text("SOLD")
+                            .font(Theme.syne(15, weight: .bold))
+                            .foregroundStyle(Color(hex: "#E11D48"))
+                    } else {
                         Text("$\(Int(item.price))")
                             .font(Theme.syne(15, weight: .bold))
                             .foregroundStyle(campusTheme.primary)
-
-                        if item.isSold {
-                            Text("SOLD")
-                                .font(Theme.syne(11, weight: .bold))
-                                .foregroundStyle(campusTheme.textMuted)
-                        }
                     }
                 }
 

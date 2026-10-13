@@ -76,11 +76,11 @@ struct MainTabView: View {
             }
         }
         .onChange(of: appState.hidesTabBar) { hidden in
+            // One pass is enough. Stacking delayed full-window walks during confirms
+            // competed with NavigationStack pushes and froze TestFlight builds.
             nukeSystemTabBar()
             if hidden {
-                // Second pass after layout settles — TabView often recreates the bar.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { nukeSystemTabBar() }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { nukeSystemTabBar() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { nukeSystemTabBar() }
             }
         }
     }

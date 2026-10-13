@@ -119,9 +119,15 @@ struct ProductCardView: View {
                     .font(Theme.syne(15, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .lineLimit(1)
-                Text("$\(Int(product.price))")
-                    .font(.subheadline)
-                    .foregroundStyle(campusTheme.primary)
+                if product.isSold == true {
+                    Text("SOLD")
+                        .font(Theme.syne(14, weight: .bold))
+                        .foregroundStyle(Color(hex: "#E11D48"))
+                } else {
+                    Text("$\(Int(product.price))")
+                        .font(.subheadline)
+                        .foregroundStyle(campusTheme.primary)
+                }
                 Text(product.category ?? "")
                     .font(.caption)
                     .foregroundStyle(campusTheme.textMuted)

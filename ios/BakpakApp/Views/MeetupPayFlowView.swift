@@ -10,7 +10,7 @@ private enum MeetupPayStep: Int, CaseIterable {
     func title(collecting: Bool) -> String {
         switch self {
         case .confirm: return "Confirm"
-        case .pay: return collecting ? "Collect" : "Pay"
+        case .pay: return collecting ? "Receive" : "Pay"
         case .done: return "Done"
         }
     }
@@ -94,7 +94,7 @@ struct MeetupPayFlowView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
                         CampusPageHeader(
-                            title: isCollecting ? "collect" : "pay",
+                            title: isCollecting ? "receive" : "pay",
                             subtitle: isCollecting ? "get paid at your meetup" : "pay at your meetup"
                         )
 
@@ -465,6 +465,15 @@ struct MeetupPayFlowView: View {
                 }
             }
             .campusScreenStyle()
+            .onAppear {
+                guard let lastMeetupPayment else { return }
+                switch tapToPay.phase {
+                case .idle, .failed:
+                    tapToPay.start(from: lastMeetupPayment)
+                default:
+                    break
+                }
+            }
             .onChange(of: tapToPay.phase) { phase in
                 if phase == .succeeded {
                     Task {
@@ -490,8 +499,7 @@ struct MeetupPayFlowView: View {
                         }
                     }
                 } else if case .failed = phase {
-                    showSellerPaymentSheet = false
-                    presentPaymentOutcome(.failure)
+                    // Keep the sheet open so the seller can read the error / retry.
                 }
             }
         }
@@ -640,10 +648,10 @@ struct MeetupPayFlowView: View {
 
     private var primaryButtonTitle: String {
         switch step {
-        case .confirm: return isCollecting ? "Continue to collect" : "Continue to pay"
+        case .confirm: return isCollecting ? "Continue to receive" : "Continue to pay"
         case .pay:
             if paymentConfirmed { return "Continue" }
-            return isCollecting ? "Collect payment" : "Pay now"
+            return isCollecting ? "Receive payment" : "Pay now"
         case .done: return "Finish"
         }
     }
@@ -694,7 +702,11 @@ struct MeetupPayFlowView: View {
     // MARK: - Payments
 
     private func startApplePayFlow() async {
-        if let blocker = SquareConfig.userFacingBlocker {
+        if isCollecting, let blocker = SquareConfig.tapToPayBlocker {
+            paymentError = blocker
+            return
+        }
+        if !isCollecting, let blocker = SquareConfig.userFacingBlocker {
             paymentError = blocker
             return
         }
@@ -713,20 +725,28 @@ struct MeetupPayFlowView: View {
     }
 
     private func startSellerReceive(productId: String) async {
+        if let blocker = SquareConfig.tapToPayBlocker {
+            paymentError = blocker
+            return
+        }
         isPaymentBusy = true
         defer { isPaymentBusy = false }
         do {
             let response = try await paymentService.createRequest(productId: productId)
             sellerWaitingRequestId = response.paymentRequest.id
             lastMeetupPayment = response
+            // Sheet first; Tap to Pay starts in onAppear after settle (avoids TestFlight freeze).
             showSellerPaymentSheet = true
-            tapToPay.start(from: response)
         } catch {
             paymentError = error.localizedDescription
         }
     }
 
     private func retryTapToPay() async {
+        if let blocker = SquareConfig.tapToPayBlocker {
+            paymentError = blocker
+            return
+        }
         if let lastMeetupPayment {
             tapToPay.start(from: lastMeetupPayment)
             return

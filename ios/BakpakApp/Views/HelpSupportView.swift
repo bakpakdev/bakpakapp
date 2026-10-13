@@ -41,7 +41,7 @@ struct HelpSupportView: View {
                             faqRow(
                                 id: "meetup",
                                 question: "How do meetups work?",
-                                answer: "Propose a campus spot and time in chat. They’ll get an invite to accept. Open meetups from Inbox to see what’s next, check in when you arrive, and pay in-app once you’re both there."
+                                answer: "On a listing, tap Meetup request and pick a campus spot and time. Chat starts only after the seller accepts. If they decline, you’ll get a notification. Open Meetups from Inbox for what’s next, then check in and pay in-app when you’re both there."
                             )
                             faqRow(
                                 id: "sold",

@@ -259,11 +259,13 @@ private struct NavigationBarVisibilityBridge: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: Controller, context: Context) {
         uiViewController.hidden = hidden
-        uiViewController.apply()
+        uiViewController.applyIfNeeded()
     }
 
     final class Controller: UIViewController {
         var hidden: Bool
+        private var isApplying = false
+        private var lastAppliedHidden: Bool?
 
         init(hidden: Bool) {
             self.hidden = hidden
@@ -280,17 +282,27 @@ private struct NavigationBarVisibilityBridge: UIViewControllerRepresentable {
 
         override func viewWillAppear(_ animated: Bool) {
             super.viewWillAppear(animated)
-            apply()
+            applyIfNeeded()
         }
 
-        override func viewDidLayoutSubviews() {
-            super.viewDidLayoutSubviews()
-            apply()
-        }
+        // Intentionally no `viewDidLayoutSubviews` apply — `setNavigationBarHidden`
+        // triggers layout and used to recurse until the app froze (TestFlight watchdog).
 
-        func apply() {
+        func applyIfNeeded() {
+            guard !isApplying else { return }
             guard let nav = navigationController else { return }
-            nav.setNavigationBarHidden(hidden, animated: false)
+            if lastAppliedHidden == hidden, nav.isNavigationBarHidden == hidden {
+                return
+            }
+
+            isApplying = true
+            defer { isApplying = false }
+            lastAppliedHidden = hidden
+
+            if nav.isNavigationBarHidden != hidden {
+                nav.setNavigationBarHidden(hidden, animated: false)
+            }
+
             let bar = nav.navigationBar
             bar.shadowImage = UIImage()
             bar.setBackgroundImage(UIImage(), for: .default)

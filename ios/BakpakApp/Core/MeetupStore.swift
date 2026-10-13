@@ -57,6 +57,10 @@ final class MeetupStore: ObservableObject {
 
     private func isPast(_ meetup: Meetup) -> Bool {
         if meetup.status.isTerminal { return true }
+        // Unanswered requests vanish at the meetup time (not 30 min after).
+        if meetup.status == .proposed {
+            return meetup.isInviteExpired
+        }
         return meetup.scheduledAt.addingTimeInterval(30 * 60) < Date()
     }
 
@@ -78,6 +82,7 @@ final class MeetupStore: ObservableObject {
             let session = try await SupabaseManager.shared.clientWithValidSession()?.auth.session
             meId = session?.user.id.uuidString.lowercased() ?? ""
             meetups = try await MeetupService.fetchMyMeetups()
+            await expireStaleInvites()
             await loadExtras()
             pushSchedule()
             await migrateLocalChecklistIfNeeded()
@@ -90,22 +95,61 @@ final class MeetupStore: ObservableObject {
     }
 
     func stop() {
-        Task { @MainActor in
-            await teardownChannel()
-            meetups = []
-            meId = ""
-            peersById = [:]
-            listingsById = [:]
-            MeetupNotificationScheduler.shared.clearAll()
-        }
+        Task { await stopAsync() }
+    }
+
+    func stopAsync() async {
+        await teardownChannel()
+        meetups = []
+        meId = ""
+        peersById = [:]
+        listingsById = [:]
+        MeetupNotificationScheduler.shared.clearAll()
     }
 
     func refresh() async {
         do {
             meetups = try await MeetupService.fetchMyMeetups()
+            await expireStaleInvites()
             await loadExtras()
             pushSchedule()
         } catch {}
+    }
+
+    /// Persist + drop unanswered proposals whose meetup time has passed.
+    func expireStaleInvites() async {
+        if let expired = try? await MeetupService.expireStaleProposals() {
+            for row in expired { apply(row) }
+        }
+        // Local fallback if the network update failed — still hide them immediately.
+        let now = Date()
+        for meetup in meetups where meetup.status == .proposed {
+            let deadline = meetup.expiresAt ?? meetup.scheduledAt
+            guard deadline <= now else { continue }
+            apply(
+                Meetup(
+                    id: meetup.id,
+                    conversationId: meetup.conversationId,
+                    productId: meetup.productId,
+                    proposerId: meetup.proposerId,
+                    recipientId: meetup.recipientId,
+                    sellerId: meetup.sellerId,
+                    spotId: meetup.spotId,
+                    spotName: meetup.spotName,
+                    school: meetup.school,
+                    scheduledAt: meetup.scheduledAt,
+                    status: .expired,
+                    cancelReason: meetup.cancelReason,
+                    proposerCheckedInAt: meetup.proposerCheckedInAt,
+                    recipientCheckedInAt: meetup.recipientCheckedInAt,
+                    etaMinutes: meetup.etaMinutes,
+                    etaSetBy: meetup.etaSetBy,
+                    expiresAt: meetup.expiresAt,
+                    createdAt: meetup.createdAt,
+                    updatedAt: now
+                )
+            )
+        }
     }
 
     func apply(_ meetup: Meetup) {
@@ -128,8 +172,13 @@ final class MeetupStore: ObservableObject {
     private func teardownChannel() async {
         let channel = realtimeChannel
         realtimeChannel = nil
-        if let channel, let client = await SupabaseManager.shared.clientWithValidSession() {
-            await client.removeChannel(channel)
+        // Use the raw client — `clientWithValidSession` can hang refreshing tokens during logout.
+        guard let channel, let client = SupabaseManager.shared.client() else { return }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await client.removeChannel(channel) }
+            group.addTask { try? await Task.sleep(nanoseconds: 1_500_000_000) }
+            _ = await group.next()
+            group.cancelAll()
         }
     }
 
@@ -148,9 +197,21 @@ final class MeetupStore: ObservableObject {
     }
 
     func openMeetup(conversationId: String) -> Meetup? {
-        let cid = conversationId.lowercased()
+        let cid = conversationId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !cid.isEmpty else { return nil }
         return meetups.first {
             $0.conversationId.lowercased() == cid && $0.status.isOpen
+        }
+    }
+
+    /// Outgoing listing request still waiting on the seller.
+    func pendingOutgoing(productId: String) -> Meetup? {
+        let pid = productId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !pid.isEmpty, !meId.isEmpty else { return nil }
+        return meetups.first {
+            ($0.productId ?? "").lowercased() == pid
+                && $0.status == .proposed
+                && $0.waitingOnThem(meId: meId)
         }
     }
 

@@ -3,6 +3,7 @@ import SwiftUI
 struct AccountSettingsView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var meetupStore: MeetupStore
     @Environment(\.campusTheme) private var campusTheme
     @Environment(\.dismiss) private var dismiss
 
@@ -12,6 +13,7 @@ struct AccountSettingsView: View {
     @State private var isLoadingSquare = false
     @State private var showLogoutModal = false
     @State private var showDisconnectSquare = false
+    @State private var isLoggingOut = false
 
     private let squareConnect = SquareConnectService.shared
 
@@ -62,11 +64,11 @@ struct AccountSettingsView: View {
                     message: "Are you sure you want to log out?",
                     confirmTitle: "Log out",
                     onConfirm: {
+                        guard !isLoggingOut else { return }
                         showLogoutModal = false
-                        appState.hidesTabBar = false
-                        authVM.logout()
+                        Task { await performLogout() }
                     },
-                    onCancel: { showLogoutModal = false }
+                    onCancel: { if !isLoggingOut { showLogoutModal = false } }
                 )
                 .ignoresSafeArea()
                 .zIndex(10)
@@ -444,13 +446,19 @@ struct AccountSettingsView: View {
 
     private var logoutButton: some View {
         Button {
+            guard !isLoggingOut else { return }
             showLogoutModal = true
         } label: {
             HStack {
-                Image(systemName: "rectangle.portrait.and.arrow.right")
-                    .font(.system(size: 15, weight: .semibold))
-                Text("Log out")
-                    .font(Theme.syne(15, weight: .semibold))
+                if isLoggingOut {
+                    ProgressView()
+                        .tint(Color(hex: "#E11D48"))
+                } else {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("Log out")
+                        .font(Theme.syne(15, weight: .semibold))
+                }
             }
             .foregroundStyle(Color(hex: "#E11D48"))
             .frame(maxWidth: .infinity)
@@ -460,7 +468,21 @@ struct AccountSettingsView: View {
             .overlay(Capsule().stroke(Color(hex: "#E11D48").opacity(0.25), lineWidth: 1))
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+        .disabled(isLoggingOut)
         .padding(.top, 4)
+    }
+
+    /// Clear nav → settle → tear down realtime → flip auth (remote signOut is timed out).
+    private func performLogout() async {
+        guard !isLoggingOut else { return }
+        isLoggingOut = true
+        appState.prepareForLogout()
+        // Let NavigationStack finish emptying before removing the authenticated root.
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 80_000_000)
+        await meetupStore.stopAsync()
+        BlockStore.shared.clearForLogout()
+        await authVM.logoutAsync()
     }
 
     // MARK: - Data
