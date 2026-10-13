@@ -99,12 +99,14 @@ Expect `squareConfigured: true`, `squareCanTakePayments: true`, and `publicBaseU
 3. Expect charge `COMPLETED`, listing sold, seller wallet credited.
 4. Cash out is **ledger-only** for now (wallet reserved; no bank push yet).
 
-Apple Pay (later)
+Apple Pay (buyer meetup Pay — enabled for TestFlight)
 1. Identifiers → Merchant IDs → `merchant.com.popup.app`.
 2. App ID `com.popup.app` → enable Apple Pay → select that merchant.
 3. Square dashboard → Apple Pay → upload the payment processing certificate for that merchant.
-4. `Secrets.xcconfig`: `APPLE_PAY_MERCHANT_ID = merchant.com.popup.app`
-   and `POPUP_RELEASE_ENTITLEMENTS = PopupApp.ApplePay.entitlements`.
+4. Config already set: `APPLE_PAY_MERCHANT_ID = merchant.com.popup.app` and
+   `POPUP_RELEASE_ENTITLEMENTS = PopupApp.ApplePay.entitlements`.
+5. Archive a new build (bump `CURRENT_PROJECT_VERSION`) and upload to TestFlight.
+6. On device: meetup → **Pay** → Apple Pay sheet. Seller balance credits after confirm.
 
 Tap to Pay on iPhone (sellers collecting in person — required for Receive → balance)
 1. Request the entitlement: developer.apple.com → Account → "Tap to Pay on iPhone Entitlement".
