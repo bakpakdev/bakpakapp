@@ -21,12 +21,11 @@ struct ProductDetailView: View {
     @State private var actionError: String?
     @State private var comingSoonMessage: String?
     @StateObject private var paymentPresenter = PaymentSheetPresenter()
-    @StateObject private var tapToPay = TapToPayCollector()
     @State private var activePayment: ActiveMeetupPaymentResponse?
     @State private var sellerWaitingRequestId: String?
+    @State private var sellerWaitingSessionId: String?
     @State private var showSellerPaymentSheet = false
     @State private var isPaymentBusy = false
-    @State private var lastMeetupPayment: CreateMeetupPaymentResponse?
     @State private var showOfferSheet = false
     @State private var selectedOfferPercent: Int? = 15
     @State private var customOfferText = ""
@@ -1056,15 +1055,15 @@ struct ProductDetailView: View {
             Task { await startSellerPayment() }
         } label: {
             HStack(spacing: 14) {
-                Image(systemName: "wave.3.right.circle.fill")
+                Image(systemName: "iphone.and.arrow.forward")
                     .font(.system(size: 20, weight: .semibold))
                     .frame(width: 42, height: 42)
                     .background(Color.white.opacity(0.18))
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Collect payment")
+                    Text("Receive payment")
                         .font(Theme.syne(15, weight: .bold))
-                    Text("Buyer taps their card or phone on yours")
+                    Text("Buyer pays with Apple Pay on their phone")
                         .font(Theme.syne(12, weight: .medium))
                         .opacity(0.85)
                 }
@@ -1106,18 +1105,18 @@ struct ProductDetailView: View {
                     Circle()
                         .fill(campusTheme.primary.opacity(0.12))
                         .frame(width: 120, height: 120)
-                    Image(systemName: tapPhaseIcon)
+                    Image(systemName: "hourglass")
                         .font(.system(size: 44, weight: .semibold))
                         .foregroundStyle(campusTheme.primary)
                 }
                 .padding(.top, 20)
 
-                Text(tapPhaseTitle)
+                Text("Waiting for buyer")
                     .font(Theme.syne(24, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .multilineTextAlignment(.center)
 
-                Text(tapToPay.statusMessage)
+                Text("Stay on this screen. The buyer can pay with Apple Pay once you’re waiting.")
                     .font(Theme.syne(15))
                     .foregroundStyle(campusTheme.textMuted)
                     .multilineTextAlignment(.center)
@@ -1129,27 +1128,14 @@ struct ProductDetailView: View {
                         .foregroundStyle(campusTheme.primary)
                 }
 
+                ProgressView()
+                    .padding(.top, 4)
+
                 Spacer()
 
-                if case .failed = tapToPay.phase {
-                    Button {
-                        Task { await retryTapToPay() }
-                    } label: {
-                        Text("Try again")
-                            .font(Theme.syne(15, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(campusTheme.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-                }
-
-                if let requestId = sellerWaitingRequestId, tapToPay.phase != .succeeded {
+                if let sessionId = sellerWaitingSessionId {
                     Button(role: .destructive) {
-                        tapToPay.cancel()
-                        Task { await cancelSellerPayment(requestId: requestId) }
+                        Task { await cancelSellerSession(sessionId: sessionId) }
                     } label: {
                         Text("Cancel")
                             .font(Theme.syne(15, weight: .semibold))
@@ -1159,70 +1145,36 @@ struct ProductDetailView: View {
                 }
             }
             .padding(24)
-            .navigationTitle("Tap to Pay")
+            .navigationTitle("Receive")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
-                        if tapToPay.phase != .succeeded {
-                            tapToPay.cancel()
+                        Task {
+                            if let sessionId = sellerWaitingSessionId {
+                                await cancelSellerSession(sessionId: sessionId)
+                            } else {
+                                showSellerPaymentSheet = false
+                            }
                         }
-                        showSellerPaymentSheet = false
                     }
                 }
             }
             .campusScreenStyle()
-            .onAppear {
-                guard let lastMeetupPayment else { return }
-                switch tapToPay.phase {
-                case .idle, .failed:
-                    tapToPay.start(from: lastMeetupPayment)
-                default:
-                    break
-                }
-            }
-            .onChange(of: tapToPay.phase) { phase in
-                if phase == .succeeded {
-                    Task {
-                        if let requestId = sellerWaitingRequestId {
-                            try? await paymentService.confirm(
-                                requestId: requestId,
-                                squarePaymentId: tapToPay.lastSquarePaymentId
-                            )
-                        }
-                        await meetupStore.markCompleted(productId: productId)
+            .task {
+                while !Task.isCancelled, showSellerPaymentSheet {
+                    await refreshActivePayment()
+                    if activePayment?.active == false, product?.isSold == true {
                         showSellerPaymentSheet = false
                         presentPaymentOutcome(.success)
-                        await load()
+                        break
                     }
-                } else if case .failed = phase {
-                    showSellerPaymentSheet = false
-                    presentPaymentOutcome(.failure)
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
                 }
             }
         }
         .presentationDetents([.large])
-        .interactiveDismissDisabled(tapToPay.phase == .readyForTap || tapToPay.phase == .processing)
-    }
-
-    private var tapPhaseIcon: String {
-        switch tapToPay.phase {
-        case .succeeded: return "checkmark.circle.fill"
-        case .failed: return "exclamationmark.triangle.fill"
-        case .readyForTap: return "wave.3.right.circle.fill"
-        default: return "iphone.radiowaves.left.and.right"
-        }
-    }
-
-    private var tapPhaseTitle: String {
-        switch tapToPay.phase {
-        case .succeeded: return "Paid"
-        case .failed: return "Couldn’t collect"
-        case .readyForTap: return "Ready for tap"
-        case .processing: return "Processing"
-        case .connecting, .preparing: return "Getting ready"
-        case .idle: return "Tap to Pay"
-        }
+        .interactiveDismissDisabled(true)
     }
 
     private func presentPaymentOutcome(_ kind: PaymentOutcomeKind) {
@@ -1258,36 +1210,27 @@ struct ProductDetailView: View {
     }
 
     private func startSellerPayment() async {
-        if let blocker = SquareConfig.tapToPayBlocker {
+        if let blocker = SquareConfig.userFacingBlocker {
             actionError = blocker
             return
         }
         isPaymentBusy = true
         defer { isPaymentBusy = false }
         do {
-            let response = try await paymentService.createRequest(productId: productId)
+            let meetup = confirmedMeetupForListing
+            let response = try await paymentService.openReceive(
+                productId: productId,
+                meetupId: meetup?.id,
+                buyerId: meetup.map { $0.otherUserId(meId: meetupStore.meId) }
+            )
             sellerWaitingRequestId = response.paymentRequest.id
-            lastMeetupPayment = response
+            sellerWaitingSessionId = response.session.id
             Motion.haptic(.medium)
-            // Present our status sheet first; start Tap to Pay after it appears
-            // so Square’s UI isn’t presented mid-transition (TestFlight freeze).
             showSellerPaymentSheet = true
             await refreshActivePayment()
         } catch {
             actionError = error.localizedDescription
         }
-    }
-
-    private func retryTapToPay() async {
-        if let blocker = SquareConfig.tapToPayBlocker {
-            actionError = blocker
-            return
-        }
-        if let lastMeetupPayment {
-            tapToPay.start(from: lastMeetupPayment)
-            return
-        }
-        await startSellerPayment()
     }
 
     private func startBuyerPayment() async {
@@ -1298,16 +1241,28 @@ struct ProductDetailView: View {
         isPaymentBusy = true
         defer { isPaymentBusy = false }
         do {
-            let requestId: String
-            if let existing = activePayment?.paymentRequestId, activePayment?.canPay == true {
-                requestId = existing
-            } else {
-                let created = try await paymentService.createRequest(productId: productId)
-                requestId = created.paymentRequest.id
-                await refreshActivePayment()
+            let status = try await paymentService.fetchSession(productId: productId)
+            guard status.canPay == true,
+                  let requestId = status.paymentRequestId ?? status.session?.paymentRequestId else {
+                actionError = status.message ?? "Ask the seller to open Receive first."
+                return
             }
             let checkout = try await paymentService.fetchCheckout(requestId: requestId)
             paymentPresenter.prepareAndPresent(checkout: checkout)
+        } catch {
+            actionError = error.localizedDescription
+        }
+    }
+
+    private func cancelSellerSession(sessionId: String) async {
+        isPaymentBusy = true
+        defer { isPaymentBusy = false }
+        do {
+            try await paymentService.cancelSession(sessionId: sessionId)
+            sellerWaitingRequestId = nil
+            sellerWaitingSessionId = nil
+            showSellerPaymentSheet = false
+            await refreshActivePayment()
         } catch {
             actionError = error.localizedDescription
         }
@@ -1317,8 +1272,13 @@ struct ProductDetailView: View {
         isPaymentBusy = true
         defer { isPaymentBusy = false }
         do {
-            try await paymentService.cancel(requestId: requestId)
+            if let sessionId = sellerWaitingSessionId {
+                try await paymentService.cancelSession(sessionId: sessionId)
+            } else {
+                try await paymentService.cancel(requestId: requestId)
+            }
             sellerWaitingRequestId = nil
+            sellerWaitingSessionId = nil
             showSellerPaymentSheet = false
             await refreshActivePayment()
         } catch {
@@ -1466,9 +1426,13 @@ struct ProductDetailView: View {
         do {
             // Manual sold = sold outside Square — no balance credit.
             if next, let requestId = activePayment?.paymentRequestId ?? sellerWaitingRequestId {
-                tapToPay.cancel()
-                try? await paymentService.cancel(requestId: requestId)
+                if let sessionId = sellerWaitingSessionId {
+                    try? await paymentService.cancelSession(sessionId: sessionId)
+                } else {
+                    try? await paymentService.cancel(requestId: requestId)
+                }
                 sellerWaitingRequestId = nil
+                sellerWaitingSessionId = nil
                 showSellerPaymentSheet = false
                 activePayment = nil
             }

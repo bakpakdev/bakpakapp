@@ -214,10 +214,19 @@ struct Meetup: Codable, Identifiable, Hashable {
         proposerId.caseInsensitiveCompare(meId) == .orderedSame ? recipientCheckedInAt : proposerCheckedInAt
     }
 
-    /// Pay / Receive once the meetup is confirmed.
+    /// Pay / Receive for open meetups (proposed or confirmed), any time.
+    /// Actual charge still requires seller on Receive + buyer on Pay (server session).
     func canShowPayment(now: Date = Date()) -> Bool {
         _ = now
-        return status == .confirmed
+        guard let productId, !productId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+        switch status {
+        case .proposed, .confirmed:
+            return true
+        default:
+            return false
+        }
     }
 
     /// Unanswered invites disappear at the scheduled meetup time.

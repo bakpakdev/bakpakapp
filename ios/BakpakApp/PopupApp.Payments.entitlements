@@ -2,12 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Apple Pay + Tap to Pay on iPhone. Tap to Pay is a restricted entitlement: request it
-	     at developer.apple.com (Tap to Pay on iPhone entitlement request) and wait for
-	     approval before selecting this file, or signing fails at Archive. -->
+	<!-- POST-LAUNCH ONLY — see ios/POST_LAUNCH_TAP_TO_PAY.md
+	     Apple Pay + Tap to Pay on iPhone. Requires Organization team + Apple's
+	     Tap to Pay entitlement approval before Archive, or signing fails. -->
 	<key>com.apple.developer.in-app-payments</key>
 	<array>
-		<string>$(APPLE_PAY_MERCHANT_ID)</string>
+		<string>merchant.com.popup.app</string>
 	</array>
 	<key>com.apple.developer.proximity-reader.payment.acceptance</key>
 	<true/>

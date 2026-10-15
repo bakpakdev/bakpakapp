@@ -353,18 +353,7 @@ struct MeetupDetailView: View {
                     primaryButton("Accept") { Task { await respond(accepted: true) } }
                     secondaryButton("Deny") { Task { await respond(accepted: false) } }
                 }
-            } else if meetup.status == .proposed, meetup.waitingOnThem(meId: meId) {
-                HStack(spacing: 10) {
-                    secondaryButton("Reschedule") {
-                        Motion.haptic(.light)
-                        showMeetupPicker = true
-                    }
-                    secondaryButton("Cancel") {
-                        Motion.haptic(.light)
-                        showCancelSheet = true
-                    }
-                }
-            } else if meetup.status == .confirmed {
+            } else if meetup.status == .proposed || meetup.status == .confirmed {
                 if meetup.canShowPayment() {
                     primaryButton(
                         meetup.amISeller(meId: meId) ? "Receive" : "Pay",
@@ -377,7 +366,7 @@ struct MeetupDetailView: View {
                     }
                 }
 
-                if meetup.isLive {
+                if meetup.status == .confirmed, meetup.isLive {
                     HStack(spacing: 8) {
                         secondaryButton("On my way") { Task { await setOnMyWay() } }
                         secondaryButton("Running late") {

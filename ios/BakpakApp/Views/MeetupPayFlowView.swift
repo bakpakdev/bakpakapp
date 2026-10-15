@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 private enum MeetupPayStep: Int, CaseIterable {
     case confirm = 0
@@ -32,16 +33,18 @@ struct MeetupPayFlowView: View {
     @State private var isCollecting = false
     @State private var isPaymentBusy = false
     @State private var paymentError: String?
-    @State private var showSellerPaymentSheet = false
     @State private var showBuyerPaymentSheet = false
-    @State private var sellerWaitingRequestId: String?
-    @State private var lastMeetupPayment: CreateMeetupPaymentResponse?
+    @State private var activeSession: PaymentSessionDTO?
+    @State private var sellerCanReceive = false
+    @State private var buyerCanPay = false
+    @State private var sessionHint: String?
     @State private var paymentOutcome: PaymentOutcomeKind?
-    /// True only after Square confirm succeeds (nonce or Tap to Pay payment id).
+    @State private var showBuyerSentAnimation = false
+    @State private var showSellerReceivedCard = false
     @State private var paymentConfirmed = false
+    @State private var sessionChannel: RealtimeChannelV2?
 
     @StateObject private var paymentPresenter = PaymentSheetPresenter()
-    @StateObject private var tapToPay = TapToPayCollector()
 
     private var canUseApplePayUI: Bool {
         SquareConfig.isApplePayConfigured
@@ -86,6 +89,15 @@ struct MeetupPayFlowView: View {
         return String(format: "$%.2f", productPrice)
     }
 
+    private var sessionAmountLabel: String {
+        if let cents = activeSession?.amountCents {
+            let dollars = Double(cents) / 100
+            if dollars.rounded() == dollars { return "$\(Int(dollars))" }
+            return String(format: "$%.2f", dollars)
+        }
+        return priceLabel ?? "$—"
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             CampusPageBackground()
@@ -114,7 +126,7 @@ struct MeetupPayFlowView: View {
                     .padding(.bottom, 24)
                 }
 
-                if paymentOutcome == nil {
+                if paymentOutcome == nil && !showBuyerSentAnimation && !showSellerReceivedCard {
                     bottomBar
                         .padding(.horizontal, 20)
                         .padding(.top, 10)
@@ -124,7 +136,33 @@ struct MeetupPayFlowView: View {
         }
         .campusPageStyle()
         .overlay {
-            if let paymentOutcome {
+            if showBuyerSentAnimation {
+                BuyerSentOverlay(
+                    amountLabel: sessionAmountLabel,
+                    onContinue: {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            showBuyerSentAnimation = false
+                        }
+                        withAnimation(Motion.snappy) { step = .done }
+                    }
+                )
+                .ignoresSafeArea()
+                .transition(.opacity)
+            } else if showSellerReceivedCard {
+                SellerReceivedOverlay(
+                    amountLabel: sessionAmountLabel,
+                    fromName: item.otherPersonName,
+                    itemName: activeSession?.productTitle ?? item.productTitle ?? "item",
+                    onContinue: {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            showSellerReceivedCard = false
+                        }
+                        withAnimation(Motion.snappy) { step = .done }
+                    }
+                )
+                .ignoresSafeArea()
+                .transition(.opacity)
+            } else if let paymentOutcome {
                 PaymentOutcomeOverlay(
                     kind: paymentOutcome,
                     isCollecting: isCollecting,
@@ -134,17 +172,24 @@ struct MeetupPayFlowView: View {
                 .transition(.opacity)
             }
         }
-        .toolbar(paymentOutcome == nil ? .visible : .hidden, for: .navigationBar)
-        .hidesSystemNavigationBar(paymentOutcome != nil)
+        .toolbar(
+            paymentOutcome == nil && !showBuyerSentAnimation && !showSellerReceivedCard ? .visible : .hidden,
+            for: .navigationBar
+        )
+        .hidesSystemNavigationBar(paymentOutcome != nil || showBuyerSentAnimation || showSellerReceivedCard)
         .onAppear { appState.hidesTabBar = true }
-        .onDisappear { appState.hidesTabBar = false }
+        .onDisappear {
+            appState.hidesTabBar = false
+            Task { await teardownSessionWatch() }
+        }
         .task {
             if let meetup {
                 isCollecting = meetup.amISeller(meId: meetupStore.meId)
             }
             await loadPrice()
+            await refreshSessionStatus()
+            await startSessionWatch()
         }
-        .sheet(isPresented: $showSellerPaymentSheet) { sellerReceiveSheet }
         .sheet(isPresented: $showBuyerPaymentSheet) { buyerPaySheet }
         .background(PaymentSheetHost(presenter: paymentPresenter))
         .onChange(of: paymentPresenter.didComplete) { completed in
@@ -153,7 +198,10 @@ struct MeetupPayFlowView: View {
             paymentConfirmed = true
             selectedMethod = canUseApplePayUI ? "Apple Pay" : "Card"
             showBuyerPaymentSheet = false
-            presentPaymentOutcome(.success)
+            Motion.haptic(.medium)
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
+                showBuyerSentAnimation = true
+            }
         }
         .onChange(of: paymentPresenter.errorMessage) { message in
             guard message != nil, paymentOutcome == nil else { return }
@@ -161,7 +209,7 @@ struct MeetupPayFlowView: View {
             presentPaymentOutcome(.failure)
         }
         .alert("Payment", isPresented: Binding(
-            get: { paymentOutcome == nil && (paymentError != nil || paymentPresenter.errorMessage != nil) },
+            get: { paymentOutcome == nil && !showBuyerSentAnimation && (paymentError != nil || paymentPresenter.errorMessage != nil) },
             set: { if !$0 { paymentError = nil; paymentPresenter.errorMessage = nil } }
         )) {
             Button("OK", role: .cancel) {}
@@ -235,44 +283,57 @@ struct MeetupPayFlowView: View {
     }
 
     private var payStep: some View {
+        Group {
+            if isCollecting {
+                sellerReceiveStep
+            } else {
+                buyerPayStep
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var sellerReceiveStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(isCollecting ? "how you’ll get paid" : "choose how to pay")
+            Text(activeSession?.status == "waiting" ? "waiting for buyer" : "open receive")
                 .font(Theme.syne(18, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
 
-            Text(payStepSubtitle)
+            Text(activeSession?.status == "waiting"
+                 ? "Stay on this screen. The buyer can pay with Apple Pay once you’re waiting."
+                 : "Tap Receive to start a session. The buyer’s Pay button unlocks while you’re waiting.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, -8)
 
-            if let priceLabel {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("amount")
-                        .font(Theme.syne(13, weight: .semibold))
+            VStack(spacing: 10) {
+                Text(sessionAmountLabel)
+                    .font(Theme.syne(48, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .frame(maxWidth: .infinity)
+                if let title = (activeSession?.productTitle ?? item.productTitle), !title.isEmpty {
+                    Text(title)
+                        .font(Theme.syne(15, weight: .medium))
                         .foregroundStyle(campusTheme.textMuted)
-                    Text(priceLabel)
-                        .font(Theme.syne(36, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
+                        .multilineTextAlignment(.center)
                 }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(CampusCardBackground())
+                if activeSession?.status == "waiting" {
+                    ProgressView()
+                        .padding(.top, 8)
+                    Text("Waiting for buyer…")
+                        .font(Theme.syne(14, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
             }
+            .padding(24)
+            .frame(maxWidth: .infinity)
+            .background(CampusCardBackground())
 
-            if isCollecting || canUseApplePayUI {
-                ApplePayButton(
-                    title: isCollecting ? "Receive with Apple Pay" : "Pay with Apple Pay",
-                    receiving: isCollecting,
-                    isLoading: isPaymentBusy
-                ) {
-                    Task { await startApplePayFlow() }
-                }
-                .disabled(isPaymentBusy || (item.productId ?? "").isEmpty)
-            } else {
+            if activeSession?.status != "waiting" {
                 Button {
-                    Task { await startApplePayFlow() }
+                    Task { await startSellerReceive() }
                 } label: {
-                    Text(isPaymentBusy ? "Opening…" : "Pay with card")
+                    Text(isPaymentBusy ? "Opening…" : "Receive")
                         .font(Theme.syne(16, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -282,28 +343,113 @@ struct MeetupPayFlowView: View {
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
                 .disabled(isPaymentBusy || (item.productId ?? "").isEmpty)
+            } else if let sessionId = activeSession?.id {
+                Button(role: .destructive) {
+                    Task { await cancelSellerSession(sessionId: sessionId) }
+                } label: {
+                    Text("Cancel receive")
+                        .font(Theme.syne(15, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                }
+                .buttonStyle(.bordered)
             }
 
             Text(paymentConfirmed
-                 ? "Payment went through — tap Continue."
-                 : (isCollecting
-                    ? "Payment must succeed in Square before you can finish."
-                    : "Payment must succeed in Square before you can finish."))
+                 ? "Payment landed in your popup balance — tap Continue."
+                 : "Funds credit your popup balance when the buyer pays. Stay here until then.")
                 .font(Theme.syne(13, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, 4)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var payStepSubtitle: String {
-        if isCollecting {
-            return "The buyer pays on your phone, right in the app."
+    private var buyerPayStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("choose how to pay")
+                .font(Theme.syne(18, weight: .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+
+            Text(buyerCanPay
+                 ? "Seller is ready. Pay with Apple Pay on your phone."
+                 : "Ask the seller to open Receive first.")
+                .font(Theme.syne(14))
+                .foregroundStyle(campusTheme.textMuted)
+                .padding(.top, -8)
+
+            VStack(spacing: 8) {
+                Text(sessionAmountLabel)
+                    .font(Theme.syne(48, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .frame(maxWidth: .infinity)
+                if let title = item.productTitle, !title.isEmpty {
+                    Text(title)
+                        .font(Theme.syne(15, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity)
+            .background(CampusCardBackground())
+
+            if buyerCanPay {
+                if canUseApplePayUI {
+                    ApplePayButton(
+                        title: "Pay with Apple Pay",
+                        isLoading: isPaymentBusy
+                    ) {
+                        Task { await startBuyerPay() }
+                    }
+                    .disabled(isPaymentBusy || (item.productId ?? "").isEmpty)
+                } else {
+                    Button {
+                        Task { await startBuyerPay() }
+                    } label: {
+                        Text(isPaymentBusy ? "Opening…" : "Pay with card")
+                            .font(Theme.syne(16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .background(campusTheme.primary)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                    .disabled(isPaymentBusy || (item.productId ?? "").isEmpty)
+                }
+            } else {
+                HStack(spacing: 10) {
+                    Image(systemName: "person.wave.2")
+                        .foregroundStyle(campusTheme.primary)
+                    Text(sessionHint ?? "Ask the seller to open Receive first.")
+                        .font(Theme.syne(14, weight: .medium))
+                        .foregroundStyle(campusTheme.textPrimary)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(campusTheme.elevatedSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                Button {
+                    Task { await refreshSessionStatus() }
+                } label: {
+                    Text("Check again")
+                        .font(Theme.syne(15, weight: .semibold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(campusTheme.elevatedSurface)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+            }
+
+            Text(paymentConfirmed
+                 ? "Payment went through — tap Continue."
+                 : "Payment must succeed in Square before you can finish.")
+                .font(Theme.syne(13, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+                .padding(.top, 4)
         }
-        if canUseApplePayUI {
-            return "Pay the seller with Apple Pay, right in the app."
-        }
-        return "Pay the seller with a card, right in the app (sandbox test cards work)."
     }
 
     private var doneStep: some View {
@@ -313,8 +459,8 @@ struct MeetupPayFlowView: View {
                 .foregroundStyle(campusTheme.textPrimary)
 
             Text(isCollecting
-                 ? "Square confirmed the charge. Finish to close out this meetup."
-                 : "Square confirmed your charge. Finish to close out this meetup.")
+                 ? "Funds are in your popup balance. Finish to close out this meetup."
+                 : "Your Apple Pay charge went through. Finish to close out this meetup.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, -8)
@@ -390,122 +536,7 @@ struct MeetupPayFlowView: View {
         }
     }
 
-    // MARK: - Apple Pay sheets
-
-    private var sellerReceiveSheet: some View {
-        NavigationStack {
-            VStack(spacing: 22) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 38, style: .continuous)
-                        .fill(campusTheme.elevatedSurface)
-                        .frame(width: 120, height: 120)
-                    Image(systemName: tapPhaseIcon)
-                        .font(.system(size: 44, weight: .semibold))
-                        .foregroundStyle(campusTheme.primary)
-                }
-                .padding(.top, 20)
-
-                Text(tapPhaseTitle)
-                    .font(Theme.syne(24, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .multilineTextAlignment(.center)
-
-                Text(tapToPay.statusMessage)
-                    .font(Theme.syne(15))
-                    .foregroundStyle(campusTheme.textMuted)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 8)
-
-                if let priceLabel {
-                    Text(priceLabel)
-                        .font(Theme.syne(36, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                }
-
-                Spacer()
-
-                if case .failed = tapToPay.phase {
-                    Button {
-                        Task { await retryTapToPay() }
-                    } label: {
-                        Text("Try again")
-                            .font(Theme.syne(15, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(campusTheme.primary)
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-                }
-
-                if let requestId = sellerWaitingRequestId, tapToPay.phase != .succeeded {
-                    Button(role: .destructive) {
-                        tapToPay.cancel()
-                        Task { await cancelSellerPayment(requestId: requestId) }
-                    } label: {
-                        Text("Cancel")
-                            .font(Theme.syne(15, weight: .semibold))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-            .padding(24)
-            .navigationTitle("Receive with Apple Pay")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        if tapToPay.phase != .succeeded {
-                            tapToPay.cancel()
-                        }
-                        showSellerPaymentSheet = false
-                    }
-                }
-            }
-            .campusScreenStyle()
-            .onAppear {
-                guard let lastMeetupPayment else { return }
-                switch tapToPay.phase {
-                case .idle, .failed:
-                    tapToPay.start(from: lastMeetupPayment)
-                default:
-                    break
-                }
-            }
-            .onChange(of: tapToPay.phase) { phase in
-                if phase == .succeeded {
-                    Task {
-                        var confirmed = false
-                        if let requestId = sellerWaitingRequestId {
-                            do {
-                                try await paymentService.confirm(
-                                    requestId: requestId,
-                                    squarePaymentId: tapToPay.lastSquarePaymentId
-                                )
-                                confirmed = true
-                            } catch {
-                                paymentError = error.localizedDescription
-                            }
-                        }
-                        selectedMethod = "Apple Pay"
-                        showSellerPaymentSheet = false
-                        if confirmed {
-                            paymentConfirmed = true
-                            presentPaymentOutcome(.success)
-                        } else {
-                            presentPaymentOutcome(.failure)
-                        }
-                    }
-                } else if case .failed = phase {
-                    // Keep the sheet open so the seller can read the error / retry.
-                }
-            }
-        }
-        .presentationDetents([.large])
-        .interactiveDismissDisabled(tapToPay.phase == .readyForTap || tapToPay.phase == .processing)
-    }
+    // MARK: - Buyer checkout sheet
 
     private var buyerPaySheet: some View {
         NavigationStack {
@@ -535,11 +566,9 @@ struct MeetupPayFlowView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 8)
 
-                if let priceLabel {
-                    Text(priceLabel)
-                        .font(Theme.syne(36, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                }
+                Text(sessionAmountLabel)
+                    .font(Theme.syne(36, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
 
                 Spacer()
 
@@ -584,26 +613,6 @@ struct MeetupPayFlowView: View {
             .campusScreenStyle()
         }
         .presentationDetents([.large])
-    }
-
-    private var tapPhaseIcon: String {
-        switch tapToPay.phase {
-        case .succeeded: return "checkmark.circle.fill"
-        case .failed: return "exclamationmark.triangle.fill"
-        case .readyForTap: return "wave.3.right.circle.fill"
-        default: return "iphone.radiowaves.left.and.right"
-        }
-    }
-
-    private var tapPhaseTitle: String {
-        switch tapToPay.phase {
-        case .succeeded: return "Paid"
-        case .failed: return "Couldn’t collect"
-        case .readyForTap: return "Ready for tap"
-        case .processing: return "Processing"
-        case .connecting, .preparing: return "Getting ready"
-        case .idle: return "Receive with Apple Pay"
-        }
     }
 
     // MARK: - Bottom bar
@@ -660,12 +669,14 @@ struct MeetupPayFlowView: View {
         switch step {
         case .confirm:
             withAnimation(Motion.snappy) { step = .pay }
+            Task { await refreshSessionStatus() }
         case .pay:
-            // Only advance after Square confirm succeeds — no honor-system skip.
             if paymentConfirmed {
                 withAnimation(Motion.snappy) { step = .done }
+            } else if isCollecting {
+                Task { await startSellerReceive() }
             } else {
-                Task { await startApplePayFlow() }
+                Task { await startBuyerPay() }
             }
         case .done:
             guard paymentConfirmed else {
@@ -699,14 +710,49 @@ struct MeetupPayFlowView: View {
         }
     }
 
-    // MARK: - Payments
+    // MARK: - Session + payments
 
-    private func startApplePayFlow() async {
-        if isCollecting, let blocker = SquareConfig.tapToPayBlocker {
+    private func startSellerReceive() async {
+        guard let productId = item.productId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !productId.isEmpty else {
+            paymentError = "This meetup isn’t linked to a listing."
+            return
+        }
+        if let blocker = SquareConfig.userFacingBlocker {
             paymentError = blocker
             return
         }
-        if !isCollecting, let blocker = SquareConfig.userFacingBlocker {
+        Motion.haptic(.medium)
+        isPaymentBusy = true
+        defer { isPaymentBusy = false }
+        do {
+            let response = try await paymentService.openReceive(
+                productId: productId,
+                meetupId: meetupId,
+                buyerId: item.otherUserId
+            )
+            activeSession = response.session
+            sellerCanReceive = true
+            buyerCanPay = false
+            selectedMethod = "Apple Pay"
+            sessionHint = nil
+        } catch {
+            paymentError = error.localizedDescription
+        }
+    }
+
+    private func cancelSellerSession(sessionId: String) async {
+        do {
+            try await paymentService.cancelSession(sessionId: sessionId)
+            activeSession = nil
+            sellerCanReceive = false
+        } catch {
+            paymentError = error.localizedDescription
+        }
+    }
+
+    private func startBuyerPay() async {
+        if let blocker = SquareConfig.userFacingBlocker {
             paymentError = blocker
             return
         }
@@ -715,51 +761,21 @@ struct MeetupPayFlowView: View {
             paymentError = "This meetup isn’t linked to a listing."
             return
         }
-        Motion.haptic(.medium)
-        selectedMethod = isCollecting || canUseApplePayUI ? "Apple Pay" : "Card"
-        if isCollecting {
-            await startSellerReceive(productId: productId)
-        } else {
-            showBuyerPaymentSheet = true
-        }
-    }
 
-    private func startSellerReceive(productId: String) async {
-        if let blocker = SquareConfig.tapToPayBlocker {
-            paymentError = blocker
-            return
-        }
         isPaymentBusy = true
         defer { isPaymentBusy = false }
         do {
-            let response = try await paymentService.createRequest(productId: productId)
-            sellerWaitingRequestId = response.paymentRequest.id
-            lastMeetupPayment = response
-            // Sheet first; Tap to Pay starts in onAppear after settle (avoids TestFlight freeze).
-            showSellerPaymentSheet = true
-        } catch {
-            paymentError = error.localizedDescription
-        }
-    }
-
-    private func retryTapToPay() async {
-        if let blocker = SquareConfig.tapToPayBlocker {
-            paymentError = blocker
-            return
-        }
-        if let lastMeetupPayment {
-            tapToPay.start(from: lastMeetupPayment)
-            return
-        }
-        guard let productId = item.productId else { return }
-        await startSellerReceive(productId: productId)
-    }
-
-    private func cancelSellerPayment(requestId: String) async {
-        do {
-            try await paymentService.cancel(requestId: requestId)
-            sellerWaitingRequestId = nil
-            showSellerPaymentSheet = false
+            // Server re-check: Apple Pay only if seller receive session is active.
+            let status = try await paymentService.fetchSession(productId: productId)
+            applySessionStatus(status)
+            guard status.canPay == true, let requestId = status.paymentRequestId ?? status.session?.paymentRequestId else {
+                paymentError = status.message ?? "Ask the seller to open Receive first."
+                return
+            }
+            Motion.haptic(.medium)
+            selectedMethod = canUseApplePayUI ? "Apple Pay" : "Card"
+            showBuyerPaymentSheet = true
+            _ = requestId
         } catch {
             paymentError = error.localizedDescription
         }
@@ -778,12 +794,99 @@ struct MeetupPayFlowView: View {
         isPaymentBusy = true
         defer { isPaymentBusy = false }
         do {
-            let created = try await paymentService.createRequest(productId: productId)
-            let checkout = try await paymentService.fetchCheckout(requestId: created.paymentRequest.id)
+            let status = try await paymentService.fetchSession(productId: productId)
+            applySessionStatus(status)
+            guard status.canPay == true,
+                  let requestId = status.paymentRequestId ?? status.session?.paymentRequestId else {
+                showBuyerPaymentSheet = false
+                paymentError = status.message ?? "Ask the seller to open Receive first."
+                return
+            }
+            let checkout = try await paymentService.fetchCheckout(requestId: requestId)
             paymentPresenter.prepareAndPresent(checkout: checkout)
         } catch {
             paymentError = error.localizedDescription
         }
+    }
+
+    private func applySessionStatus(_ status: PaymentSessionStatusResponse) {
+        activeSession = status.session
+        buyerCanPay = status.canPay == true
+        sessionHint = status.message
+        if status.session?.status == "paid" {
+            handleSessionPaid(status.session)
+        }
+    }
+
+    private func handleSessionPaid(_ session: PaymentSessionDTO?) {
+        guard !paymentConfirmed else { return }
+        paymentConfirmed = true
+        activeSession = session
+        selectedMethod = "Apple Pay"
+        Motion.haptic(.medium)
+        if isCollecting {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) {
+                showSellerReceivedCard = true
+            }
+        } else if !showBuyerSentAnimation {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
+                showBuyerSentAnimation = true
+            }
+        }
+    }
+
+    private func refreshSessionStatus() async {
+        guard let productId = item.productId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !productId.isEmpty else { return }
+        do {
+            let status = try await paymentService.fetchSession(productId: productId)
+            applySessionStatus(status)
+            if isCollecting, status.session?.status == "waiting" {
+                sellerCanReceive = true
+            }
+        } catch {
+            // Poll/realtime will retry; keep UI quiet unless user taps Pay.
+        }
+    }
+
+    private func startSessionWatch() async {
+        guard let productId = item.productId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !productId.isEmpty else { return }
+
+        sessionChannel = await paymentService.subscribeSessions(productId: productId) { row in
+            activeSession = row
+            if row.status == "waiting" {
+                buyerCanPay = !isCollecting
+                sessionHint = nil
+            } else if row.status == "paid" {
+                handleSessionPaid(row)
+            } else if row.status == "cancelled" || row.status == "expired" {
+                buyerCanPay = false
+                if !isCollecting {
+                    sessionHint = "Ask the seller to open Receive first."
+                }
+                if isCollecting, activeSession?.id == row.id {
+                    activeSession = nil
+                }
+            }
+        }
+
+        // Fallback poll while on the Pay/Receive step.
+        while !Task.isCancelled && !paymentConfirmed {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            await refreshSessionStatus()
+            if step != .pay { break }
+        }
+    }
+
+    private func teardownSessionWatch() async {
+        if isCollecting, let sessionId = activeSession?.id, activeSession?.status == "waiting", !paymentConfirmed {
+            try? await paymentService.cancelSession(sessionId: sessionId)
+        }
+        if let channel = sessionChannel, let client = SupabaseManager.shared.client() {
+            await client.removeChannel(channel)
+        }
+        sessionChannel = nil
     }
 
     private func loadPrice() async {
@@ -802,6 +905,144 @@ struct MeetupPayFlowView: View {
             }
         } catch {
             productPrice = nil
+        }
+    }
+}
+
+// MARK: - Success animations
+
+private struct BuyerSentOverlay: View {
+    let amountLabel: String
+    var onContinue: () -> Void
+
+    @Environment(\.campusTheme) private var campusTheme
+    @State private var phase: Int = 0
+
+    var body: some View {
+        ZStack {
+            CampusPageBackground()
+
+            VStack(spacing: 20) {
+                Spacer()
+
+                ZStack {
+                    Text(amountLabel)
+                        .font(Theme.syne(56, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .offset(y: phase >= 1 ? -140 : 0)
+                        .opacity(phase >= 1 ? 0 : 1)
+                        .scaleEffect(phase >= 1 ? 0.7 : 1)
+
+                    VStack(spacing: 10) {
+                        Text("Sent")
+                            .font(Theme.syne(44, weight: .bold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                        Text("Make sure the seller got the money.")
+                            .font(Theme.syne(16, weight: .medium))
+                            .foregroundStyle(campusTheme.textMuted)
+                            .multilineTextAlignment(.center)
+                    }
+                    .opacity(phase >= 1 ? 1 : 0)
+                    .offset(y: phase >= 1 ? 0 : 28)
+                }
+                .frame(height: 160)
+
+                Spacer()
+
+                Button(action: onContinue) {
+                    Text("continue")
+                        .font(Theme.syne(15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(campusTheme.primary)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                .padding(.horizontal, 20)
+                .padding(.bottom, 28)
+                .opacity(phase >= 1 ? 1 : 0)
+            }
+        }
+        .onAppear {
+            Motion.haptic(.medium)
+            withAnimation(.easeInOut(duration: 0.55).delay(0.35)) {
+                phase = 1
+            }
+        }
+    }
+}
+
+private struct SellerReceivedOverlay: View {
+    let amountLabel: String
+    let fromName: String
+    let itemName: String
+    var onContinue: () -> Void
+
+    @Environment(\.campusTheme) private var campusTheme
+    @State private var appeared = false
+
+    var body: some View {
+        ZStack {
+            CampusPageBackground()
+
+            VStack(spacing: 24) {
+                Spacer().frame(height: 48)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(amountLabel)
+                        .font(Theme.syne(48, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    summaryLine(label: "From", value: fromName)
+                    summaryLine(label: "For", value: itemName)
+                    Text("Added to your popup balance")
+                        .font(Theme.syne(14, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .padding(.top, 4)
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(CampusCardBackground())
+                .padding(.horizontal, 20)
+                .offset(y: appeared ? 0 : -420)
+                .opacity(appeared ? 1 : 0)
+
+                Spacer()
+
+                Button(action: onContinue) {
+                    Text("continue")
+                        .font(Theme.syne(15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(campusTheme.primary)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                .padding(.horizontal, 20)
+                .padding(.bottom, 28)
+                .opacity(appeared ? 1 : 0)
+            }
+        }
+        .onAppear {
+            Motion.haptic(.medium)
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.8)) {
+                appeared = true
+            }
+        }
+    }
+
+    private func summaryLine(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(Theme.syne(14, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+            Spacer()
+            Text(value)
+                .font(Theme.syne(15, weight: .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .multilineTextAlignment(.trailing)
         }
     }
 }

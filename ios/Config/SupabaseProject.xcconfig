@@ -20,11 +20,11 @@ API_BASE_URL_RELEASE =
 //   PopupApp.entitlements          no payment entitlements (TestFlight-safe default)
 //   PopupApp.ApplePay.entitlements Apple Pay (needs APPLE_PAY_MERCHANT_ID + Merchant ID in the portal)
 //   PopupApp.Payments.entitlements Apple Pay + Tap to Pay on iPhone (needs Apple's entitlement approval)
-// Apple Pay is live for TestFlight (merchant.com.popup.app). Switch to
-// PopupApp.Payments.entitlements + TAP_TO_PAY_ENABLED=YES only after Apple approves Tap to Pay.
+// Apple Pay is live for TestFlight (merchant.com.popup.app).
+// Tap to Pay (seller Receive) is paused until LLC / Organization team — see
+// ios/POST_LAUNCH_TAP_TO_PAY.md for the post-launch flip checklist.
 POPUP_RELEASE_ENTITLEMENTS = PopupApp.ApplePay.entitlements
-// Must be YES only when Release uses PopupApp.Payments.entitlements (and Apple approved Tap to Pay).
-// Without this, Receive shows a clear setup error instead of freezing on TestFlight.
+// Keep NO until PopupApp.Payments.entitlements + Apple Tap to Pay approval.
 TAP_TO_PAY_ENABLED = NO
 
 // Square application ID (sandbox-sq0idb-... or sq0idp-...). Secret stays in backend/.env.

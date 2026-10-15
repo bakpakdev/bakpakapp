@@ -23,6 +23,7 @@ async function fulfillMeetupPayment({
   sellerId,
   buyerId,
   paymentId,
+  sessionId = null,
 }) {
   const supabase = getSupabaseAdmin();
   if (!requestRow || requestRow.status === 'paid') return { alreadyPaid: true };
@@ -32,6 +33,7 @@ async function fulfillMeetupPayment({
 
   const total = (requestRow.amount_cents || 0) / 100;
   const resolvedBuyer = buyerId || requestRow.buyer_id || null;
+  const now = new Date().toISOString();
 
   if (resolvedBuyer) {
     const { data: order, error: orderError } = await supabase
@@ -59,13 +61,14 @@ async function fulfillMeetupPayment({
 
   const { error: soldError } = await supabase
     .from('products')
-    .update({ is_sold: true, updated_at: new Date().toISOString() })
+    .update({ is_sold: true, updated_at: now })
     .eq('id', productId);
   if (soldError) throw soldError;
 
   const update = {
     status: 'paid',
-    updated_at: new Date().toISOString(),
+    amount_cents: requestRow.amount_cents,
+    updated_at: now,
   };
   if (paymentId && !String(paymentId).startsWith('square:pending')) {
     update.square_payment_id = paymentId;
@@ -74,8 +77,21 @@ async function fulfillMeetupPayment({
 
   await supabase.from('payment_requests').update(update).eq('id', requestRow.id);
 
+  // Mark receive session complete so buyer/seller UIs unlock in realtime.
+  const sessionUpdate = { status: 'paid', updated_at: now };
+  if (sessionId) {
+    await supabase.from('payment_sessions').update(sessionUpdate).eq('id', sessionId);
+  } else {
+    await supabase
+      .from('payment_sessions')
+      .update(sessionUpdate)
+      .eq('payment_request_id', requestRow.id)
+      .eq('status', 'waiting');
+  }
+
   await creditSellerSale(supabase, sellerId, requestRow.amount_cents);
 
+  // Existing meetup status only — do not invent delivered/released here.
   const { error: meetupError } = await supabase
     .from('meetups')
     .update({ status: 'completed' })
