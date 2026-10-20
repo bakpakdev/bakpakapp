@@ -18,6 +18,8 @@ final class AuthViewModel: ObservableObject {
     @Published var hasVerifiedSignupEmail = false
     /// First-time signup only — profile setup before home.
     @Published var needsOnboarding = false
+    /// Password accepted; waiting on the authenticator code before entering the app.
+    @Published var pendingLoginMFA = false
     /// Legacy Express API base URL (used only when Supabase is not configured).
     @Published var baseURL = SquareConfig.apiBaseURL
 
@@ -114,8 +116,17 @@ final class AuthViewModel: ObservableObject {
                 isAuthenticated = false
                 user = nil
                 needsOnboarding = false
+                pendingLoginMFA = false
                 return
             }
+            if await PayoutMFA.needsLoginChallenge(factors: session.user.factors) {
+                pendingLoginMFA = true
+                isAuthenticated = false
+                user = nil
+                needsOnboarding = false
+                return
+            }
+            pendingLoginMFA = false
             user = try await Self.fetchProfile(client: client)
             isAuthenticated = true
             refreshOnboardingFlag()
@@ -213,23 +224,28 @@ final class AuthViewModel: ObservableObject {
                     isAuthenticated = false
                     user = nil
                     needsOnboarding = false
+                    pendingLoginMFA = false
                     pendingSignupEmail = trimmedEmail
                     beginAwaitingEmailVerification()
                     return
                 }
-                clearSignupVerificationState()
-                user = try await Self.fetchProfile(
+                if await PayoutMFA.needsLoginChallenge(factors: session.user.factors) {
+                    pendingLoginMFA = true
+                    isAuthenticated = false
+                    user = nil
+                    needsOnboarding = false
+                    return
+                }
+                try await finishAuthenticatedSession(
                     client: client,
                     userId: session.user.id.uuidString.lowercased()
                 )
-                isAuthenticated = true
-                refreshOnboardingFlag()
-                KeychainManager.shared.clearToken()
             } catch {
                 errorMessage = friendlyAuthError(error)
                 isAuthenticated = false
                 user = nil
                 needsOnboarding = false
+                pendingLoginMFA = false
             }
             return
         }
@@ -496,6 +512,44 @@ final class AuthViewModel: ObservableObject {
             )
             return result.session
         }
+    }
+
+    private func finishAuthenticatedSession(client: SupabaseClient, userId: String? = nil) async throws {
+        clearSignupVerificationState()
+        pendingLoginMFA = false
+        user = try await Self.fetchProfile(client: client, userId: userId)
+        isAuthenticated = true
+        refreshOnboardingFlag()
+        KeychainManager.shared.clearToken()
+    }
+
+    func verifyLoginMFA(code: String) async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        guard usesSupabase, let client = SupabaseManager.shared.client() else {
+            errorMessage = "Supabase is not configured."
+            return
+        }
+        do {
+            try await PayoutMFA.verifyLoginCode(code)
+            try await finishAuthenticatedSession(client: client)
+        } catch {
+            pendingLoginMFA = true
+            isAuthenticated = false
+            user = nil
+            errorMessage = "That code didn’t match. Open Passwords and enter the current 6-digit code for popup."
+        }
+    }
+
+    func cancelLoginMFA() async {
+        pendingLoginMFA = false
+        errorMessage = nil
+        isAuthenticated = false
+        user = nil
+        needsOnboarding = false
+        guard let client = SupabaseManager.shared.client() else { return }
+        try? await client.auth.signOut()
     }
 
     private func signInWithPasswordRetry(
@@ -895,6 +949,7 @@ final class AuthViewModel: ObservableObject {
         isAuthenticated = false
         user = nil
         needsOnboarding = false
+        pendingLoginMFA = false
 
         guard usesSupabase, let client = SupabaseManager.shared.client() else { return }
         await withTaskGroup(of: Void.self) { group in

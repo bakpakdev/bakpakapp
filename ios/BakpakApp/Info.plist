@@ -44,6 +44,7 @@
 		<string>instagram</string>
 		<string>instagram-stories</string>
 		<string>whatsapp</string>
+		<string>otpauth</string>
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>

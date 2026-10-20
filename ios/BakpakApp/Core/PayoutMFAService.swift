@@ -52,6 +52,15 @@ enum PayoutMFA {
         return enrolled
     }
 
+    /// Password (or restored) session is AAL1 while a verified authenticator factor exists.
+    static func needsLoginChallenge(factors: [Factor]? = nil) async -> Bool {
+        let fromSession = factors?.contains { $0.factorType == "totp" && $0.status == .verified } == true
+        let fromServer = (try? await verifiedFactor()) != nil
+        guard fromSession || fromServer else { return false }
+        let aal = try? await authedClient().auth.mfa.getAuthenticatorAssuranceLevel()
+        return aal?.currentLevel != "aal2"
+    }
+
     static func enroll() async throws -> Enrollment {
         let client = try await authedClient()
         // Drop half-finished setups so retries don't collide on the factor name.
@@ -68,8 +77,10 @@ enum PayoutMFA {
 
     /// Verifies a 6-digit code. Upgrades the session to AAL2 and stamps a fresh TOTP time.
     static func verify(factorId: String, code: String) async throws {
+        let digits = String(code.filter(\.isNumber).prefix(6))
+        guard digits.count == 6 else { throw PayoutMFAError.enrollFailed }
         try await authedClient().auth.mfa.challengeAndVerify(
-            params: MFAChallengeAndVerifyParams(factorId: factorId, code: code)
+            params: MFAChallengeAndVerifyParams(factorId: factorId, code: digits)
         )
         AccountPrefsStore.twoFactorEnabled = true
     }
@@ -77,6 +88,11 @@ enum PayoutMFA {
     static func verifyPayoutCode(_ code: String) async throws {
         guard let factor = try await verifiedFactor() else { throw PayoutMFAError.notEnrolled }
         try await verify(factorId: factor.id, code: code)
+    }
+
+    /// Completes sign-in: same TOTP check as payouts, required whenever 2FA is on.
+    static func verifyLoginCode(_ code: String) async throws {
+        try await verifyPayoutCode(code)
     }
 
     /// Supabase only lets an AAL2 session remove a verified factor, so callers verify a code first.

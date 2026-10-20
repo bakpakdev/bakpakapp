@@ -1,9 +1,9 @@
-import CoreImage.CIFilterBuiltins
 import SwiftUI
 import UIKit
 
 struct TwoFactorAuthView: View {
     @Environment(\.campusTheme) private var campusTheme
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var enabled = AccountPrefsStore.twoFactorEnabled
     @State private var enrollment: PayoutMFA.Enrollment?
@@ -25,9 +25,9 @@ struct TwoFactorAuthView: View {
 
                     if enabled {
                         statusOnCard
-                    } else if let enrollment {
+                    } else if enrollment != nil {
                         stepIndicator
-                        scanCard(enrollment)
+                        passwordsCard
                         codeCard
                     } else {
                         introCard
@@ -59,7 +59,7 @@ struct TwoFactorAuthView: View {
             if showDisableConfirm {
                 ConfirmActionCard(
                     title: "Turn off two-factor?",
-                    message: "You won’t be able to change payouts or cash out until it’s on again.",
+                    message: "You won’t need a Passwords code at sign in, and you won’t be able to cash out until it’s on again.",
                     confirmTitle: "Turn off",
                     confirmIcon: "lock.slash",
                     tone: .destructive,
@@ -74,17 +74,22 @@ struct TwoFactorAuthView: View {
             enabled = await PayoutMFA.isEnrolled()
             isLoading = false
         }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active, enrollment != nil, !enabled {
+                codeFocused = true
+            }
+        }
     }
 
     private var headerSubtitle: String {
-        if enabled { return "authenticator app is on" }
-        return enrollment == nil ? "protect your cash outs" : "scan, then enter the code"
+        if enabled { return "Passwords authenticator is on" }
+        return enrollment == nil ? "protect sign in and cash outs" : "add popup in Passwords, then enter the code"
     }
 
     private var primaryTitle: String {
         if enabled { return "turn off two-factor" }
         if enrollment != nil { return "verify and turn on" }
-        return "set up authenticator app"
+        return "set up in Passwords"
     }
 
     private var canSubmit: Bool {
@@ -95,7 +100,7 @@ struct TwoFactorAuthView: View {
 
     private var stepIndicator: some View {
         HStack(spacing: 10) {
-            stepChip(number: 1, title: "scan", active: code.isEmpty, done: !code.isEmpty)
+            stepChip(number: 1, title: "Passwords", active: code.isEmpty, done: !code.isEmpty)
             Rectangle()
                 .fill(campusTheme.border)
                 .frame(height: 1)
@@ -127,10 +132,10 @@ struct TwoFactorAuthView: View {
 
     private var introCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("authenticator app")
+            Text("Passwords app")
                 .font(Theme.syne(15, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
-            Text("Use Google Authenticator, 1Password, Authy or the iPhone Passwords app. popup asks for a 6-digit code from it before you change where payouts go or cash out.")
+            Text("popup opens the Passwords app with your authenticator key. After you add it, enter the 6-digit code here to turn two-factor on. You’ll need that code every time you sign in, and before cash out.")
                 .font(Theme.syne(13))
                 .foregroundStyle(campusTheme.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -140,74 +145,33 @@ struct TwoFactorAuthView: View {
         .background(CampusCardBackground())
     }
 
-    private func scanCard(_ enrollment: PayoutMFA.Enrollment) -> some View {
+    private var passwordsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("scan this code")
+            Text("add popup in Passwords")
                 .font(Theme.syne(15, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
-            Text("Open your authenticator app, add an account, and scan. On this phone, tap open in authenticator instead.")
+            Text("Save the popup authenticator in Passwords (or your authenticator app). Come back here and type the 6-digit code it shows.")
                 .font(Theme.syne(13))
                 .foregroundStyle(campusTheme.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let qr = Self.qrImage(enrollment.uri) {
-                Image(uiImage: qr)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 200, height: 200)
-                    .padding(12)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            Button {
+                Motion.haptic(.light)
+                Task { await reopenPasswords() }
+            } label: {
+                Label("open Passwords", systemImage: "arrow.up.forward.app")
+                    .font(Theme.syne(13, weight: .semibold))
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(campusTheme.primary)
+                    .clipShape(Capsule())
             }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("or enter this key")
-                    .font(Theme.syne(12, weight: .semibold))
-                    .foregroundStyle(campusTheme.textMuted)
-                Text(Self.grouped(enrollment.secret))
-                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(campusTheme.elevatedSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-            HStack(spacing: 10) {
-                smallButton(title: "copy key", icon: "doc.on.doc") {
-                    UIPasteboard.general.string = enrollment.secret
-                    infoMessage = "Key copied."
-                }
-                smallButton(title: "open in authenticator", icon: "arrow.up.forward.app") {
-                    Task { await openAuthenticator(enrollment.uri) }
-                }
-            }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(CampusCardBackground())
-    }
-
-    private func smallButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button {
-            Motion.haptic(.light)
-            action()
-        } label: {
-            Label(title, systemImage: icon)
-                .font(Theme.syne(12, weight: .semibold))
-                .foregroundStyle(campusTheme.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity)
-                .frame(height: 40)
-                .background(campusTheme.elevatedSurface)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
     }
 
     private var codeCard: some View {
@@ -215,7 +179,7 @@ struct TwoFactorAuthView: View {
             Text("verification code")
                 .font(Theme.syne(15, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
-            Text("Enter the 6-digit code your authenticator app shows for popup.")
+            Text("Enter the 6-digit code Passwords shows for popup. That turns two-factor on.")
                 .font(Theme.syne(13))
                 .foregroundStyle(campusTheme.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -235,7 +199,7 @@ struct TwoFactorAuthView: View {
             Motion.haptic(.light)
             Task { await startEnrollment() }
         } label: {
-            Text("get a new code to scan")
+            Text("set up again")
                 .font(Theme.syne(13, weight: .semibold))
                 .foregroundStyle(campusTheme.textMuted)
                 .frame(maxWidth: .infinity)
@@ -257,7 +221,7 @@ struct TwoFactorAuthView: View {
                 Text("on")
                     .font(Theme.syne(22, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
-                Text("popup asks for a code from your authenticator app before payout changes and cash outs.")
+                Text("You’ll enter a Passwords code every time you sign in, and before payout changes or cash out.")
                     .font(Theme.syne(13))
                     .foregroundStyle(campusTheme.textMuted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -306,8 +270,11 @@ struct TwoFactorAuthView: View {
         infoMessage = nil
         defer { isBusy = false }
         do {
-            enrollment = try await PayoutMFA.enroll()
+            let next = try await PayoutMFA.enroll()
+            enrollment = next
             code = ""
+            await openAuthenticator(next.uri)
+            codeFocused = true
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -320,6 +287,11 @@ struct TwoFactorAuthView: View {
         defer { isBusy = false }
         do {
             try await PayoutMFA.verify(factorId: enrollment.factorId, code: code)
+            let on = await PayoutMFA.isEnrolled()
+            guard on else {
+                errorMessage = "The code was accepted, but two-factor didn’t finish turning on. Try again."
+                return
+            }
             self.enrollment = nil
             enabled = true
             code = ""
@@ -327,7 +299,7 @@ struct TwoFactorAuthView: View {
             codeFocused = false
             Motion.haptic(.medium)
         } catch {
-            errorMessage = "That code didn’t match. Check your authenticator app and try again."
+            errorMessage = Self.verifyErrorMessage(error)
             code = ""
             codeFocused = true
         }
@@ -341,37 +313,35 @@ struct TwoFactorAuthView: View {
         do {
             try await PayoutMFAGate.shared.requireCode(for: "Confirm it’s you to turn off two-factor.")
             try await PayoutMFA.turnOff()
-            enabled = false
+            enabled = await PayoutMFA.isEnrolled()
             Motion.haptic(.medium)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
+    private func reopenPasswords() async {
+        guard let uri = enrollment?.uri else { return }
+        await openAuthenticator(uri)
+    }
+
     private func openAuthenticator(_ uri: String) async {
         guard let url = URL(string: uri) else { return }
         let opened = await UIApplication.shared.open(url)
         if !opened {
-            infoMessage = "No authenticator app picked up the link. Copy the key into your app instead."
+            infoMessage = "Passwords didn’t open. Open the Passwords app, add a verification code for popup, then come back."
         }
     }
 
-    private static func grouped(_ secret: String) -> String {
-        stride(from: 0, to: secret.count, by: 4).map { start in
-            let begin = secret.index(secret.startIndex, offsetBy: start)
-            let end = secret.index(begin, offsetBy: 4, limitedBy: secret.endIndex) ?? secret.endIndex
-            return String(secret[begin..<end])
+    private static func verifyErrorMessage(_ error: Error) -> String {
+        let lower = error.localizedDescription.lowercased()
+        if lower.contains("session") {
+            return "Sign in again, then turn on two-factor."
         }
-        .joined(separator: " ")
-    }
-
-    private static func qrImage(_ string: String) -> UIImage? {
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(string.utf8)
-        filter.correctionLevel = "M"
-        guard let output = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 10, y: 10)),
-              let cgImage = CIContext().createCGImage(output, from: output.extent) else { return nil }
-        return UIImage(cgImage: cgImage)
+        if lower.contains("expired") || lower.contains("challenge") {
+            return "That code expired. Open Passwords and enter the current 6-digit code."
+        }
+        return "That code didn’t match. Open Passwords and enter the current 6-digit code for popup."
     }
 }
 
@@ -380,10 +350,19 @@ struct OneTimeCodeField: View {
     @Binding var code: String
     var isFocused: FocusState<Bool>.Binding
     var onComplete: () -> Void
+    var fill: Color?
+    var textColor: Color?
+    var border: Color?
+    var accent: Color?
 
     @Environment(\.campusTheme) private var campusTheme
 
     var body: some View {
+        let boxFill = fill ?? campusTheme.elevatedSurface
+        let boxText = textColor ?? campusTheme.textPrimary
+        let boxBorder = border ?? campusTheme.border
+        let boxAccent = accent ?? campusTheme.primary
+
         ZStack {
             TextField("", text: $code)
                 .keyboardType(.numberPad)
@@ -405,17 +384,17 @@ struct OneTimeCodeField: View {
                     let filled = index < digits.count
                     Text(filled ? String(digits[index]) : "")
                         .font(Theme.syne(24, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
+                        .foregroundStyle(boxText)
                         .frame(maxWidth: .infinity)
                         .frame(height: 64)
-                        .background(campusTheme.elevatedSurface)
+                        .background(boxFill)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .stroke(
                                     isFocused.wrappedValue && index == min(code.count, 5)
-                                        ? campusTheme.primary
-                                        : campusTheme.border,
+                                        ? boxAccent
+                                        : boxBorder,
                                     lineWidth: 1
                                 )
                         )
@@ -507,7 +486,7 @@ struct PayoutCodeSheet: View {
             Motion.haptic(.medium)
             gate.verified()
         } catch {
-            errorMessage = "That code didn’t match. Try the current one in your app."
+            errorMessage = "That code didn’t match. Try the current one in Passwords."
             code = ""
             codeFocused = true
         }

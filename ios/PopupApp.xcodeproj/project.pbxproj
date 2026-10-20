@@ -32,10 +32,10 @@
 		C4FD8BD1E8A487C7CCFA8B60 /* MoneyAmount.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF900DEF59623BEEE3815DA /* MoneyAmount.swift */; };
 		7FBD01ECBE2948FDF8D6430B /* NotificationKeywordRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B8C40901CDE721CD55A49E6 /* NotificationKeywordRouter.swift */; };
 		3519D738BF8C734A1D805400 /* PaymentSheetPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E41BA75AE73FE74E0DFFABA0 /* PaymentSheetPresenter.swift */; };
+		2AC6FA7C9994A59F3802866F /* PayoutMFAService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 252480C946322920F919E60D /* PayoutMFAService.swift */; };
 		21E28C9767186EA0742CC641 /* ReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A03E8FB3528B7EA06FEE4E6C /* ReportService.swift */; };
 		439766C6BAE6280B05F7F370 /* SellerRankService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E77535FF9E10D777A7AE5B1 /* SellerRankService.swift */; };
 		03586D62860BCF0FF2C45821 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4BE39B8650EB00F6D92CD9F /* Services.swift */; };
-		1E0B42DB0F84FE9678A79974 /* PayoutMFAService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96F4F7F29E0F99F5DBCFE23 /* PayoutMFAService.swift */; };
 		ADBD256BC41AA8891BF99AA9 /* SquareConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4684CF0C17F90FE840AEA521 /* SquareConfig.swift */; };
 		4022A6C5DE03D21547E75779 /* SquareConnectService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049269B572D56CADF3F53A46 /* SquareConnectService.swift */; };
 		7016B3BA22720A1E12247FBB /* SupabaseCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC00785D1162823234947362 /* SupabaseCatalogService.swift */; };
@@ -155,10 +155,10 @@
 		4BF900DEF59623BEEE3815DA /* MoneyAmount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MoneyAmount.swift'; sourceTree = "<group>"; };
 		1B8C40901CDE721CD55A49E6 /* NotificationKeywordRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'NotificationKeywordRouter.swift'; sourceTree = "<group>"; };
 		E41BA75AE73FE74E0DFFABA0 /* PaymentSheetPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'PaymentSheetPresenter.swift'; sourceTree = "<group>"; };
+		252480C946322920F919E60D /* PayoutMFAService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'PayoutMFAService.swift'; sourceTree = "<group>"; };
 		A03E8FB3528B7EA06FEE4E6C /* ReportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ReportService.swift'; sourceTree = "<group>"; };
 		1E77535FF9E10D777A7AE5B1 /* SellerRankService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SellerRankService.swift'; sourceTree = "<group>"; };
 		F4BE39B8650EB00F6D92CD9F /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Services.swift'; sourceTree = "<group>"; };
-		B96F4F7F29E0F99F5DBCFE23 /* PayoutMFAService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'PayoutMFAService.swift'; sourceTree = "<group>"; };
 		4684CF0C17F90FE840AEA521 /* SquareConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SquareConfig.swift'; sourceTree = "<group>"; };
 		049269B572D56CADF3F53A46 /* SquareConnectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SquareConnectService.swift'; sourceTree = "<group>"; };
 		FC00785D1162823234947362 /* SupabaseCatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseCatalogService.swift'; sourceTree = "<group>"; };
@@ -327,10 +327,10 @@
 				4BF900DEF59623BEEE3815DA /* MoneyAmount.swift */,
 				1B8C40901CDE721CD55A49E6 /* NotificationKeywordRouter.swift */,
 				E41BA75AE73FE74E0DFFABA0 /* PaymentSheetPresenter.swift */,
+				252480C946322920F919E60D /* PayoutMFAService.swift */,
 				A03E8FB3528B7EA06FEE4E6C /* ReportService.swift */,
 				1E77535FF9E10D777A7AE5B1 /* SellerRankService.swift */,
 				F4BE39B8650EB00F6D92CD9F /* Services.swift */,
-				B96F4F7F29E0F99F5DBCFE23 /* PayoutMFAService.swift */,
 				4684CF0C17F90FE840AEA521 /* SquareConfig.swift */,
 				049269B572D56CADF3F53A46 /* SquareConnectService.swift */,
 				FC00785D1162823234947362 /* SupabaseCatalogService.swift */,
@@ -547,10 +547,10 @@
 				C4FD8BD1E8A487C7CCFA8B60 /* MoneyAmount.swift in Sources */,
 				7FBD01ECBE2948FDF8D6430B /* NotificationKeywordRouter.swift in Sources */,
 				3519D738BF8C734A1D805400 /* PaymentSheetPresenter.swift in Sources */,
+				2AC6FA7C9994A59F3802866F /* PayoutMFAService.swift in Sources */,
 				21E28C9767186EA0742CC641 /* ReportService.swift in Sources */,
 				439766C6BAE6280B05F7F370 /* SellerRankService.swift in Sources */,
 				03586D62860BCF0FF2C45821 /* Services.swift in Sources */,
-				1E0B42DB0F84FE9678A79974 /* PayoutMFAService.swift in Sources */,
 				ADBD256BC41AA8891BF99AA9 /* SquareConfig.swift in Sources */,
 				4022A6C5DE03D21547E75779 /* SquareConnectService.swift in Sources */,
 				7016B3BA22720A1E12247FBB /* SupabaseCatalogService.swift in Sources */,

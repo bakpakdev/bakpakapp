@@ -350,20 +350,29 @@ router.get('/sdk-session', protectSupabase, requireSquarePayments, async (req, r
   }
 });
 
+router.get('/setup-pages', protectSupabase, (req, res) => {
+  try {
+    res.json({
+      environment: square.squareEnvironment(),
+      pages: square.sellerSetupPages(),
+    });
+  } catch (error) {
+    console.error('Square setup pages error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 router.post('/dashboard', protectSupabase, requirePayoutMfa, requireSquareOAuth, async (req, res) => {
   try {
-    const supabase = getSupabaseAdmin();
-    const connection = await loadConnection(supabase, req.user.id);
-    if (!connection) {
-      return res.status(409).json({
-        requiresOnboarding: true,
-        message: 'Connect Square before opening the dashboard.',
-      });
-    }
-    const url = square.squareEnvironment() === 'production'
-      ? 'https://squareup.com/dashboard'
-      : 'https://squareupsandbox.com/dashboard';
-    res.json({ url });
+    const page = String(req.body?.page || 'dashboard').trim() || 'dashboard';
+    const pages = square.sellerSetupPages();
+    const match = pages.find((item) => item.key === page)
+      || pages.find((item) => item.key === 'dashboard');
+    res.json({
+      url: match.url,
+      title: match.title,
+      pathHint: match.pathHint,
+    });
   } catch (error) {
     console.error('Square dashboard error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });

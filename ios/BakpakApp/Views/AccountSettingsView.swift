@@ -115,7 +115,7 @@ struct AccountSettingsView: View {
                     .init(
                         icon: "lock.shield",
                         title: "Two-factor authentication",
-                        subtitle: twoFactorOn ? "On · authenticator app" : "Off · required to cash out"
+                        subtitle: twoFactorOn ? "On · required at sign in" : "Off · add in Passwords"
                     ) {
                         appState.path.append(.twoFactorAuth)
                     },

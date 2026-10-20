@@ -173,44 +173,53 @@ private struct AuthContainerView: View {
 
     var body: some View {
         Group {
-            switch step {
-            case .welcome:
-                WelcomeView(
-                    onGetStarted: {
-                        withAnimation(.easeInOut(duration: 0.45)) { step = .register }
-                    },
-                    onSignIn: {
-                        withAnimation(.easeInOut(duration: 0.45)) { step = .login }
-                    }
-                )
+            if authVM.pendingLoginMFA {
+                LoginTwoFactorView {
+                    Task { await authVM.cancelLoginMFA() }
+                    withAnimation(.easeInOut(duration: 0.45)) { step = .login }
+                }
                 .transition(.opacity)
+            } else {
+                switch step {
+                case .welcome:
+                    WelcomeView(
+                        onGetStarted: {
+                            withAnimation(.easeInOut(duration: 0.45)) { step = .register }
+                        },
+                        onSignIn: {
+                            withAnimation(.easeInOut(duration: 0.45)) { step = .login }
+                        }
+                    )
+                    .transition(.opacity)
 
-            case .login:
-                PopupLanding(
-                    showRegister: Binding(
-                        get: { false },
-                        set: { if $0 { withAnimation(.easeInOut(duration: 0.45)) { step = .register } } }
-                    ),
-                    onBack: {
-                        withAnimation(.easeInOut(duration: 0.45)) { step = .welcome }
-                    }
-                )
-                .transition(.opacity)
+                case .login:
+                    PopupLanding(
+                        showRegister: Binding(
+                            get: { false },
+                            set: { if $0 { withAnimation(.easeInOut(duration: 0.45)) { step = .register } } }
+                        ),
+                        onBack: {
+                            withAnimation(.easeInOut(duration: 0.45)) { step = .welcome }
+                        }
+                    )
+                    .transition(.opacity)
 
-            case .register:
-                RegisterView(
-                    showRegister: Binding(
-                        get: { true },
-                        set: { if !$0 { withAnimation(.easeInOut(duration: 0.45)) { step = .login } } }
-                    ),
-                    onBackToWelcome: {
-                        withAnimation(.easeInOut(duration: 0.45)) { step = .welcome }
-                    }
-                )
-                .transition(.opacity)
+                case .register:
+                    RegisterView(
+                        showRegister: Binding(
+                            get: { true },
+                            set: { if !$0 { withAnimation(.easeInOut(duration: 0.45)) { step = .login } } }
+                        ),
+                        onBackToWelcome: {
+                            withAnimation(.easeInOut(duration: 0.45)) { step = .welcome }
+                        }
+                    )
+                    .transition(.opacity)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.45), value: step)
+        .animation(.easeInOut(duration: 0.45), value: authVM.pendingLoginMFA)
         .onAppear {
             if authVM.isAwaitingEmailVerification {
                 step = .register

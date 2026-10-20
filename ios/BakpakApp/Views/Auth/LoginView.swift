@@ -111,7 +111,7 @@ struct PopupLanding: View {
                     }
                     .padding(.top, 4)
 
-                    if let error = authVM.errorMessage {
+                    if let error = authVM.errorMessage, !authVM.pendingLoginMFA {
                         Text(error)
                             .font(Theme.syne(12))
                             .foregroundStyle(Color.red)
@@ -141,6 +141,78 @@ struct PopupLanding: View {
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
+        }
+    }
+}
+
+// MARK: - Sign-in authenticator step
+
+struct LoginTwoFactorView: View {
+    @EnvironmentObject private var authVM: AuthViewModel
+    let onBack: () -> Void
+
+    @State private var code = ""
+    @FocusState private var codeFocused: Bool
+
+    var body: some View {
+        AuthScreenChrome(onBack: onBack) {
+            Spacer(minLength: 32)
+
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Authenticator code")
+                        .font(Theme.syne(26, weight: .black))
+                        .foregroundStyle(PopupBrand.textPrimary)
+
+                    Text("Open Passwords and enter the 6-digit code for popup to finish signing in.")
+                        .font(Theme.syne(14, weight: .medium))
+                        .foregroundStyle(PopupBrand.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                OneTimeCodeField(
+                    code: $code,
+                    isFocused: $codeFocused,
+                    onComplete: { Task { await submit() } },
+                    fill: PopupBrand.field,
+                    textColor: PopupBrand.textPrimary,
+                    border: PopupBrand.border,
+                    accent: PopupBrand.textPrimary
+                )
+                .onChange(of: code) { _ in authVM.errorMessage = nil }
+
+                AuthPrimaryButton {
+                    Task { await submit() }
+                } label: {
+                    if authVM.isLoading {
+                        ProgressView()
+                    } else {
+                        Text("Continue")
+                    }
+                }
+                .disabled(authVM.isLoading || code.count != 6)
+                .opacity(code.count == 6 ? 1 : 0.45)
+
+                if let error = authVM.errorMessage {
+                    Text(error)
+                        .font(Theme.syne(12))
+                        .foregroundStyle(Color.red)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            .padding(.horizontal, 24)
+
+            Spacer(minLength: 24)
+        }
+        .onAppear { codeFocused = true }
+    }
+
+    private func submit() async {
+        guard code.count == 6, !authVM.isLoading else { return }
+        await authVM.verifyLoginMFA(code: code)
+        if authVM.pendingLoginMFA {
+            code = ""
+            codeFocused = true
         }
     }
 }

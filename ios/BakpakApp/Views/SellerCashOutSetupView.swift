@@ -15,12 +15,12 @@ private enum CashOutSetupStep: Int, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .overview: return "How cash out works"
-        case .personal: return "Your details"
-        case .address: return "Home address"
-        case .entity: return "Seller type"
-        case .checklist: return "What to have ready"
+        case .personal: return "Your details on Square"
+        case .address: return "Address on Square"
+        case .entity: return "Seller type on Square"
+        case .checklist: return "Verify identity on Square"
         case .connectSquare: return "Connect Square"
-        case .bank: return "Link your bank"
+        case .bank: return "Link your bank on Square"
         case .done: return "You're set"
         }
     }
@@ -28,19 +28,19 @@ private enum CashOutSetupStep: Int, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .overview:
-            return "Sales stay in your popup balance until you cash out through Square."
+            return "Each step opens the Square page where you enter that info. popup never stores SSN or bank numbers."
         case .personal:
-            return "We save this on your popup seller profile."
+            return "Create a Square account if you need one, then add your legal name, email, and phone on Square."
         case .address:
-            return "Used for your seller record on popup."
+            return "Add the home or business address Square uses for your seller account."
         case .entity:
-            return "Tell us if you’re cashing out as yourself or a business."
+            return "Tell Square if you’re cashing out as yourself or a business."
         case .checklist:
-            return "Square needs these when you connect — you’ll enter sensitive info there, not in popup."
+            return "Square verifies identity on their page. ID and SSN stay with Square, not popup."
         case .connectSquare:
-            return "Square requires this step in their secure flow. popup can’t create Square accounts for you."
+            return "Approve popup on Square’s permission page so we can send cash outs to your Square account."
         case .bank:
-            return "Add a payout bank in Square so cash outs can land in your account."
+            return "Open Square’s bank page and add the account cash outs should land in."
         case .done:
             return "You’re ready to cash out whenever you have a balance."
         }
@@ -56,6 +56,8 @@ struct SellerCashOutSetupView: View {
     @State private var step: CashOutSetupStep = .overview
     @State private var profile = SellerPayoutProfile.empty
     @State private var status: SquareConnectStatus?
+    @State private var setupPages: [SquareSetupPage] = SquareSellerPages.fallback(environment: nil)
+    @State private var openedPages: Set<String> = []
     @State private var isLoading = true
     @State private var isSaving = false
     @State private var errorMessage: String?
@@ -199,38 +201,20 @@ struct SellerCashOutSetupView: View {
     private var primaryTitle: String {
         switch step {
         case .overview: return "Start setup"
+        case .personal, .address, .entity, .checklist:
+            return "I've done this on Square"
         case .connectSquare:
-            return (status?.connected == true || profile.squareConnectDone) ? "Continue" : "Connect with Square"
+            return (status?.connected == true || profile.squareConnectDone) ? "Continue" : "Open Square connect page"
         case .bank:
-            return (status?.bankAccountsLinked == true || profile.bankLinkDone) ? "Finish" : "Open Square for bank"
+            if status?.bankAccountsLinked == true || profile.bankLinkDone {
+                return "Finish"
+            }
+            return openedPages.contains("bank") ? "I've linked my bank" : "Open Square bank page"
         case .done: return "Done"
-        default: return "Continue"
         }
     }
 
-    private var canContinue: Bool {
-        switch step {
-        case .overview: return true
-        case .personal:
-            return !profile.legalFirstName.trimmingCharacters(in: .whitespaces).isEmpty
-                && !profile.legalLastName.trimmingCharacters(in: .whitespaces).isEmpty
-                && profile.email.contains("@")
-        case .address:
-            return !profile.addressLine1.isEmpty
-                && !profile.city.isEmpty
-                && profile.state.count == 2
-                && profile.postalCode.count >= 5
-        case .entity:
-            if profile.entityType == "business" {
-                return !profile.businessName.trimmingCharacters(in: .whitespaces).isEmpty
-            }
-            return true
-        case .checklist:
-            return profile.hasIdReady && profile.hasBankReady
-        case .connectSquare, .bank, .done:
-            return true
-        }
-    }
+    private var canContinue: Bool { true }
 
     // MARK: - Steps
 
@@ -240,27 +224,36 @@ struct SellerCashOutSetupView: View {
         case .overview:
             overviewCard
         case .personal:
-            personalForm
+            personalSquareCard
         case .address:
-            addressForm
+            squarePageCard(for: "address")
         case .entity:
-            entityForm
+            squarePageCard(for: "business")
         case .checklist:
-            checklistForm
+            squarePageCard(for: "identity")
         case .connectSquare:
             connectSquareCard
         case .bank:
-            bankCard
+            squarePageCard(
+                for: "bank",
+                statusOk: status?.bankAccountsLinked == true || profile.bankLinkDone,
+                okText: "Bank linked on Square",
+                waitText: "Bank not linked yet"
+            )
         case .done:
-            doneCard
+            VStack(alignment: .leading, spacing: 12) {
+                doneCard
+                squarePageCard(for: "dashboard", buttonTitle: "Open Square Dashboard")
+            }
         }
     }
 
     private var overviewCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            overviewRow(icon: "bag.fill", title: "Sell on popup", body: "Tap to Pay sales credit your popup balance.")
-            overviewRow(icon: "building.columns.fill", title: "Cash out with Square", body: "Connect Square once so we can send your balance to your bank.")
-            overviewRow(icon: "lock.shield.fill", title: "Sensitive info stays on Square", body: "SSN and full bank numbers are entered on Square’s secure pages — not stored by popup.")
+            overviewRow(icon: "1.circle.fill", title: "Open Square’s pages", body: "Each step gives you a link to the exact Square screen for that info.")
+            overviewRow(icon: "2.circle.fill", title: "Enter details on Square", body: "Name, address, ID, and bank stay on Square’s site — popup never stores SSN or account numbers.")
+            overviewRow(icon: "3.circle.fill", title: "Connect popup", body: "Approve popup once so cash outs can go to your Square account.")
+            overviewRow(icon: "4.circle.fill", title: "Link a bank", body: "Add a payout bank on Square’s bank page, then you’re set to cash out.")
         }
     }
 
@@ -291,140 +284,145 @@ struct SellerCashOutSetupView: View {
         )
     }
 
-    private var personalForm: some View {
-        VStack(spacing: 12) {
-            field("Legal first name", text: $profile.legalFirstName)
-            field("Legal last name", text: $profile.legalLastName)
-            field("Email", text: $profile.email, keyboard: .emailAddress)
-            field("Phone", text: $profile.phone, keyboard: .phonePad)
-        }
-    }
-
-    private var addressForm: some View {
-        VStack(spacing: 12) {
-            field("Street address", text: $profile.addressLine1)
-            field("Apt / suite (optional)", text: $profile.addressLine2)
-            field("City", text: $profile.city)
-            HStack(spacing: 10) {
-                field("State", text: $profile.state)
-                    .textInputAutocapitalization(.characters)
-                field("ZIP", text: $profile.postalCode, keyboard: .numberPad)
-            }
-        }
-    }
-
-    private var entityForm: some View {
+    private var personalSquareCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            entityChoice(title: "Individual", subtitle: "Cash out under your own name", value: "individual")
-            entityChoice(title: "Business", subtitle: "Cash out under a business name", value: "business")
-            if profile.entityType == "business" {
-                field("Business / DBA name", text: $profile.businessName)
-            }
+            squarePageCard(for: "signup", buttonTitle: "Open Square sign up")
+            squarePageCard(for: "personal", buttonTitle: "Open Square personal info")
         }
-    }
-
-    private func entityChoice(title: String, subtitle: String, value: String) -> some View {
-        let selected = profile.entityType == value
-        return Button {
-            Motion.haptic(.light)
-            profile.entityType = value
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(Theme.syne(15, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                    Text(subtitle)
-                        .font(Theme.syne(12))
-                        .foregroundStyle(campusTheme.textMuted)
-                }
-                Spacer()
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? campusTheme.primary : campusTheme.textMuted)
-            }
-            .padding(14)
-            .background(selected ? campusTheme.primary.opacity(0.1) : campusTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(selected ? campusTheme.primary.opacity(0.45) : campusTheme.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-    }
-
-    private var checklistForm: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Have these ready for Square’s screens:")
-                .font(Theme.syne(13, weight: .medium))
-                .foregroundStyle(campusTheme.textMuted)
-
-            checklistToggle(
-                title: "Government ID / SSN or ITIN",
-                subtitle: "Square uses this for identity verification. Entered only on Square.",
-                isOn: $profile.hasIdReady
-            )
-            checklistToggle(
-                title: "Bank routing + account numbers",
-                subtitle: "You’ll link the account where cash outs deposit — on Square, not in popup.",
-                isOn: $profile.hasBankReady
-            )
-        }
-    }
-
-    private func checklistToggle(title: String, subtitle: String, isOn: Binding<Bool>) -> some View {
-        Toggle(isOn: isOn) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(Theme.syne(14, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                Text(subtitle)
-                    .font(Theme.syne(12))
-                    .foregroundStyle(campusTheme.textMuted)
-            }
-        }
-        .tint(campusTheme.primary)
-        .padding(14)
-        .background(campusTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(campusTheme.border, lineWidth: 1)
-        )
     }
 
     private var connectSquareCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             statusPill(
                 ok: status?.connected == true || profile.squareConnectDone,
                 okText: "Square connected",
                 waitText: "Not connected yet"
             )
-            Text("You’ll leave popup briefly to sign in or create a Square account and approve access. When you return, we save the connection to your seller profile.")
+            Text("This opens Square’s permission page for popup. Sign in to Square, then tap Allow so cash outs can reach your Square account.")
                 .font(Theme.syne(13))
                 .foregroundStyle(campusTheme.textMuted)
+
+            instructionList([
+                "Sign in or create your Square seller account",
+                "Review the permissions popup is requesting",
+                "Tap Allow, then return here",
+            ])
+
+            Button {
+                Motion.haptic(.medium)
+                Task { await connectSquare() }
+            } label: {
+                openSquareButtonLabel(
+                    title: (status?.connected == true || profile.squareConnectDone)
+                        ? "Reconnect on Square"
+                        : "Open Square connect page",
+                    opened: status?.connected == true || profile.squareConnectDone
+                )
+            }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(campusTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(campusTheme.border, lineWidth: 1)
+        )
     }
 
-    private var bankCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            statusPill(
-                ok: status?.bankAccountsLinked == true || profile.bankLinkDone,
-                okText: "Bank linked on Square",
-                waitText: "Bank not linked yet"
-            )
-            Text("Square doesn’t let apps attach your bank for you during signup. Open Square, add a bank for payouts, then come back and tap Finish.")
-                .font(Theme.syne(13))
-                .foregroundStyle(campusTheme.textMuted)
+    private func squarePageCard(
+        for key: String,
+        buttonTitle: String? = nil,
+        statusOk: Bool? = nil,
+        okText: String = "Done on Square",
+        waitText: String = "Not finished yet"
+    ) -> some View {
+        let page = page(for: key)
+        return VStack(alignment: .leading, spacing: 14) {
+            if let statusOk {
+                statusPill(ok: statusOk, okText: okText, waitText: waitText)
+            }
+
+            if let page {
+                Text(page.title)
+                    .font(Theme.syne(16, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+
+                Text(page.pathHint)
+                    .font(Theme.syne(12, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+
+                if !page.whatToEnter.isEmpty {
+                    instructionList(page.whatToEnter)
+                }
+
+                if let url = URL(string: page.url) {
+                    Link(destination: url) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "link")
+                            Text(page.displayHostPath)
+                                .underline()
+                                .lineLimit(2)
+                            Spacer(minLength: 0)
+                            Image(systemName: "arrow.up.right")
+                        }
+                        .font(Theme.syne(13, weight: .semibold))
+                        .foregroundStyle(campusTheme.primary)
+                    }
+                    .simultaneousGesture(TapGesture().onEnded {
+                        openedPages.insert(key)
+                    })
+                }
+
+                Button {
+                    Motion.haptic(.medium)
+                    Task { await openSquarePage(key) }
+                } label: {
+                    openSquareButtonLabel(
+                        title: buttonTitle ?? "Open this Square page",
+                        opened: openedPages.contains(key) || statusOk == true
+                    )
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(campusTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(campusTheme.border, lineWidth: 1)
+        )
+    }
+
+    private func instructionList(_ items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                HStack(alignment: .top, spacing: 8) {
+                    Text("\(index + 1).")
+                        .font(Theme.syne(13, weight: .bold))
+                        .foregroundStyle(campusTheme.primary)
+                    Text(item)
+                        .font(Theme.syne(13))
+                        .foregroundStyle(campusTheme.textPrimary)
+                }
+            }
+        }
+    }
+
+    private func openSquareButtonLabel(title: String, opened: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: opened ? "checkmark.circle.fill" : "arrow.up.right.square.fill")
+            Text(opened ? "Opened — tap to open again" : title)
+                .font(Theme.syne(15, weight: .bold))
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
+        .frame(height: 48)
+        .background(campusTheme.primary)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var doneCard: some View {
@@ -435,7 +433,7 @@ struct SellerCashOutSetupView: View {
             Text("Cash out is ready")
                 .font(Theme.syne(20, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
-            Text("When you have a balance from sales, tap Cash out in Account settings. Bank transfers aren’t live yet — cash out reserves your popup wallet until payouts ship.")
+            Text("When you have a balance from sales, tap Cash out in Account settings. You can reopen Square anytime if you need to update bank or identity details.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
         }
@@ -455,31 +453,6 @@ struct SellerCashOutSetupView: View {
             .clipShape(Capsule())
     }
 
-    private func field(
-        _ title: String,
-        text: Binding<String>,
-        keyboard: UIKeyboardType = .default
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(Theme.syne(12, weight: .semibold))
-                .foregroundStyle(campusTheme.textMuted)
-            TextField(title, text: text)
-                .keyboardType(keyboard)
-                .textInputAutocapitalization(keyboard == .emailAddress ? .never : .words)
-                .autocorrectionDisabled(keyboard == .emailAddress)
-                .font(Theme.syne(15))
-                .foregroundStyle(campusTheme.textPrimary)
-                .padding(14)
-                .background(campusTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(campusTheme.border, lineWidth: 1)
-                )
-        }
-    }
-
     // MARK: - Actions
 
     private func bootstrap() async {
@@ -495,6 +468,10 @@ struct SellerCashOutSetupView: View {
         profile = seeded
 
         status = try? await square.fetchStatus()
+        setupPages = await square.fetchSetupPages()
+        if setupPages.isEmpty {
+            setupPages = SquareSellerPages.fallback(environment: status?.environment)
+        }
 
         do {
             let loaded = try await square.fetchPayoutProfile()
@@ -542,13 +519,13 @@ struct SellerCashOutSetupView: View {
                 await connectSquare()
             }
         case .bank:
-            if status?.bankAccountsLinked == true || profile.bankLinkDone {
+            if status?.bankAccountsLinked == true || profile.bankLinkDone || openedPages.contains("bank") {
                 profile.bankLinkDone = true
                 profile.currentStep = "done"
                 profile.completedAt = ISO8601DateFormatter().string(from: Date())
                 await persistAndAdvance(to: .done)
             } else {
-                await openSquareBank()
+                await openSquarePage("bank")
             }
         case .done:
             dismiss()
@@ -576,7 +553,10 @@ struct SellerCashOutSetupView: View {
         case .personal: profile.personalDone = true
         case .address: profile.addressDone = true
         case .entity: profile.entityDone = true
-        case .checklist: profile.checklistDone = true
+        case .checklist:
+            profile.checklistDone = true
+            profile.hasIdReady = true
+            profile.hasBankReady = true
         case .connectSquare: profile.squareConnectDone = true
         case .bank: profile.bankLinkDone = true
         case .done: break
@@ -613,33 +593,28 @@ struct SellerCashOutSetupView: View {
             profile.currentStep = "connect"
             profile = try await square.savePayoutProfile(profile)
             try await square.startOAuth()
-            infoMessage = "Finish connecting in Square, then return here."
+            openedPages.insert("connect")
+            infoMessage = "Finish Allow on Square’s permission page, then return here."
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func openSquareBank() async {
-        isSaving = true
-        defer { isSaving = false }
+    private func page(for key: String) -> SquareSetupPage? {
+        setupPages.first { $0.key == key }
+            ?? SquareSellerPages.fallback(environment: status?.environment).first { $0.key == key }
+    }
+
+    private func openSquarePage(_ key: String) async {
+        guard let page = page(for: key) else {
+            errorMessage = "Could not find that Square page."
+            return
+        }
         do {
-            let response = try await square.createDashboardLink()
-            if let url = response.url, !url.isEmpty {
-                try await square.open(url)
-                infoMessage = "Add a bank account in Square, then come back and tap Finish."
-            } else {
-                try await square.startOAuth()
-            }
-        } catch let error as PayoutMFAError {
-            errorMessage = error.localizedDescription
+            try await square.open(page.url)
+            openedPages.insert(key)
         } catch {
-            // Not connected yet — send through OAuth first.
-            do {
-                try await square.startOAuth()
-                infoMessage = "Connect Square first, then add your bank."
-            } catch {
-                errorMessage = error.localizedDescription
-            }
+            errorMessage = error.localizedDescription
         }
     }
 

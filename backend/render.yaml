@@ -55,6 +55,12 @@ services:
         value: gpt-6-luna
       - key: IDENTIFY_RATE_LIMIT_PER_HOUR
         value: "12"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        sync: false
+      - key: PAYOUT_MFA_MAX_AGE_SECONDS
+        value: "600"
       - key: TWILIO_ACCOUNT_SID
         sync: false
       - key: TWILIO_AUTH_TOKEN

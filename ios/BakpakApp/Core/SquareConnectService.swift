@@ -101,6 +101,89 @@ struct SquareConnectLinkResponse: Decodable {
     let requiresOnboarding: Bool?
     let amountCents: Int?
     let message: String?
+    let title: String?
+    let pathHint: String?
+}
+
+struct SquareSetupPage: Decodable, Hashable, Identifiable {
+    let key: String
+    let title: String
+    let url: String
+    let pathHint: String
+    let whatToEnter: [String]
+
+    var id: String { key }
+
+    var displayHostPath: String {
+        url
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+    }
+}
+
+struct SquareSetupPagesResponse: Decodable {
+    let environment: String?
+    let pages: [SquareSetupPage]
+}
+
+enum SquareSellerPages {
+    static func fallback(environment: String?) -> [SquareSetupPage] {
+        let production = (environment ?? "sandbox") == "production"
+        let web = production ? "https://app.squareup.com" : "https://squareupsandbox.com"
+        return [
+            SquareSetupPage(
+                key: "signup",
+                title: "Create a Square account",
+                url: production ? "https://squareup.com/signup" : "\(web)/login",
+                pathHint: production ? "squareup.com → Sign up (free seller account)" : "Sandbox Dashboard → Sign in",
+                whatToEnter: ["Your legal first and last name", "An email Square can reach you at", "A phone number for Square’s verification codes"]
+            ),
+            SquareSetupPage(
+                key: "personal",
+                title: "Personal information",
+                url: "\(web)/dashboard/account",
+                pathHint: "Settings → Account & Settings → Personal information",
+                whatToEnter: ["Legal first and last name", "Email address", "Phone number"]
+            ),
+            SquareSetupPage(
+                key: "address",
+                title: "Business / home address",
+                url: "\(web)/dashboard/locations",
+                pathHint: "Settings → Account & Settings → Locations",
+                whatToEnter: ["Street address", "City, state, and ZIP"]
+            ),
+            SquareSetupPage(
+                key: "business",
+                title: "Seller / business type",
+                url: "\(web)/dashboard/account",
+                pathHint: "Settings → Account & Settings → My business → About",
+                whatToEnter: ["Individual or business", "Business or DBA name if you have one"]
+            ),
+            SquareSetupPage(
+                key: "identity",
+                title: "Verify identity",
+                url: production ? "https://squareup.com/activate" : "\(web)/dashboard",
+                pathHint: production
+                    ? "Square Dashboard → Verify Identity, or this activation page"
+                    : "Sandbox Dashboard → complete any identity prompts",
+                whatToEnter: ["Government photo ID", "SSN or ITIN (Square only — never in popup)"]
+            ),
+            SquareSetupPage(
+                key: "bank",
+                title: "Bank accounts",
+                url: "\(web)/dashboard/balances/bank-accounts",
+                pathHint: "Settings → Account & Settings → Banking → Bank accounts",
+                whatToEnter: ["Routing and account numbers, or sign in with your bank (Plaid)", "The checking account cash outs should land in"]
+            ),
+            SquareSetupPage(
+                key: "dashboard",
+                title: "Square Dashboard",
+                url: "\(web)/dashboard",
+                pathHint: "Square Dashboard home",
+                whatToEnter: []
+            ),
+        ]
+    }
 }
 
 @MainActor
@@ -111,6 +194,15 @@ final class SquareConnectService {
 
     func fetchStatus() async throws -> SquareConnectStatus {
         try await api.request(path: "/payments/square/status")
+    }
+
+    func fetchSetupPages() async -> [SquareSetupPage] {
+        if let response: SquareSetupPagesResponse = try? await api.request(path: "/payments/square/setup-pages"),
+           !response.pages.isEmpty {
+            return response.pages
+        }
+        let status = try? await fetchStatus()
+        return SquareSellerPages.fallback(environment: status?.environment)
     }
 
     func fetchPayoutProfile() async throws -> SellerPayoutProfileResponse {
@@ -149,12 +241,13 @@ final class SquareConnectService {
         await UIApplication.shared.open(url)
     }
 
-    func createDashboardLink() async throws -> SquareConnectLinkResponse {
+    func createDashboardLink(page: String = "dashboard") async throws -> SquareConnectLinkResponse {
         try await PayoutMFAGate.shared.requireCode(for: "Enter your authenticator code to manage your payout bank.")
+        let body = try JSONEncoder().encode(["page": page])
         return try await api.request(
             path: "/payments/square/dashboard",
             method: "POST",
-            body: Data("{}".utf8)
+            body: body
         )
     }
 

@@ -214,6 +214,98 @@ function expiresAtFromToken(tokenResponse) {
   return new Date(Date.now() + 29 * 24 * 60 * 60 * 1000);
 }
 
+function dashboardWebBase() {
+  return squareEnvironment() === 'production'
+    ? 'https://app.squareup.com'
+    : 'https://squareupsandbox.com';
+}
+
+function sellerSetupPages() {
+  const production = squareEnvironment() === 'production';
+  const web = dashboardWebBase();
+  return [
+    {
+      key: 'signup',
+      title: 'Create a Square account',
+      url: production ? 'https://squareup.com/signup' : `${web}/login`,
+      pathHint: production
+        ? 'squareup.com → Sign up (free seller account)'
+        : 'Sandbox Dashboard → Sign in',
+      whatToEnter: [
+        'Your legal first and last name',
+        'An email Square can reach you at',
+        'A phone number for Square’s verification codes',
+      ],
+    },
+    {
+      key: 'personal',
+      title: 'Personal information',
+      url: `${web}/dashboard/account`,
+      pathHint: 'Settings → Account & Settings → Personal information',
+      whatToEnter: [
+        'Legal first and last name',
+        'Email address',
+        'Phone number',
+      ],
+    },
+    {
+      key: 'address',
+      title: 'Business / home address',
+      url: `${web}/dashboard/locations`,
+      pathHint: 'Settings → Account & Settings → Locations',
+      whatToEnter: [
+        'Street address',
+        'City, state, and ZIP',
+      ],
+    },
+    {
+      key: 'business',
+      title: 'Seller / business type',
+      url: `${web}/dashboard/account`,
+      pathHint: 'Settings → Account & Settings → My business → About',
+      whatToEnter: [
+        'Individual or business',
+        'Business or DBA name if you have one',
+      ],
+    },
+    {
+      key: 'identity',
+      title: 'Verify identity',
+      url: production ? 'https://squareup.com/activate' : `${web}/dashboard`,
+      pathHint: production
+        ? 'Square Dashboard → Verify Identity, or this activation page'
+        : 'Sandbox Dashboard → complete any identity prompts',
+      whatToEnter: [
+        'Government photo ID',
+        'SSN or ITIN (Square only — never in popup)',
+      ],
+    },
+    {
+      key: 'bank',
+      title: 'Bank accounts',
+      url: `${web}/dashboard/balances/bank-accounts`,
+      pathHint: 'Settings → Account & Settings → Banking → Bank accounts',
+      whatToEnter: [
+        'Routing and account numbers, or sign in with your bank (Plaid)',
+        'The checking account cash outs should land in',
+      ],
+    },
+    {
+      key: 'dashboard',
+      title: 'Square Dashboard',
+      url: `${web}/dashboard`,
+      pathHint: 'Square Dashboard home',
+      whatToEnter: [],
+    },
+  ];
+}
+
+function dashboardPageUrl(page = 'dashboard') {
+  const pages = sellerSetupPages();
+  const match = pages.find((item) => item.key === page);
+  return (match || pages.find((item) => item.key === 'dashboard')).url;
+}
+
 module.exports = {
   isSquareConfigured,
   canTakePayments,
@@ -233,4 +325,6 @@ module.exports = {
   createPlatformPayment,
   verifyWebhookSignature,
   expiresAtFromToken,
+  sellerSetupPages,
+  dashboardPageUrl,
 };
