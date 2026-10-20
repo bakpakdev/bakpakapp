@@ -229,7 +229,7 @@ struct RegisterView: View {
             if authVM.emailConfirmationLinkOpened {
                 return "We got you back into popup. Tap Confirm email to unlock the rest of signup."
             }
-            return "We sent a link to \(composedEmail). Open it on this phone — it brings you into popup — then tap Confirm email."
+            return "We sent a link to \(composedEmail). Open it on this phone, tap Open popup, then tap Confirm email."
         case .password:
             return "Choose a password with at least 6 characters. You’ll use this to sign in next time."
         }

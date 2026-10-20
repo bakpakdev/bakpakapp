@@ -73,7 +73,11 @@ try {
   }));
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-  app.use(express.static('public')); // Serve static files
+  app.use(express.static(path.join(__dirname, 'public'))); // landing pages (email confirm)
+  const confirmEmailPage = path.join(__dirname, 'public/auth/confirm-email.html');
+  app.get(['/auth/confirm-email', '/auth/confirm-email.html'], (_req, res) => {
+    res.sendFile(confirmEmailPage);
+  });
 
   // Routes
   app.use('/api/auth', require('./routes/campusAuth'));

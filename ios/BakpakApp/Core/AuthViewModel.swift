@@ -105,7 +105,12 @@ final class AuthViewModel: ObservableObject {
         do {
             let session = try await client.auth.session
             guard session.user.emailConfirmedAt != nil else {
-                try? await client.auth.signOut()
+                // Don't sign out mid-signup — TestFlight cold-opens the confirm
+                // deep link in parallel with this restore, and a signOut here
+                // races verifyOTP.
+                if !isAwaitingEmailVerification {
+                    try? await client.auth.signOut()
+                }
                 isAuthenticated = false
                 user = nil
                 needsOnboarding = false
@@ -269,7 +274,7 @@ final class AuthViewModel: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
 
-        guard usesSupabase, let client = SupabaseManager.shared.client() else {
+        guard usesSupabase, SupabaseManager.shared.client() != nil else {
             errorMessage = "Email verification requires Supabase. Add your project keys and rebuild."
             return false
         }
@@ -284,62 +289,16 @@ final class AuthViewModel: ObservableObject {
         beginAwaitingEmailVerification()
         isAuthenticated = false
 
-        var sentConfirm = false
-        var sentMagicLink = false
-        var lastError: Error?
-
-        // 1) Resend the Confirm signup email.
-        do {
-            try await client.auth.resend(
-                email: trimmedEmail,
-                type: .signup,
-                emailRedirectTo: SupabaseConfig.authRedirectURL
-            )
-            sentConfirm = true
-        } catch {
-            do {
-                try await client.auth.resend(
-                    email: trimmedEmail,
-                    type: .signup,
-                    emailRedirectTo: nil
-                )
-                sentConfirm = true
-            } catch {
-                lastError = error
-            }
+        // Landing-page mail only. Do not call Supabase resend/generateLink — those
+        // HTTPS verify URLs are consumed by Mail prefetch on TestFlight.
+        let emailed = await deliverCampusConfirmation(email: trimmedEmail)
+        if !emailed {
+            errorMessage = "We couldn’t send the confirmation email. Tap Resend verification email."
         }
-
-        // 2) Also send a magic link — this is what reliably triggers Supabase to deliver mail.
-        do {
-            try await client.auth.signInWithOTP(
-                email: trimmedEmail,
-                redirectTo: SupabaseConfig.authRedirectURL,
-                shouldCreateUser: false
-            )
-            sentMagicLink = true
-        } catch {
-            do {
-                try await client.auth.signInWithOTP(
-                    email: trimmedEmail,
-                    redirectTo: SupabaseConfig.authRedirectURL,
-                    shouldCreateUser: true
-                )
-                sentMagicLink = true
-            } catch {
-                lastError = error
-            }
-        }
-
-        if sentConfirm || sentMagicLink {
-            await deliverCampusConfirmation(email: trimmedEmail)
-            return true
-        }
-
-        errorMessage = lastError.map(friendlyAuthError) ?? "Couldn’t resend the verification email. Try again in a minute."
-        return false
+        return emailed
     }
 
-    /// Creates the auth user and sends Supabase’s “Confirm signup” email with a link.
+    /// Creates the auth user on our API and emails a TestFlight-safe landing page.
     @discardableResult
     func sendSignupVerificationEmail(
         email: String,
@@ -352,7 +311,7 @@ final class AuthViewModel: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
 
-        guard usesSupabase, let client = SupabaseManager.shared.client() else {
+        guard usesSupabase, SupabaseManager.shared.client() != nil else {
             errorMessage = "Email verification requires Supabase. Add your project keys and rebuild."
             return false
         }
@@ -368,88 +327,43 @@ final class AuthViewModel: ObservableObject {
             return false
         }
 
-        let metadata: [String: AnyJSON] = [
-            "username": .string(trimmedUser),
-            "first_name": .string(firstName),
-            "last_name": .string(lastName),
-            "school": .string(school),
-        ]
-
-        // Explicit resend after a successful earlier signup for this email.
-        if pendingSignupEmail == trimmedEmail, pendingTempPassword != nil {
-            do {
-                try await client.auth.resend(
-                    email: trimmedEmail,
-                    type: .signup,
-                    emailRedirectTo: SupabaseConfig.authRedirectURL
-                )
-                beginAwaitingEmailVerification()
-                isAuthenticated = false
-                await deliverCampusConfirmation(email: trimmedEmail)
-                return true
-            } catch {
-                errorMessage = friendlyAuthError(error)
-                return false
-            }
-        }
-
         let tempPassword = "Tmp!\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))aA1"
+        pendingTempPassword = tempPassword
+        pendingSignupEmail = trimmedEmail
+        beginAwaitingEmailVerification()
+        isAuthenticated = false
+        user = nil
 
         do {
-            let session = try await signUpSendingConfirmation(
-                client: client,
-                email: trimmedEmail,
-                password: tempPassword,
-                data: metadata
+            struct CampusRegisterRequest: Encodable {
+                let email: String
+                let password: String
+                let username: String
+                let first_name: String
+                let last_name: String
+                let school: String
+            }
+            let response: CampusConfirmResponse = try await APIClient.shared.request(
+                path: "/auth/campus-register",
+                method: "POST",
+                body: JSONEncoder().encode(
+                    CampusRegisterRequest(
+                        email: trimmedEmail,
+                        password: tempPassword,
+                        username: trimmedUser,
+                        first_name: firstName,
+                        last_name: lastName,
+                        school: school
+                    )
+                )
             )
-
-            pendingTempPassword = tempPassword
-            pendingSignupEmail = trimmedEmail
-
-            if session != nil {
-                // Confirm email is OFF — sign out and refuse to continue until it's turned on.
-                try? await client.auth.signOut()
-                errorMessage =
-                    "Supabase has “Confirm email” turned off, so no email was sent. Turn it ON under Authentication → Providers → Email, then tap Resend."
-                beginAwaitingEmailVerification()
-                isAuthenticated = false
-                user = nil
+            if response.emailed != true {
+                errorMessage = response.message ?? "We couldn’t send the confirmation email. Tap Resend verification email."
                 return false
             }
-
-            // No session means confirmation is required — Supabase should have queued the email.
-            beginAwaitingEmailVerification()
-            isAuthenticated = false
-            user = nil
-            await deliverCampusConfirmation(email: trimmedEmail)
+            errorMessage = nil
             return true
         } catch {
-            let message = error.localizedDescription.lowercased()
-            let alreadyRegistered =
-                message.contains("already")
-                || message.contains("registered")
-                || message.contains("exists")
-                || message.contains("user_already_exists")
-
-            if alreadyRegistered {
-                do {
-                    try await client.auth.resend(
-                        email: trimmedEmail,
-                        type: .signup,
-                        emailRedirectTo: SupabaseConfig.authRedirectURL
-                    )
-                    pendingSignupEmail = trimmedEmail
-                    pendingTempPassword = tempPassword
-                    beginAwaitingEmailVerification()
-                    isAuthenticated = false
-                    await deliverCampusConfirmation(email: trimmedEmail)
-                    return true
-                } catch {
-                    errorMessage = friendlyAuthError(error)
-                    return false
-                }
-            }
-
             errorMessage = friendlyAuthError(error)
             return false
         }
@@ -462,55 +376,26 @@ final class AuthViewModel: ObservableObject {
         persistSignupGate()
     }
 
+    private struct CampusConfirmResponse: Decodable {
+        let emailed: Bool?
+        let message: String?
+    }
+
     /// Asks our API to also email the confirmation link (UO often drops Supabase's mailer).
     /// Never confirms the address itself: only the student clicking the link does that.
-    func deliverCampusConfirmation(email: String) async {
+    @discardableResult
+    func deliverCampusConfirmation(email: String) async -> Bool {
         do {
             let body = try JSONEncoder().encode(["email": email])
-            let _: APIMessage = try await APIClient.shared.request(
+            let response: CampusConfirmResponse = try await APIClient.shared.request(
                 path: "/auth/campus-confirm",
                 method: "POST",
                 body: body
             )
+            return response.emailed == true
         } catch {
             print("campus-confirm: \(error.localizedDescription)")
-        }
-    }
-
-    /// Signs up and asks Supabase to email a confirmation link.
-    /// Retries without a custom redirect if the redirect URL was rejected.
-    private func signUpSendingConfirmation(
-        client: SupabaseClient,
-        email: String,
-        password: String,
-        data: [String: AnyJSON]
-    ) async throws -> Session? {
-        do {
-            let result = try await client.auth.signUp(
-                email: email,
-                password: password,
-                data: data,
-                redirectTo: SupabaseConfig.authRedirectURL
-            )
-            return result.session
-        } catch {
-            let message = error.localizedDescription.lowercased()
-            let redirectProblem =
-                message.contains("redirect")
-                || message.contains("url")
-                || message.contains("not allowed")
-                || message.contains("whitelist")
-                || message.contains("allow")
-            guard redirectProblem else { throw error }
-
-            // Fall back so the confirmation email still sends even if redirect isn't allowlisted yet.
-            let result = try await client.auth.signUp(
-                email: email,
-                password: password,
-                data: data,
-                redirectTo: nil
-            )
-            return result.session
+            return false
         }
     }
 
@@ -595,12 +480,45 @@ final class AuthViewModel: ObservableObject {
     /// Does **not** unlock Continue — they must tap Confirm email in the app.
     func handleAuthRedirect(_ url: URL) async {
         guard usesSupabase, let client = SupabaseManager.shared.client() else { return }
+        guard url.scheme == "popup" else { return }
+
+        let params = Self.authCallbackParams(url)
+        if let errorText = params["error_description"] ?? params["error"], !errorText.isEmpty {
+            errorMessage = friendlyConfirmLinkError(message: errorText)
+            persistSignupGate()
+            return
+        }
 
         do {
-            let session = try await client.auth.session(from: url)
+            let session: Session
+            if let campusToken = params["campus_token"], !campusToken.isEmpty {
+                if let confirmed = try await confirmCampusToken(campusToken) {
+                    session = confirmed
+                } else {
+                    persistSignupGate()
+                    return
+                }
+            } else if let tokenHash = params["token_hash"] ?? params["token"], !tokenHash.isEmpty {
+                let otpType = Self.emailOTPType(from: params["type"])
+                let response = try await Self.verifyEmailTokenHash(client: client, tokenHash: tokenHash, type: otpType)
+                if let verified = response.session {
+                    session = verified
+                } else if let existing = try? await client.auth.session, existing.user.emailConfirmedAt != nil {
+                    session = existing
+                } else {
+                    errorMessage = "That link didn’t confirm your email. Tap Resend verification email and try the new link."
+                    persistSignupGate()
+                    return
+                }
+            } else if params["code"] != nil || params["access_token"] != nil {
+                session = try await client.auth.session(from: url)
+            } else {
+                return
+            }
+
             guard session.user.emailConfirmedAt != nil else {
                 try? await client.auth.signOut()
-                errorMessage = "That link didn’t confirm your email. Request a new popup email and try again."
+                errorMessage = "That link didn’t confirm your email. Tap Resend verification email and try the new link."
                 emailConfirmationLinkOpened = false
                 hasVerifiedSignupEmail = false
                 isAuthenticated = false
@@ -608,6 +526,8 @@ final class AuthViewModel: ObservableObject {
                 persistSignupGate()
                 return
             }
+
+            errorMessage = nil
 
             let midSignup = isAwaitingEmailVerification
                 || pendingSignupEmail != nil
@@ -624,18 +544,118 @@ final class AuthViewModel: ObservableObject {
                     pendingSignupEmail = email
                 }
                 persistSignupGate()
-                // Keep the confirmed session so they can set a password after Confirm.
                 return
             }
 
-            // Returning user (e.g. magic link / recovery) — only sign in if email is confirmed.
             user = try await Self.fetchProfileWithRetry(client: client)
             isAuthenticated = true
             KeychainManager.shared.clearToken()
             refreshOnboardingFlag()
+        } catch is CancellationError {
+            return
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyConfirmLinkError(message: error.localizedDescription)
+            persistSignupGate()
         }
+    }
+
+    private struct CampusVerifyResponse: Decodable {
+        let confirmed: Bool?
+        let email: String?
+        let message: String?
+    }
+
+    /// Confirms via our hosted API so TestFlight never depends on a Supabase verify URL.
+    private func confirmCampusToken(_ token: String) async throws -> Session? {
+        guard let client = SupabaseManager.shared.client() else { return nil }
+        let response: CampusVerifyResponse = try await APIClient.shared.request(
+            path: "/auth/campus-verify",
+            method: "POST",
+            body: try JSONEncoder().encode(["token": token])
+        )
+        guard response.confirmed == true else {
+            errorMessage = response.message
+                ?? "That confirmation link expired. Tap Resend verification email, then open the new one on this phone."
+            return nil
+        }
+        if let email = response.email?.lowercased(), !email.isEmpty {
+            pendingSignupEmail = email
+        }
+        if let email = pendingSignupEmail, let temp = pendingTempPassword {
+            var session = try await signInWithPasswordRetry(client: client, email: email, password: temp)
+            if session.user.emailConfirmedAt == nil {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                if let refreshed = try? await client.auth.session {
+                    session = refreshed
+                }
+            }
+            return session
+        }
+        if let existing = try? await client.auth.session, existing.user.emailConfirmedAt != nil {
+            return existing
+        }
+        isAwaitingEmailVerification = true
+        emailConfirmationLinkOpened = true
+        hasVerifiedSignupEmail = false
+        isAuthenticated = false
+        user = nil
+        persistSignupGate()
+        return nil
+    }
+
+    private static func authCallbackParams(_ url: URL) -> [String: String] {
+        var items: [String: String] = [:]
+        if let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            for item in comps.queryItems ?? [] {
+                if let value = item.value, !value.isEmpty {
+                    items[item.name] = value
+                }
+            }
+        }
+        if let fragment = url.fragment {
+            for pair in fragment.split(separator: "&") {
+                let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+                guard parts.count == 2 else { continue }
+                items[parts[0]] = parts[1].removingPercentEncoding ?? parts[1]
+            }
+        }
+        return items
+    }
+
+    private static func verifyEmailTokenHash(
+        client: SupabaseClient,
+        tokenHash: String,
+        type: EmailOTPType
+    ) async throws -> AuthResponse {
+        do {
+            return try await client.auth.verifyOTP(tokenHash: tokenHash, type: type)
+        } catch {
+            if type != .magiclink {
+                return try await client.auth.verifyOTP(tokenHash: tokenHash, type: .magiclink)
+            }
+            throw error
+        }
+    }
+
+    private static func emailOTPType(from raw: String?) -> EmailOTPType {
+        switch (raw ?? "signup").lowercased() {
+        case "magiclink": return .magiclink
+        case "recovery": return .recovery
+        case "invite": return .invite
+        case "email_change", "emailchange": return .emailChange
+        default: return .signup
+        }
+    }
+
+    private func friendlyConfirmLinkError(message: String) -> String {
+        let lower = message.lowercased()
+        if lower.contains("expir") || lower.contains("otp") || lower.contains("invalid") {
+            return "That confirmation link expired. Tap Resend verification email, then open the new one on this phone."
+        }
+        if lower.contains("cancel") || lower.contains("denied") || lower.contains("pkce") || lower.contains("verifier") {
+            return "That confirmation link didn’t open in popup. Tap Resend verification email and use Open popup on this phone."
+        }
+        return "Couldn’t confirm that email link. Tap Resend verification email and try again."
     }
 
     /// Called when the student taps **Confirm email** in the app after opening the link.
@@ -684,7 +704,7 @@ final class AuthViewModel: ObservableObject {
             errorMessage = "Open the link in your popup email first, then tap Confirm."
             return false
         }
-        }
+    }
 
     func clearSignupVerificationState() {
         isAwaitingEmailVerification = false

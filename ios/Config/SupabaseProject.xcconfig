@@ -12,9 +12,8 @@ SUPABASE_AUTH_REDIRECT_URL = popup:/$()/auth-callback
 // reachable from a tester's phone, and Release builds refuse non-HTTPS URLs.
 API_BASE_URL[config=Debug] = http:/$()/127.0.0.1:5001/api
 API_BASE_URL[config=Release] = $(API_BASE_URL_RELEASE)
-// Fill in once the backend is deployed (see backend/render.yaml), e.g.
-//   API_BASE_URL_RELEASE = https:/$()/popup-api.onrender.com/api
-API_BASE_URL_RELEASE =
+// TestFlight / App Store: hosted HTTPS API (Secrets.xcconfig can override).
+API_BASE_URL_RELEASE = https:/$()/popup-api-hwbg.onrender.com/api
 
 // Release entitlements. Switch as Apple approves capabilities for team 38BTDK54M3:
 //   PopupApp.entitlements          no payment entitlements (TestFlight-safe default)
