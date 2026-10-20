@@ -79,28 +79,6 @@ enum AccountPrefsStore {
         set { setBool("popup.security.twoFactor", newValue) }
     }
 
-    static var twoFactorPhone: String {
-        get { UserDefaults.standard.string(forKey: AccountScopedDefaults.key("popup.security.twoFactorPhone")) ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: AccountScopedDefaults.key("popup.security.twoFactorPhone")) }
-    }
-
-    static var twoFactorBackupCodes: [String] {
-        get {
-            UserDefaults.standard.stringArray(forKey: AccountScopedDefaults.key("popup.security.backupCodes")) ?? []
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: AccountScopedDefaults.key("popup.security.backupCodes"))
-        }
-    }
-
-    static func generateBackupCodes() -> [String] {
-        (0..<8).map { _ in
-            let a = Int.random(in: 1000...9999)
-            let b = Int.random(in: 1000...9999)
-            return "\(a)-\(b)"
-        }
-    }
-
     // MARK: Blocked users
 
     private static var blockedKey: String { AccountScopedDefaults.key("popup.privacy.blockedUsers.v1") }

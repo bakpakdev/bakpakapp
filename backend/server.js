@@ -90,7 +90,6 @@ try {
   app.use('/api/payments', require('./routes/payments'));
   app.use('/api/payments/square', require('./routes/square'));
   app.use('/api/identify-clothing', require('./routes/identify'));
-  app.use('/api/auth/sms-2fa', require('./routes/sms2fa'));
 
   app.get('/u/:username', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'share.html'));

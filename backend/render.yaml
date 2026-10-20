@@ -61,14 +61,6 @@ services:
         sync: false
       - key: PAYOUT_MFA_MAX_AGE_SECONDS
         value: "600"
-      - key: TWILIO_ACCOUNT_SID
-        sync: false
-      - key: TWILIO_AUTH_TOKEN
-        sync: false
-      - key: TWILIO_FROM_NUMBER
-        sync: false
-      - key: TWILIO_VERIFY_SERVICE_SID
-        sync: false
       # Unused by the scanner (Supabase is the live DB). Dummy so Prisma can boot.
       - key: DATABASE_URL
         value: mysql://unused:unused@127.0.0.1:3306/unused
