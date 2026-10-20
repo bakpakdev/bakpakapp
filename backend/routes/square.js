@@ -1,5 +1,7 @@
 const express = require('express');
 const { protectSupabase } = require('../middleware/supabaseAuth');
+const { requirePayoutMfa } = require('../middleware/payoutMfa');
+const { notifyPayoutMethodChanged } = require('../lib/email');
 const { getSupabaseAdmin } = require('../lib/supabaseAdmin');
 const { fulfillMeetupPayment } = require('../lib/meetupFulfill');
 const { getOrCreateSellerBalance, serializeBalance } = require('../lib/sellerBalance');
@@ -235,7 +237,7 @@ router.put('/payout-profile', protectSupabase, async (req, res) => {
   }
 });
 
-router.post('/oauth/start', protectSupabase, requireSquareOAuth, async (req, res) => {
+router.post('/oauth/start', protectSupabase, requirePayoutMfa, requireSquareOAuth, async (req, res) => {
   try {
     res.json({
       url: square.authorizeUrl(req.user.id),
@@ -306,6 +308,7 @@ router.get('/oauth/callback', async (req, res) => {
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
 
+    notifyPayoutMethodChanged(parsed.uid, 'connected');
     res.redirect('popup://square-oauth?connected=1');
   } catch (error) {
     console.error('Square OAuth callback error:', error);
@@ -313,7 +316,7 @@ router.get('/oauth/callback', async (req, res) => {
   }
 });
 
-router.post('/disconnect', protectSupabase, requireSquareOAuth, async (req, res) => {
+router.post('/disconnect', protectSupabase, requirePayoutMfa, requireSquareOAuth, async (req, res) => {
   try {
     const supabase = getSupabaseAdmin();
     const connection = await loadConnection(supabase, req.user.id);
@@ -325,6 +328,7 @@ router.post('/disconnect', protectSupabase, requireSquareOAuth, async (req, res)
       .from('profiles')
       .update({ square_merchant_id: null, updated_at: new Date().toISOString() })
       .eq('id', req.user.id);
+    notifyPayoutMethodChanged(req.user.id, 'disconnected');
     res.json({ connected: false, message: 'Square disconnected' });
   } catch (error) {
     console.error('Square disconnect error:', error);
@@ -346,7 +350,7 @@ router.get('/sdk-session', protectSupabase, requireSquarePayments, async (req, r
   }
 });
 
-router.post('/dashboard', protectSupabase, requireSquareOAuth, async (req, res) => {
+router.post('/dashboard', protectSupabase, requirePayoutMfa, requireSquareOAuth, async (req, res) => {
   try {
     const supabase = getSupabaseAdmin();
     const connection = await loadConnection(supabase, req.user.id);
@@ -366,7 +370,7 @@ router.post('/dashboard', protectSupabase, requireSquareOAuth, async (req, res) 
   }
 });
 
-router.post('/cashout', protectSupabase, requireSquareOAuth, async (req, res) => {
+router.post('/cashout', protectSupabase, requirePayoutMfa, requireSquareOAuth, async (req, res) => {
   try {
     const supabase = getSupabaseAdmin();
     const connection = await loadConnection(supabase, req.user.id);

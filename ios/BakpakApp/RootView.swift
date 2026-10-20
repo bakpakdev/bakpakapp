@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
+    @ObservedObject private var payoutMFAGate = PayoutMFAGate.shared
     /// Covers the auth → app swap, then fades into the user's light/dark theme.
     @State private var themeEnterCover: Double = 0
 
@@ -26,6 +27,12 @@ struct RootView: View {
                         .navigationDestination(for: Route.self) { route in
                             destination(for: route)
                         }
+                    }
+                    .sheet(isPresented: $payoutMFAGate.isPrompting, onDismiss: { payoutMFAGate.cancelIfPending() }) {
+                        PayoutCodeSheet(gate: payoutMFAGate)
+                            .environment(\.campusTheme, campusTheme)
+                            .presentationDragIndicator(.visible)
+                            .presentationDetents([.medium])
                     }
                     .transition(.opacity)
                 } else {

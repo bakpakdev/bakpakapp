@@ -453,9 +453,7 @@ struct ClosetShareCard: View {
             }
             .frame(maxWidth: .infinity)
 
-            Text("popup")
-                .font(Theme.syne(13, weight: .bold))
-                .foregroundStyle(palette.text.opacity(0.8))
+            PopupWordmark(scale: .footer, color: palette.text.opacity(0.8))
                 .padding(.bottom, 16)
         }
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))

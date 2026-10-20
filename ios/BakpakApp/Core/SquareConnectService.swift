@@ -128,6 +128,7 @@ final class SquareConnectService {
     }
 
     func disconnect() async throws {
+        try await PayoutMFAGate.shared.requireCode(for: "Enter your authenticator code to disconnect your payout account.")
         let _: APIMessage = try await api.request(
             path: "/payments/square/disconnect",
             method: "POST",
@@ -136,6 +137,7 @@ final class SquareConnectService {
     }
 
     func startOAuth() async throws {
+        try await PayoutMFAGate.shared.requireCode(for: "Enter your authenticator code to connect a payout account.")
         let start: SquareOAuthStartResponse = try await api.request(
             path: "/payments/square/oauth/start",
             method: "POST",
@@ -148,7 +150,8 @@ final class SquareConnectService {
     }
 
     func createDashboardLink() async throws -> SquareConnectLinkResponse {
-        try await api.request(
+        try await PayoutMFAGate.shared.requireCode(for: "Enter your authenticator code to manage your payout bank.")
+        return try await api.request(
             path: "/payments/square/dashboard",
             method: "POST",
             body: Data("{}".utf8)
@@ -156,6 +159,7 @@ final class SquareConnectService {
     }
 
     func cashOut(amountCents: Int? = nil) async throws -> SquareConnectLinkResponse {
+        try await PayoutMFAGate.shared.requireCode(for: "Enter your authenticator code to cash out.")
         var payload: [String: Int] = [:]
         if let amountCents { payload["amountCents"] = amountCents }
         let body = try JSONEncoder().encode(payload)

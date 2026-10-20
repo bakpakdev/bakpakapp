@@ -32,13 +32,20 @@ struct RegisterView: View {
     @State private var firstName = ""
     @State private var lastName = ""
     @State private var selectedSchool: CampusSchool?
-    @State private var email = ""
+    /// Local part only (before @); domain comes from the selected school.
+    @State private var emailLocal = ""
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var showPassword = false
     @State private var showConfirmPassword = false
     @State private var localError: String?
     @State private var statusMessage: String?
+
+    private var composedEmail: String {
+        let local = sanitizedEmailLocal(emailLocal)
+        guard let domain = selectedSchool?.emailDomain, !local.isEmpty else { return "" }
+        return "\(local)@\(domain)"
+    }
 
     private var canContinue: Bool {
         switch step {
@@ -48,8 +55,8 @@ struct RegisterView: View {
         case .school:
             return selectedSchool != nil
         case .email:
-            let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            return trimmed.contains("@") && trimmed.hasSuffix(".edu")
+            let trimmed = composedEmail
+            return !trimmed.isEmpty && trimmed.hasSuffix(".edu")
         case .verify:
             // Continue only after they opened the email link AND tapped Confirm email.
             return authVM.hasVerifiedSignupEmail
@@ -151,8 +158,8 @@ struct RegisterView: View {
         .onAppear {
             if authVM.isAwaitingEmailVerification {
                 if let pending = authVM.pendingVerificationEmail,
-                   email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    email = pending
+                   emailLocal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    applyPendingEmail(pending)
                 }
                 step = .verify
             }
@@ -166,13 +173,6 @@ struct RegisterView: View {
             guard verified, step == .verify else { return }
             statusMessage = "Email confirmed — tap Continue to create your password."
             Motion.haptic(.medium)
-        }
-        .task(id: step) {
-            guard step == .verify else { return }
-            while !Task.isCancelled && step == .verify && !authVM.emailConfirmationLinkOpened {
-                await authVM.pollSignupEmailLinkStatus()
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
-            }
         }
     }
 
@@ -219,7 +219,7 @@ struct RegisterView: View {
             return "Right now popup is only available for University of Oregon and Oregon State students."
         case .email:
             if let school = selectedSchool {
-                return "Enter your \(school.name) email ending in @\(school.emailDomain). We’ll send a verification link there."
+                return "Just type your name — we’ll add @\(school.emailDomain) for you."
             }
             return "Enter your college email (.edu). We’ll send a verification link."
         case .verify:
@@ -229,7 +229,7 @@ struct RegisterView: View {
             if authVM.emailConfirmationLinkOpened {
                 return "We got you back into popup. Tap Confirm email to unlock the rest of signup."
             }
-            return "We sent a link to \(email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()). Open it on this phone — it brings you into popup — then tap Confirm email."
+            return "We sent a link to \(composedEmail). Open it on this phone — it brings you into popup — then tap Confirm email."
         case .password:
             return "Choose a password with at least 6 characters. You’ll use this to sign in next time."
         }
@@ -277,6 +277,8 @@ struct RegisterView: View {
                 Button {
                     Motion.haptic(.light)
                     selectedSchool = school
+                    // Keep any local part they already typed; domain updates with school.
+                    emailLocal = sanitizedEmailLocal(emailLocal)
                     localError = nil
                 } label: {
                     HStack(spacing: 12) {
@@ -318,17 +320,39 @@ struct RegisterView: View {
             Text("College email")
                 .font(Theme.syne(13, weight: .semibold))
                 .foregroundStyle(PopupBrand.textPrimary.opacity(0.92))
-            TextField(
-                "",
-                text: $email,
-                prompt: Text(selectedSchool.map { "name@\($0.emailDomain)" } ?? "name@school.edu")
-                    .foregroundColor(PopupBrand.textMuted)
-            )
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .keyboardType(.emailAddress)
-            .foregroundColor(PopupBrand.textPrimary)
+
+            HStack(spacing: 0) {
+                TextField(
+                    "",
+                    text: $emailLocal,
+                    prompt: Text("yourname").foregroundColor(PopupBrand.textMuted)
+                )
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.emailAddress)
+                .textContentType(.username)
+                .foregroundColor(PopupBrand.textPrimary)
+                .onChange(of: emailLocal) { value in
+                    // If they paste a full address, keep only the local part.
+                    if value.contains("@") {
+                        emailLocal = sanitizedEmailLocal(value)
+                    }
+                }
+
+                Text("@\(selectedSchool?.emailDomain ?? "school.edu")")
+                    .font(Theme.syne(15, weight: .semibold))
+                    .foregroundStyle(PopupBrand.textMuted)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+            }
             .authFieldStyle()
+
+            if let school = selectedSchool {
+                Text("We’ll send a link to \(composedEmail.isEmpty ? "yourname@\(school.emailDomain)" : composedEmail).")
+                    .font(Theme.syne(12, weight: .medium))
+                    .foregroundStyle(PopupBrand.textMuted)
+                    .padding(.top, 2)
+            }
         }
     }
 
@@ -514,18 +538,13 @@ struct RegisterView: View {
     }
 
     private func sendVerificationAndAdvance() async {
-        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard trimmed.contains("@"), trimmed.hasSuffix(".edu") else {
-            localError = "Use a valid college email ending in .edu."
+        let trimmed = composedEmail
+        guard !trimmed.isEmpty, trimmed.hasSuffix(".edu") else {
+            localError = "Enter the name part of your school email."
             return
         }
         guard let school = selectedSchool else {
             localError = "Pick your school first."
-            return
-        }
-        let domain = trimmed.split(separator: "@").last.map(String.init) ?? ""
-        guard domain == school.emailDomain else {
-            localError = "That email doesn’t match \(school.name). Use an @\(school.emailDomain) address."
             return
         }
 
@@ -542,14 +561,14 @@ struct RegisterView: View {
         )
         guard ok else { return }
 
-        statusMessage = "If you don’t see it in a minute, check spam — or tap Resend."
+        statusMessage = "Open the email on this phone and tap the popup link. Then come back here."
         withAnimation(.easeInOut(duration: 0.3)) { step = .verify }
     }
 
     private func resendVerificationEmail() async {
         localError = nil
         authVM.errorMessage = nil
-        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let trimmed = composedEmail
         guard !trimmed.isEmpty else {
             localError = "Enter your school email first."
             return
@@ -558,6 +577,28 @@ struct RegisterView: View {
         let ok = await authVM.resendSignupVerificationEmail(email: trimmed)
         if ok {
             statusMessage = "New verification email sent — check inbox and spam."
+        }
+    }
+
+    private func sanitizedEmailLocal(_ raw: String) -> String {
+        var value = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let at = value.firstIndex(of: "@") {
+            value = String(value[..<at])
+        }
+        // Keep typical email local-part characters only.
+        return value.filter { $0.isLetter || $0.isNumber || "._+-".contains($0) }
+    }
+
+    private func applyPendingEmail(_ pending: String) {
+        let trimmed = pending.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let at = trimmed.firstIndex(of: "@") else {
+            emailLocal = sanitizedEmailLocal(trimmed)
+            return
+        }
+        emailLocal = sanitizedEmailLocal(String(trimmed[..<at]))
+        let domain = String(trimmed[trimmed.index(after: at)...])
+        if let match = CampusSchool.all.first(where: { $0.emailDomain == domain }) {
+            selectedSchool = match
         }
     }
 

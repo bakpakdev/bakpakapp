@@ -130,7 +130,8 @@ struct IdentifyClothingView: View {
                 },
                 onPickLibrary: {
                     showLibrary = true
-                }
+                },
+                maxCaptures: remainingSlots
             )
             .ignoresSafeArea()
         }

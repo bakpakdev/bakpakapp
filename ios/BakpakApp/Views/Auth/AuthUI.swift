@@ -104,10 +104,7 @@ struct AuthScreenChrome<Content: View>: View {
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
 
-                    Text("popup")
-                        .font(Theme.syne(28, weight: .black))
-                        .tracking(-0.5)
-                        .foregroundStyle(PopupBrand.textPrimary)
+                    PopupWordmark(scale: .header, alignment: .leading)
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 16)

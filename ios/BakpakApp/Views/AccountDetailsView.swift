@@ -2,6 +2,8 @@ import SwiftUI
 
 struct AccountDetailsView: View {
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var meetupStore: MeetupStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.campusTheme) private var campusTheme
 
@@ -10,6 +12,11 @@ struct AccountDetailsView: View {
     @State private var draftMonth = 6
     @State private var draftYear = 2026
     @State private var showGraduationPicker = false
+    @State private var showDeleteSheet = false
+    @State private var deletePassword = ""
+    @State private var showDeletePassword = false
+    @State private var deleteError: String?
+    @State private var isDeleting = false
     @State private var isSaving = false
     @State private var comingSoonMessage: String?
 
@@ -131,7 +138,10 @@ struct AccountDetailsView: View {
                     .padding(.top, 28)
 
                     Button {
-                        // Account deletion flow — hook to backend when available
+                        deletePassword = ""
+                        deleteError = nil
+                        showDeletePassword = false
+                        showDeleteSheet = true
                     } label: {
                         Text("Delete Account")
                             .font(Theme.syne(15, weight: .semibold))
@@ -142,6 +152,7 @@ struct AccountDetailsView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                    .disabled(isDeleting)
                     .padding(.top, 12)
                     .padding(.bottom, 40)
                 }
@@ -168,6 +179,13 @@ struct AccountDetailsView: View {
                 .presentationDetents([.height(340)])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showDeleteSheet) {
+            deleteAccountSheet
+                .environment(\.campusTheme, campusTheme)
+                .presentationDetents([.height(420)])
+                .presentationDragIndicator(.visible)
+                .interactiveDismissDisabled(isDeleting)
+        }
         .alert("Account", isPresented: Binding(
             get: { comingSoonMessage != nil },
             set: { if !$0 { comingSoonMessage = nil } }
@@ -176,6 +194,123 @@ struct AccountDetailsView: View {
         } message: {
             Text(comingSoonMessage ?? "")
         }
+    }
+
+    private var deleteAccountSheet: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Button("Cancel") {
+                    guard !isDeleting else { return }
+                    showDeleteSheet = false
+                }
+                .font(Theme.syne(15, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+                .disabled(isDeleting)
+
+                Spacer()
+
+                Text("Delete account")
+                    .font(Theme.syne(16, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+
+                Spacer()
+
+                Color.clear.frame(width: 54, height: 1)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 12)
+
+            Text("This permanently deletes your profile, listings, and chats. Enter your password to confirm.")
+                .font(Theme.syne(13, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 20)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Password")
+                    .font(Theme.syne(13, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                HStack(spacing: 8) {
+                    Group {
+                        if showDeletePassword {
+                            TextField(
+                                "",
+                                text: $deletePassword,
+                                prompt: Text("Your password").foregroundColor(campusTheme.textMuted)
+                            )
+                        } else {
+                            SecureField(
+                                "",
+                                text: $deletePassword,
+                                prompt: Text("Your password").foregroundColor(campusTheme.textMuted)
+                            )
+                        }
+                    }
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textContentType(.password)
+                    .foregroundStyle(campusTheme.textPrimary)
+
+                    Button {
+                        showDeletePassword.toggle()
+                    } label: {
+                        Image(systemName: showDeletePassword ? "eye.slash" : "eye")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(campusTheme.textMuted)
+                            .frame(width: 32, height: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isDeleting)
+                }
+                .padding(.horizontal, 12)
+                .frame(height: 46)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(campusTheme.elevatedSurface)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(campusTheme.border, lineWidth: 1)
+                )
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+
+            if let deleteError {
+                Text(deleteError)
+                    .font(Theme.syne(12, weight: .medium))
+                    .foregroundStyle(Color(hex: "#E11D48"))
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+            }
+
+            Spacer(minLength: 16)
+
+            Button {
+                Task { await confirmDeleteAccount() }
+            } label: {
+                Group {
+                    if isDeleting {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("Delete forever")
+                            .font(Theme.syne(15, weight: .semibold))
+                    }
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(Color(hex: "#E11D48"))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+            .disabled(isDeleting || deletePassword.trimmingCharacters(in: .whitespacesAndNewlines).count < 6)
+            .opacity(deletePassword.trimmingCharacters(in: .whitespacesAndNewlines).count < 6 ? 0.45 : 1)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 24)
+        }
+        .background(campusTheme.background.ignoresSafeArea())
     }
 
     private var graduationPickerSheet: some View {
@@ -262,5 +397,25 @@ struct AccountDetailsView: View {
         defer { isSaving = false }
         saveLocal()
         dismiss()
+    }
+
+    private func confirmDeleteAccount() async {
+        guard !isDeleting else { return }
+        isDeleting = true
+        deleteError = nil
+        let message = await authVM.deleteAccount(password: deletePassword)
+        if let message {
+            deleteError = message
+            isDeleting = false
+            return
+        }
+
+        showDeleteSheet = false
+        appState.prepareForLogout()
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 80_000_000)
+        await meetupStore.stopAsync()
+        BlockStore.shared.clearForLogout()
+        await authVM.logoutAsync()
     }
 }

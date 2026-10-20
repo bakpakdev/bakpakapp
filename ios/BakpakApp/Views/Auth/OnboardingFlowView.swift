@@ -8,6 +8,7 @@ private enum OnboardingStep: Int, CaseIterable {
     case username
     case photo
     case style
+    case tour
 }
 
 private let onboardingStyleOptions = [
@@ -54,6 +55,11 @@ struct OnboardingFlowView: View {
                         photoStep
                     case .style:
                         styleStep
+                    case .tour:
+                        FeatureTourView(campus: campus) {
+                            Task { await finishOnboarding() }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
                 .opacity(contentOpacity)
@@ -64,29 +70,10 @@ struct OnboardingFlowView: View {
 
     private var background: some View {
         Group {
-            if step == .campusWelcome {
+            if step == .campusWelcome || step == .tour {
                 Color.clear
             } else {
-                ZStack {
-                    PopupBrand.background
-                    // Soft campus glows (same language as CampusPageBackground).
-                    Circle()
-                        .fill(campus.primary.opacity(0.55))
-                        .frame(width: 300, height: 300)
-                        .blur(radius: 55)
-                        .offset(x: -150, y: -110)
-                    Circle()
-                        .fill(campus.secondary.opacity(0.4))
-                        .frame(width: 260, height: 260)
-                        .blur(radius: 60)
-                        .offset(x: 175, y: 20)
-                    LinearGradient(
-                        colors: [campus.primary, campus.secondary.opacity(0.85), campus.primary],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    .opacity(0.88)
-                }
+                CampusGlowBackground(campus: campus)
             }
         }
     }
@@ -189,11 +176,11 @@ struct OnboardingFlowView: View {
         onboardingChrome(
             title: "What’s your style?",
             subtitle: "We’ll use this to personalize what you see.",
-            primaryTitle: isSaving ? "Finishing…" : "Enter popup",
+            primaryTitle: isSaving ? "Saving…" : "Continue",
             canContinue: true,
-            onContinue: { Task { await finishOnboarding() } },
+            onContinue: { Task { await saveStylesAndStartTour() } },
             showSkip: true,
-            onSkip: { Task { await finishOnboarding() } }
+            onSkip: { Task { await saveStylesAndStartTour() } }
         ) {
             FlowChipGrid(
                 options: onboardingStyleOptions,
@@ -217,10 +204,7 @@ struct OnboardingFlowView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("popup")
-                .font(Theme.syne(28, weight: .black))
-                .tracking(-0.5)
-                .foregroundStyle(.white)
+            PopupWordmark(scale: .header, alignment: .leading)
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
 
@@ -246,18 +230,18 @@ struct OnboardingFlowView: View {
                     Group {
                         if isSaving {
                             ProgressView()
-                                .tint(campus.primary)
+                                .tint(PopupBrand.buttonText)
                         } else {
                             Text(primaryTitle)
                         }
                     }
                     .font(Theme.syne(16, weight: .semibold))
-                    .foregroundStyle(campus.primary)
+                    .foregroundStyle(PopupBrand.buttonText)
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
                     .background(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color.white)
+                            .fill(PopupBrand.button)
                     )
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
@@ -285,11 +269,13 @@ struct OnboardingFlowView: View {
 
             Spacer(minLength: 24)
 
-            Text("Step \(step.rawValue) of \(OnboardingStep.allCases.count)")
-                .font(Theme.syne(12, weight: .medium))
-                .foregroundStyle(Color.white.opacity(0.65))
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 24)
+            if step != .tour {
+                Text("Step \(step.rawValue) of \(OnboardingStep.style.rawValue)")
+                    .font(Theme.syne(12, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.65))
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 24)
+            }
         }
     }
 
@@ -381,6 +367,13 @@ struct OnboardingFlowView: View {
         }
     }
 
+    private func saveStylesAndStartTour() async {
+        isSaving = true
+        defer { isSaving = false }
+        UserDefaults.standard.set(Array(selectedStyles), forKey: OnboardingPrefs.styles)
+        advance(to: .tour)
+    }
+
     private func finishOnboarding() async {
         isSaving = true
         defer { isSaving = false }
@@ -407,38 +400,15 @@ private struct CampusWelcomeStep: View {
     @State private var phase: Phase = .loading
     @State private var loadingOpacity: Double = 0
     @State private var welcomeOpacity: Double = 0
-    @State private var washOpacity: Double = 0
-    @State private var logoOffsetX: CGFloat = 220
-    @State private var logoScale: CGFloat = 0.82
+    @State private var glowOpacity: Double = 0
+    @State private var logoScale: CGFloat = 0.88
     @State private var logoOpacity: Double = 0
     @State private var copyOpacity: Double = 0
     @State private var continueOpacity: Double = 0
 
     var body: some View {
         ZStack {
-            PopupBrand.background.ignoresSafeArea()
-
-            // Soft campus glows under the existing color wash.
-            Circle()
-                .fill(campus.primary.opacity(0.55))
-                .frame(width: 300, height: 300)
-                .blur(radius: 55)
-                .offset(x: -150, y: -110)
-                .opacity(washOpacity)
-            Circle()
-                .fill(campus.secondary.opacity(0.4))
-                .frame(width: 260, height: 260)
-                .blur(radius: 60)
-                .offset(x: 175, y: 20)
-                .opacity(washOpacity)
-
-            LinearGradient(
-                colors: [campus.primary, campus.secondary.opacity(0.85), campus.primary],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            .opacity(washOpacity)
+            CampusGlowBackground(campus: campus, strength: glowOpacity)
 
             if phase == .loading {
                 loadingContent
@@ -470,25 +440,24 @@ private struct CampusWelcomeStep: View {
         VStack(spacing: 0) {
             Spacer()
 
-            logoMark
+            PopupWordmark(scale: .hero)
                 .scaleEffect(logoScale)
                 .opacity(logoOpacity)
-                .offset(x: logoOffsetX)
 
             VStack(spacing: 10) {
                 Text(campus.welcomeTitle)
-                    .font(Theme.syne(28, weight: .black))
-                    .foregroundStyle(.white)
+                    .font(Theme.syne(26, weight: .black))
+                    .foregroundStyle(PopupBrand.textPrimary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 28)
 
                 Text("Let’s finish setting up your profile.")
                     .font(Theme.syne(14, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(PopupBrand.textMuted)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
             }
-            .padding(.top, 28)
+            .padding(.top, 22)
             .opacity(copyOpacity)
 
             Spacer()
@@ -499,12 +468,12 @@ private struct CampusWelcomeStep: View {
             } label: {
                 Text("Continue")
                     .font(Theme.syne(16, weight: .semibold))
-                    .foregroundStyle(campus.primary)
+                    .foregroundStyle(PopupBrand.buttonText)
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
                     .background(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color.white)
+                            .fill(PopupBrand.button)
                     )
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
@@ -512,23 +481,6 @@ private struct CampusWelcomeStep: View {
             .padding(.bottom, 40)
             .opacity(continueOpacity)
         }
-    }
-
-    private var logoMark: some View {
-        Group {
-            if let uiImage = UIImage(named: "popup_logo_white_mark") {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .renderingMode(.original)
-                    .scaledToFit()
-                    .frame(width: 120, height: 120)
-            } else {
-                Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 56, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-        }
-        .frame(width: 132, height: 132)
     }
 
     private func runSequence() {
@@ -546,15 +498,13 @@ private struct CampusWelcomeStep: View {
                 phase = .welcome
                 withAnimation(.easeInOut(duration: 0.35)) {
                     welcomeOpacity = 1
-                    washOpacity = 0.35
+                    glowOpacity = 0.55
                 }
 
-                // Logo swipes in from the right.
                 withAnimation(.spring(response: 0.62, dampingFraction: 0.78).delay(0.08)) {
-                    logoOffsetX = 0
-                    logoScale = 1.06
+                    logoScale = 1.04
                     logoOpacity = 1
-                    washOpacity = 1
+                    glowOpacity = 1
                 }
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.72).delay(0.42)) {
                     logoScale = 1

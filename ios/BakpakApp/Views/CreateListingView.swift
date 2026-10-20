@@ -1018,14 +1018,17 @@ struct CreateListingView: View {
         .onChange(of: photoPickerItems) { _ in
             Task { await loadPhotosFromPicker() }
         }
-        .fullScreenCover(isPresented: $showCameraPicker) {
+        .fullScreenCover(isPresented: $showCameraPicker, onDismiss: {
+            presentNextCropIfNeeded()
+        }) {
             PopupCameraView(
                 onCapture: { image in
-                    enqueueForCrop([image])
+                    enqueueForCrop([image], presentImmediately: false)
                 },
                 onPickLibrary: {
                     showLibraryPicker = true
-                }
+                },
+                maxCaptures: remainingPhotoSlots
             )
             .ignoresSafeArea()
         }
@@ -1243,7 +1246,7 @@ struct CreateListingView: View {
         }
     }
 
-    private func enqueueForCrop(_ images: [UIImage]) {
+    private func enqueueForCrop(_ images: [UIImage], presentImmediately: Bool = true) {
         let slots = max(0, 5 - photos.count - cropQueue.count)
         guard slots > 0 else { return }
         let pending = images.prefix(slots).map {
@@ -1251,7 +1254,9 @@ struct CreateListingView: View {
         }
         guard !pending.isEmpty else { return }
         cropQueue.append(contentsOf: pending)
-        presentNextCropIfNeeded()
+        if presentImmediately {
+            presentNextCropIfNeeded()
+        }
     }
 
     private func presentNextCropIfNeeded() {

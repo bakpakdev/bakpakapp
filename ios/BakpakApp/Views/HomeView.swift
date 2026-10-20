@@ -161,6 +161,9 @@ struct HomeView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var notificationUnread = 0
     @State private var homeSort: HomeSort = .newest
+    @State private var showCampusPeople = false
+    @State private var campusPeopleCount: Int?
+    @State private var campusPeopleLoading = false
 
     private let columns: [GridItem] = [
         GridItem(.flexible(), spacing: 12),
@@ -210,6 +213,7 @@ struct HomeView: View {
                         .padding(.top, 60)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 22)
+                        .zIndex(showCampusPeople ? 20 : 0)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("discover")
@@ -221,6 +225,8 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 22)
+                    .zIndex(0)
+                    .opacity(showCampusPeople ? 0.35 : 1)
 
                     searchBar
                         .padding(.horizontal, 20)
@@ -280,9 +286,15 @@ struct HomeView: View {
             }
         }
         .onChange(of: selectedCategory) { _ in
+            if showCampusPeople {
+                withAnimation(Motion.snappy) { showCampusPeople = false }
+            }
             Task { await reloadProducts() }
         }
         .onChange(of: searchText) { _ in
+            if showCampusPeople {
+                withAnimation(Motion.snappy) { showCampusPeople = false }
+            }
             scheduleSearch()
         }
         .onDisappear {
@@ -294,23 +306,7 @@ struct HomeView: View {
 
     private var headerBlock: some View {
         HStack(alignment: .center, spacing: 10) {
-            HStack(spacing: 6) {
-                Button {
-                    Motion.haptic(.light)
-                    appState.selectedTab = .profile
-                } label: {
-                    avatar
-                        .frame(width: 52, height: 52)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
-                .accessibilityLabel("Profile")
-
-                campusBadge
-            }
-            .padding(5)
-            .background(campusTheme.elevatedSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            profileCampusCluster
 
             Spacer(minLength: 8)
 
@@ -339,6 +335,37 @@ struct HomeView: View {
         }
     }
 
+    /// Profile + campus mark cluster; people bubble centers under this whole square.
+    private var profileCampusCluster: some View {
+        HStack(spacing: 6) {
+            Button {
+                Motion.haptic(.light)
+                appState.selectedTab = .profile
+            } label: {
+                avatar
+                    .frame(width: 52, height: 52)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
+            .accessibilityLabel("Profile")
+
+            campusBadge
+        }
+        .padding(5)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(campusTheme.elevatedSurface)
+        )
+        .overlay(alignment: .top) {
+            if showCampusPeople {
+                campusPeopleBubble
+                    // Sit just under the capsule, centered on profile + UO.
+                    .padding(.top, 70)
+                    .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
+            }
+        }
+    }
+
     @ViewBuilder
     private var avatar: some View {
         if let url = URL(string: authVM.user?.avatar ?? ""), !(authVM.user?.avatar ?? "").isEmpty {
@@ -358,18 +385,65 @@ struct HomeView: View {
     }
 
     private var campusBadge: some View {
-        VStack(spacing: 3) {
-            Circle()
-                .fill(campusTheme.secondary)
-                .frame(width: 6, height: 6)
-            Text(campusTheme.shortName)
-                .font(Theme.syne(13, weight: .black))
-                .tracking(0.6)
-                .foregroundStyle(campusTheme.primary)
+        Button {
+            Motion.haptic(.light)
+            withAnimation(Motion.snappy) {
+                showCampusPeople.toggle()
+            }
+            if showCampusPeople {
+                Task { await loadCampusPeopleCount() }
+            }
+        } label: {
+            VStack(spacing: 3) {
+                Circle()
+                    .fill(campusTheme.secondary)
+                    .frame(width: 6, height: 6)
+                Text(campusTheme.shortName)
+                    .font(Theme.syne(13, weight: .black))
+                    .tracking(0.6)
+                    .foregroundStyle(campusTheme.primary)
+            }
+            .frame(width: 52, height: 52)
+            .background(campusTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
-        .frame(width: 52, height: 52)
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
+        .accessibilityLabel("\(campusTheme.shortName) popup campus")
+        .accessibilityHint("Shows how many people are on this campus")
+    }
+
+    private var campusPeopleBubble: some View {
+        Group {
+            if campusPeopleLoading && campusPeopleCount == nil {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(campusTheme.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+            } else {
+                Text(campusPeopleLabel)
+                    .font(Theme.syne(13, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: true, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+            }
+        }
         .background(campusTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(campusTheme.border, lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.12), radius: 12, y: 5)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var campusPeopleLabel: String {
+        guard let campusPeopleCount else { return "—" }
+        if campusPeopleCount == 1 { return "1 on campus" }
+        return "\(campusPeopleCount) on campus"
     }
 
     private var searchBar: some View {
@@ -548,6 +622,26 @@ struct HomeView: View {
                     in: NotificationCenterStore.loadPersisted()
                 )
             }
+        }
+    }
+
+    private func loadCampusPeopleCount() async {
+        campusPeopleLoading = true
+        defer { campusPeopleLoading = false }
+        do {
+            guard let client = await SupabaseManager.shared.clientWithValidSession() else {
+                campusPeopleCount = nil
+                return
+            }
+            let school = campusTheme.fullName
+            let response = try await client
+                .from("profiles")
+                .select("id", head: true, count: .exact)
+                .eq("country", value: school)
+                .execute()
+            campusPeopleCount = response.count ?? 0
+        } catch {
+            campusPeopleCount = nil
         }
     }
 }

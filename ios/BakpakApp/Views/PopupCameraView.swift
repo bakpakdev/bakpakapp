@@ -3,9 +3,12 @@ import AVFoundation
 import UIKit
 
 /// Custom in-app camera chrome (viewfinder brackets, shutter, flash).
+/// Stays open so the user can shoot multiple photos; dismiss with X or Done.
 struct PopupCameraView: View {
     var onCapture: (UIImage) -> Void
     var onPickLibrary: (() -> Void)? = nil
+    /// When set, shutter stops after this many shots in this session (then Done).
+    var maxCaptures: Int? = nil
 
     @Environment(\.dismiss) private var dismiss
 
@@ -13,8 +16,18 @@ struct PopupCameraView: View {
     @State private var flashOn = false
     @State private var shutterPulse = false
     @State private var captureFlash = false
+    @State private var capturedThumbs: [UIImage] = []
 
     private let accent = Color(red: 0.93, green: 0.18, blue: 0.42)
+
+    private var remainingInSession: Int? {
+        guard let maxCaptures else { return nil }
+        return max(0, maxCaptures - capturedThumbs.count)
+    }
+
+    private var canCaptureMore: Bool {
+        remainingInSession.map { $0 > 0 } ?? true
+    }
 
     var body: some View {
         ZStack {
@@ -108,49 +121,103 @@ struct PopupCameraView: View {
 
             Spacer()
 
-            Text("popup")
-                .font(Theme.syne(13, weight: .bold))
-                .foregroundStyle(.white.opacity(0.9))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
+            PopupWordmark(scale: .badge)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
                 .background(Color.white.opacity(0.12))
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
+
+            Spacer()
+
+            if !capturedThumbs.isEmpty {
+                Button {
+                    Motion.haptic(.medium)
+                    dismiss()
+                } label: {
+                    Text("Done")
+                        .font(Theme.syne(14, weight: .bold))
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(Color.white)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
+            } else {
+                Color.clear.frame(width: 40, height: 40)
+            }
         }
     }
 
     private var bottomBar: some View {
-        HStack(alignment: .center) {
-            chromeSquareButton(systemName: "photo.on.rectangle") {
-                Motion.haptic(.light)
-                let pick = onPickLibrary
-                dismiss()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                    pick?()
-                }
+        VStack(spacing: 16) {
+            if !capturedThumbs.isEmpty {
+                capturedStrip
             }
-            .opacity(onPickLibrary == nil ? 0.35 : 1)
-            .disabled(onPickLibrary == nil)
 
-            Spacer()
+            HStack(alignment: .center) {
+                chromeSquareButton(systemName: "photo.on.rectangle") {
+                    Motion.haptic(.light)
+                    let pick = onPickLibrary
+                    dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        pick?()
+                    }
+                }
+                .opacity(onPickLibrary == nil ? 0.35 : 1)
+                .disabled(onPickLibrary == nil)
 
-            shutterButton
+                Spacer()
 
-            Spacer()
+                shutterButton
 
-            chromeSquareButton(
-                systemName: flashOn ? "bolt.fill" : "bolt.slash.fill",
-                accentBorder: flashOn
-            ) {
-                Motion.haptic(.light)
-                flashOn.toggle()
+                Spacer()
+
+                chromeSquareButton(
+                    systemName: flashOn ? "bolt.fill" : "bolt.slash.fill",
+                    accentBorder: flashOn
+                ) {
+                    Motion.haptic(.light)
+                    flashOn.toggle()
+                }
             }
         }
     }
 
+    private var capturedStrip: some View {
+        HStack(spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(capturedThumbs.enumerated()), id: \.offset) { _, thumb in
+                        Image(uiImage: thumb)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 44, height: 44)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                            )
+                    }
+                }
+            }
+
+            Text("\(capturedThumbs.count)")
+                .font(Theme.syne(13, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.16))
+                .clipShape(Capsule())
+        }
+        .padding(.horizontal, 4)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
     private var shutterButton: some View {
         Button {
-            guard !session.isCapturing else { return }
+            guard !session.isCapturing, canCaptureMore else { return }
             Motion.haptic(.medium)
             withAnimation(.easeOut(duration: 0.12)) { shutterPulse = true }
             withAnimation(.easeOut(duration: 0.08)) { captureFlash = true }
@@ -161,25 +228,33 @@ struct PopupCameraView: View {
                         captureFlash = false
                     }
                     guard let image else { return }
+                    withAnimation(Motion.snappy) {
+                        capturedThumbs.append(image)
+                    }
                     onCapture(image)
-                    dismiss()
+                    if !canCaptureMore {
+                        // Hit the listing/scanner photo limit — close so they can continue.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            dismiss()
+                        }
+                    }
                 }
             }
         } label: {
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.35), lineWidth: 3)
+                    .stroke(Color.white.opacity(canCaptureMore ? 0.35 : 0.18), lineWidth: 3)
                     .frame(width: 78, height: 78)
                 Circle()
                     .fill(Color.white.opacity(0.12))
                     .frame(width: 70, height: 70)
                 Circle()
-                    .fill(Color.white)
+                    .fill(Color.white.opacity(canCaptureMore ? 1 : 0.35))
                     .frame(width: shutterPulse ? 54 : 60, height: shutterPulse ? 54 : 60)
             }
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
-        .disabled(session.isCapturing || !session.cameraAvailable)
+        .disabled(session.isCapturing || !session.cameraAvailable || !canCaptureMore)
         .accessibilityLabel("Take photo")
     }
 

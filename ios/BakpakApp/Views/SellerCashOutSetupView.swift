@@ -597,8 +597,8 @@ struct SellerCashOutSetupView: View {
     }
 
     private func connectSquare() async {
-        guard AccountPrefsStore.twoFactorEnabled else {
-            errorMessage = "Turn on SMS two-factor before connecting Square for cash out."
+        guard await PayoutMFA.isEnrolled() else {
+            errorMessage = "Turn on two-factor with an authenticator app before connecting Square for cash out."
             appState.path.append(.twoFactorAuth)
             return
         }
@@ -630,6 +630,8 @@ struct SellerCashOutSetupView: View {
             } else {
                 try await square.startOAuth()
             }
+        } catch let error as PayoutMFAError {
+            errorMessage = error.localizedDescription
         } catch {
             // Not connected yet — send through OAuth first.
             do {

@@ -384,6 +384,75 @@ enum PopupBrand {
     static let buttonText = Color(hex: "#0A0A0A")
 }
 
+/// Stacked splash / app-icon wordmark — "pop" over "up".
+struct PopupWordmark: View {
+    enum Scale {
+        case hero
+        case header
+        case badge
+        case footer
+    }
+
+    var scale: Scale = .header
+    var color: Color = PopupBrand.textPrimary
+    var alignment: HorizontalAlignment = .center
+
+    private var fontSize: CGFloat {
+        switch scale {
+        case .hero: return 56
+        case .header: return 15
+        case .badge: return 9
+        case .footer: return 12
+        }
+    }
+
+    private var spacing: CGFloat {
+        switch scale {
+        case .hero: return -10
+        case .header: return -3
+        case .badge: return -2
+        case .footer: return -2
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: alignment, spacing: spacing) {
+            Text("pop")
+            Text("up")
+        }
+        .font(Theme.syne(fontSize, weight: .heavy))
+        .tracking(-0.02 * fontSize)
+        .foregroundStyle(color)
+        .lineLimit(1)
+        .minimumScaleFactor(0.85)
+        .accessibilityLabel("popup")
+    }
+}
+
+/// Dark canvas + campus color glows — same language as Home / auth.
+struct CampusGlowBackground: View {
+    let campus: CampusTheme
+    var strength: Double = 1
+
+    var body: some View {
+        ZStack {
+            PopupBrand.background
+            Circle()
+                .fill(campus.primary.opacity(0.32 * strength))
+                .frame(width: 320, height: 320)
+                .blur(radius: 70)
+                .offset(x: -150, y: -130)
+            Circle()
+                .fill(campus.secondary.opacity(0.2 * strength))
+                .frame(width: 280, height: 280)
+                .blur(radius: 72)
+                .offset(x: 160, y: 40)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+}
+
 extension Color {
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)

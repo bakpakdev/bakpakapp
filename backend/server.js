@@ -76,6 +76,8 @@ try {
   app.use(express.static('public')); // Serve static files
 
   // Routes
+  app.use('/api/auth', require('./routes/campusAuth'));
+  app.use('/api/auth', require('./routes/account'));
   app.use('/api/auth', require('./routes/auth'));
   app.use('/api/users', require('./routes/users'));
   app.use('/api/products', require('./routes/products'));

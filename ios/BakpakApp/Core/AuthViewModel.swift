@@ -26,7 +26,7 @@ final class AuthViewModel: ObservableObject {
     private static let onboardingRequiredPrefix = "popup.onboarding.required."
     private static let awaitingEmailKey = "popup.signup.awaitingEmail"
     private static let signupEmailKey = "popup.signup.email"
-    private static let linkOpenedKey = "popup.signup.linkOpened"
+    private static let linkOpenedKey = "popup.signup.linkOpened.fromEmail"
     /// Temporary password used only until the student sets their real password.
     private var pendingTempPassword: String? {
         get { KeychainManager.shared.readSignupTempPassword() }
@@ -109,12 +109,8 @@ final class AuthViewModel: ObservableObject {
                 needsOnboarding = false
                 return
             }
-            // Mid-signup: keep them on auth until they Confirm in-app and set a password.
+            // Mid-signup: stay on auth until they open the email link, then Confirm in-app.
             if isAwaitingEmailVerification {
-                if session.user.emailConfirmedAt != nil {
-                    emailConfirmationLinkOpened = true
-                    persistSignupGate()
-                }
                 isAuthenticated = false
                 user = nil
                 needsOnboarding = false
@@ -130,9 +126,13 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
-    private static func fetchProfile(client: SupabaseClient) async throws -> User {
-        let session = try await client.auth.session
-        let uid = session.user.id.uuidString.lowercased()
+    private static func fetchProfile(client: SupabaseClient, userId: String? = nil) async throws -> User {
+        let uid: String
+        if let userId, !userId.isEmpty {
+            uid = userId.lowercased()
+        } else {
+            uid = try await client.auth.session.user.id.uuidString.lowercased()
+        }
         struct Row: Decodable {
             let id: UUID
             let username: String
@@ -197,24 +197,36 @@ final class AuthViewModel: ObservableObject {
                 errorMessage = "Supabase is not configured."
                 return
             }
+            let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             do {
-                let session = try await client.auth.signIn(email: email, password: password)
+                // Stale Simulator keychain sessions make password sign-in throw
+                // "Auth session missing" even when the password is correct.
+                try? await client.auth.signOut()
+                let session = try await signInWithPasswordRetry(
+                    client: client,
+                    email: trimmedEmail,
+                    password: password
+                )
                 if session.user.emailConfirmedAt == nil {
                     try? await client.auth.signOut()
                     errorMessage = "Confirm your campus email first. Open the popup link we sent, tap Confirm email in the app, then sign in."
                     isAuthenticated = false
                     user = nil
                     needsOnboarding = false
-                    pendingSignupEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    pendingSignupEmail = trimmedEmail
                     beginAwaitingEmailVerification()
                     return
                 }
-                user = try await Self.fetchProfile(client: client)
+                clearSignupVerificationState()
+                user = try await Self.fetchProfile(
+                    client: client,
+                    userId: session.user.id.uuidString.lowercased()
+                )
                 isAuthenticated = true
                 refreshOnboardingFlag()
                 KeychainManager.shared.clearToken()
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = friendlyAuthError(error)
                 isAuthenticated = false
                 user = nil
                 needsOnboarding = false
@@ -303,6 +315,7 @@ final class AuthViewModel: ObservableObject {
         }
 
         if sentConfirm || sentMagicLink {
+            await deliverCampusConfirmation(email: trimmedEmail)
             return true
         }
 
@@ -356,6 +369,7 @@ final class AuthViewModel: ObservableObject {
                 )
                 beginAwaitingEmailVerification()
                 isAuthenticated = false
+                await deliverCampusConfirmation(email: trimmedEmail)
                 return true
             } catch {
                 errorMessage = friendlyAuthError(error)
@@ -391,6 +405,7 @@ final class AuthViewModel: ObservableObject {
             beginAwaitingEmailVerification()
             isAuthenticated = false
             user = nil
+            await deliverCampusConfirmation(email: trimmedEmail)
             return true
         } catch {
             let message = error.localizedDescription.lowercased()
@@ -411,6 +426,7 @@ final class AuthViewModel: ObservableObject {
                     pendingTempPassword = tempPassword
                     beginAwaitingEmailVerification()
                     isAuthenticated = false
+                    await deliverCampusConfirmation(email: trimmedEmail)
                     return true
                 } catch {
                     errorMessage = friendlyAuthError(error)
@@ -428,6 +444,21 @@ final class AuthViewModel: ObservableObject {
         emailConfirmationLinkOpened = false
         hasVerifiedSignupEmail = false
         persistSignupGate()
+    }
+
+    /// Asks our API to also email the confirmation link (UO often drops Supabase's mailer).
+    /// Never confirms the address itself: only the student clicking the link does that.
+    func deliverCampusConfirmation(email: String) async {
+        do {
+            let body = try JSONEncoder().encode(["email": email])
+            let _: APIMessage = try await APIClient.shared.request(
+                path: "/auth/campus-confirm",
+                method: "POST",
+                body: body
+            )
+        } catch {
+            print("campus-confirm: \(error.localizedDescription)")
+        }
     }
 
     /// Signs up and asks Supabase to email a confirmation link.
@@ -467,9 +498,36 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
+    private func signInWithPasswordRetry(
+        client: SupabaseClient,
+        email: String,
+        password: String
+    ) async throws -> Session {
+        do {
+            return try await client.auth.signIn(email: email, password: password)
+        } catch {
+            guard isAuthSessionMissing(error) else { throw error }
+            try? await client.auth.signOut()
+            return try await client.auth.signIn(email: email, password: password)
+        }
+    }
+
+    private func isAuthSessionMissing(_ error: Error) -> Bool {
+        error.localizedDescription.lowercased().contains("session missing")
+    }
+
     private func friendlyAuthError(_ error: Error) -> String {
         let message = error.localizedDescription
         let lower = message.lowercased()
+        if isAuthSessionMissing(error) {
+            return "Couldn’t start your session. Try signing in again — if it keeps happening, confirm your campus email first."
+        }
+        if lower.contains("invalid login") || lower.contains("invalid credentials") {
+            return "That email or password doesn’t match. Try again, or register if you don’t have an account yet."
+        }
+        if lower.contains("email not confirmed") {
+            return "Confirm your campus email first. Open the popup link we sent, tap Confirm email in the app, then sign in."
+        }
         if lower.contains("redirect") || lower.contains("not allowed") {
             return "Verification email blocked by redirect URL settings. In Supabase → Authentication → URL Configuration, add: \(SupabaseConfig.authRedirectURL.absoluteString)"
         }
@@ -537,8 +595,8 @@ final class AuthViewModel: ObservableObject {
             errorMessage = "Supabase is not configured."
             return false
         }
-        guard isAwaitingEmailVerification else {
-            errorMessage = "Start signup and open the email we sent first."
+        guard isAwaitingEmailVerification, emailConfirmationLinkOpened else {
+            errorMessage = "Open the popup link in your email first, then tap Confirm."
             return false
         }
 
@@ -572,36 +630,7 @@ final class AuthViewModel: ObservableObject {
             errorMessage = "Open the link in your popup email first, then tap Confirm."
             return false
         }
-    }
-
-    /// Detects that the email link confirmed the address (does not unlock Continue).
-    func pollSignupEmailLinkStatus() async {
-        guard isAwaitingEmailVerification, !emailConfirmationLinkOpened, !hasVerifiedSignupEmail else { return }
-        guard usesSupabase, let client = SupabaseManager.shared.client() else { return }
-
-        if let session = try? await client.auth.session, session.user.emailConfirmedAt != nil {
-            emailConfirmationLinkOpened = true
-            persistSignupGate()
-            isAuthenticated = false
-            user = nil
-            return
         }
-
-        guard let email = pendingSignupEmail, let temp = pendingTempPassword else { return }
-        do {
-            let session = try await client.auth.signIn(email: email, password: temp)
-            guard session.user.emailConfirmedAt != nil else {
-                try? await client.auth.signOut()
-                return
-            }
-            emailConfirmationLinkOpened = true
-            persistSignupGate()
-            isAuthenticated = false
-            user = nil
-        } catch {
-            // Still waiting for the confirmation link.
-        }
-    }
 
     func clearSignupVerificationState() {
         isAwaitingEmailVerification = false
@@ -824,6 +853,31 @@ final class AuthViewModel: ObservableObject {
             if !isAuthenticated {
                 user = nil
             }
+        }
+    }
+
+    /// Verifies the password on the API and permanently deletes the Supabase user.
+    /// Caller should clear navigation, then call `logoutAsync()` on success.
+    func deleteAccount(password: String) async -> String? {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        let trimmed = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 6 else {
+            return "Enter your password to delete your account."
+        }
+
+        do {
+            let body = try JSONEncoder().encode(["password": trimmed])
+            let _: APIMessage = try await APIClient.shared.request(
+                path: "/auth/delete-account",
+                method: "POST",
+                body: body
+            )
+            return nil
+        } catch {
+            return error.localizedDescription
         }
     }
 

@@ -18,6 +18,7 @@ async function protectSupabase(req, res, next) {
     req.user = {
       id: data.user.id.toLowerCase(),
       email: data.user.email,
+      factors: data.user.factors || [],
     };
     next();
   } catch (err) {

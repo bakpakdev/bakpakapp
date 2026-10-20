@@ -14,6 +14,7 @@ struct AccountSettingsView: View {
     @State private var showLogoutModal = false
     @State private var showDisconnectSquare = false
     @State private var isLoggingOut = false
+    @State private var twoFactorOn = AccountPrefsStore.twoFactorEnabled
 
     private let squareConnect = SquareConnectService.shared
 
@@ -36,6 +37,7 @@ struct AccountSettingsView: View {
         .toolbar(showLogoutModal ? .hidden : .visible, for: .navigationBar)
         .hidesSystemNavigationBar(showLogoutModal)
         .task {
+            twoFactorOn = await PayoutMFA.isEnrolled()
             await loadSquareStatus()
         }
         .onReceive(NotificationCenter.default.publisher(for: .squareOAuthReturned)) { _ in
@@ -113,7 +115,7 @@ struct AccountSettingsView: View {
                     .init(
                         icon: "lock.shield",
                         title: "Two-factor authentication",
-                        subtitle: AccountPrefsStore.twoFactorEnabled ? "On · SMS codes" : "Off · required to cash out"
+                        subtitle: twoFactorOn ? "On · authenticator app" : "Off · required to cash out"
                     ) {
                         appState.path.append(.twoFactorAuth)
                     },
@@ -381,8 +383,8 @@ struct AccountSettingsView: View {
     }
 
     private func cashOutTapped() async {
-        guard AccountPrefsStore.twoFactorEnabled else {
-            comingSoonMessage = "Turn on SMS two-factor, then cash out."
+        guard await PayoutMFA.isEnrolled() else {
+            comingSoonMessage = "Turn on two-factor with an authenticator app, then cash out."
             appState.path.append(.twoFactorAuth)
             return
         }

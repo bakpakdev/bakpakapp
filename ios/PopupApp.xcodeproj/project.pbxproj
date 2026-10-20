@@ -35,7 +35,7 @@
 		21E28C9767186EA0742CC641 /* ReportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A03E8FB3528B7EA06FEE4E6C /* ReportService.swift */; };
 		439766C6BAE6280B05F7F370 /* SellerRankService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E77535FF9E10D777A7AE5B1 /* SellerRankService.swift */; };
 		03586D62860BCF0FF2C45821 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4BE39B8650EB00F6D92CD9F /* Services.swift */; };
-		1E0B42DB0F84FE9678A79974 /* Sms2FAService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96F4F7F29E0F99F5DBCFE23 /* Sms2FAService.swift */; };
+		1E0B42DB0F84FE9678A79974 /* PayoutMFAService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96F4F7F29E0F99F5DBCFE23 /* PayoutMFAService.swift */; };
 		ADBD256BC41AA8891BF99AA9 /* SquareConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4684CF0C17F90FE840AEA521 /* SquareConfig.swift */; };
 		4022A6C5DE03D21547E75779 /* SquareConnectService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049269B572D56CADF3F53A46 /* SquareConnectService.swift */; };
 		7016B3BA22720A1E12247FBB /* SupabaseCatalogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC00785D1162823234947362 /* SupabaseCatalogService.swift */; };
@@ -56,6 +56,7 @@
 		D57E892D811EC3C59CAF99D0 /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCEE7076AD15BC4CB89BD784 /* AccountSettingsView.swift */; };
 		5565D186E1EBDA05BDE95BA5 /* ApplePayButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62EFD531D69BBC1FDC02D399 /* ApplePayButton.swift */; };
 		318937BB5228E072AB470238 /* AuthUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 238B40B998343316EFB8F41F /* AuthUI.swift */; };
+		33E911B41237F5EC4C0CBC2A /* FeatureTourView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F69305E168B853C11DAF1AD2 /* FeatureTourView.swift */; };
 		5086BD173BD0FE6AB1FA3A0D /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70F752666B5523FB1472CD8 /* LoginView.swift */; };
 		250A415576346E2D72039A7E /* OnboardingFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A82C74FF17606EDE7B033459 /* OnboardingFlowView.swift */; };
 		D61441567F6A87B7E9CEB67F /* RegisterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74ACCEE5BA97F40853AA3F61 /* RegisterView.swift */; };
@@ -157,7 +158,7 @@
 		A03E8FB3528B7EA06FEE4E6C /* ReportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ReportService.swift'; sourceTree = "<group>"; };
 		1E77535FF9E10D777A7AE5B1 /* SellerRankService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SellerRankService.swift'; sourceTree = "<group>"; };
 		F4BE39B8650EB00F6D92CD9F /* Services.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Services.swift'; sourceTree = "<group>"; };
-		B96F4F7F29E0F99F5DBCFE23 /* Sms2FAService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Sms2FAService.swift'; sourceTree = "<group>"; };
+		B96F4F7F29E0F99F5DBCFE23 /* PayoutMFAService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'PayoutMFAService.swift'; sourceTree = "<group>"; };
 		4684CF0C17F90FE840AEA521 /* SquareConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SquareConfig.swift'; sourceTree = "<group>"; };
 		049269B572D56CADF3F53A46 /* SquareConnectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SquareConnectService.swift'; sourceTree = "<group>"; };
 		FC00785D1162823234947362 /* SupabaseCatalogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SupabaseCatalogService.swift'; sourceTree = "<group>"; };
@@ -178,6 +179,7 @@
 		BCEE7076AD15BC4CB89BD784 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AccountSettingsView.swift'; sourceTree = "<group>"; };
 		62EFD531D69BBC1FDC02D399 /* ApplePayButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ApplePayButton.swift'; sourceTree = "<group>"; };
 		238B40B998343316EFB8F41F /* AuthUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AuthUI.swift'; sourceTree = "<group>"; };
+		F69305E168B853C11DAF1AD2 /* FeatureTourView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'FeatureTourView.swift'; sourceTree = "<group>"; };
 		C70F752666B5523FB1472CD8 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'LoginView.swift'; sourceTree = "<group>"; };
 		A82C74FF17606EDE7B033459 /* OnboardingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'OnboardingFlowView.swift'; sourceTree = "<group>"; };
 		74ACCEE5BA97F40853AA3F61 /* RegisterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'RegisterView.swift'; sourceTree = "<group>"; };
@@ -328,7 +330,7 @@
 				A03E8FB3528B7EA06FEE4E6C /* ReportService.swift */,
 				1E77535FF9E10D777A7AE5B1 /* SellerRankService.swift */,
 				F4BE39B8650EB00F6D92CD9F /* Services.swift */,
-				B96F4F7F29E0F99F5DBCFE23 /* Sms2FAService.swift */,
+				B96F4F7F29E0F99F5DBCFE23 /* PayoutMFAService.swift */,
 				4684CF0C17F90FE840AEA521 /* SquareConfig.swift */,
 				049269B572D56CADF3F53A46 /* SquareConnectService.swift */,
 				FC00785D1162823234947362 /* SupabaseCatalogService.swift */,
@@ -404,6 +406,7 @@
 			isa = PBXGroup;
 			children = (
 				238B40B998343316EFB8F41F /* AuthUI.swift */,
+				F69305E168B853C11DAF1AD2 /* FeatureTourView.swift */,
 				C70F752666B5523FB1472CD8 /* LoginView.swift */,
 				A82C74FF17606EDE7B033459 /* OnboardingFlowView.swift */,
 				74ACCEE5BA97F40853AA3F61 /* RegisterView.swift */,
@@ -547,7 +550,7 @@
 				21E28C9767186EA0742CC641 /* ReportService.swift in Sources */,
 				439766C6BAE6280B05F7F370 /* SellerRankService.swift in Sources */,
 				03586D62860BCF0FF2C45821 /* Services.swift in Sources */,
-				1E0B42DB0F84FE9678A79974 /* Sms2FAService.swift in Sources */,
+				1E0B42DB0F84FE9678A79974 /* PayoutMFAService.swift in Sources */,
 				ADBD256BC41AA8891BF99AA9 /* SquareConfig.swift in Sources */,
 				4022A6C5DE03D21547E75779 /* SquareConnectService.swift in Sources */,
 				7016B3BA22720A1E12247FBB /* SupabaseCatalogService.swift in Sources */,
@@ -568,6 +571,7 @@
 				D57E892D811EC3C59CAF99D0 /* AccountSettingsView.swift in Sources */,
 				5565D186E1EBDA05BDE95BA5 /* ApplePayButton.swift in Sources */,
 				318937BB5228E072AB470238 /* AuthUI.swift in Sources */,
+				33E911B41237F5EC4C0CBC2A /* FeatureTourView.swift in Sources */,
 				5086BD173BD0FE6AB1FA3A0D /* LoginView.swift in Sources */,
 				250A415576346E2D72039A7E /* OnboardingFlowView.swift in Sources */,
 				D61441567F6A87B7E9CEB67F /* RegisterView.swift in Sources */,

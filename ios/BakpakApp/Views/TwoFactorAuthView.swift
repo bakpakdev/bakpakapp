@@ -1,31 +1,19 @@
+import CoreImage.CIFilterBuiltins
 import SwiftUI
 import UIKit
 
 struct TwoFactorAuthView: View {
     @Environment(\.campusTheme) private var campusTheme
-    @EnvironmentObject private var authVM: AuthViewModel
 
     @State private var enabled = AccountPrefsStore.twoFactorEnabled
-    @State private var phone = AccountPrefsStore.twoFactorPhone
+    @State private var enrollment: PayoutMFA.Enrollment?
     @State private var code = ""
-    @State private var step: Step = AccountPrefsStore.twoFactorEnabled ? .on : .phone
     @State private var isBusy = false
+    @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var infoMessage: String?
     @State private var showDisableConfirm = false
-    @State private var resendSeconds = 0
-    @State private var previewCode: String?
-    @FocusState private var fieldFocus: Field?
-
-    private enum Step {
-        case phone
-        case code
-        case on
-    }
-
-    private enum Field: Hashable {
-        case phone
-        case code
-    }
+    @FocusState private var codeFocused: Bool
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -37,20 +25,24 @@ struct TwoFactorAuthView: View {
 
                     if enabled {
                         statusOnCard
-                        phoneCard
-                    } else {
+                    } else if let enrollment {
                         stepIndicator
-                        if step == .phone {
-                            phoneStep
-                        } else {
-                            codeStep
-                        }
+                        scanCard(enrollment)
+                        codeCard
+                    } else {
+                        introCard
                     }
 
                     primaryButton
 
-                    if !enabled, step == .code {
-                        changeNumberButton
+                    if !enabled, enrollment != nil {
+                        restartButton
+                    }
+
+                    if let infoMessage, !infoMessage.isEmpty {
+                        Text(infoMessage)
+                            .font(Theme.syne(13))
+                            .foregroundStyle(campusTheme.textMuted)
                     }
 
                     if let errorMessage, !errorMessage.isEmpty {
@@ -67,60 +59,47 @@ struct TwoFactorAuthView: View {
             if showDisableConfirm {
                 ConfirmActionCard(
                     title: "Turn off two-factor?",
-                    message: "You won’t be able to cash out until SMS two-factor is on again.",
+                    message: "You won’t be able to change payouts or cash out until it’s on again.",
                     confirmTitle: "Turn off",
                     confirmIcon: "lock.slash",
                     tone: .destructive,
-                    onConfirm: { turnOff() },
+                    onConfirm: { Task { await turnOff() } },
                     onCancel: { showDisableConfirm = false }
                 )
                 .zIndex(10)
             }
         }
         .campusPageStyle()
-        .onAppear {
-            if step == .phone { fieldFocus = .phone }
-            if step == .code { fieldFocus = .code }
-        }
-        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
-            if resendSeconds > 0 { resendSeconds -= 1 }
+        .task {
+            enabled = await PayoutMFA.isEnrolled()
+            isLoading = false
         }
     }
 
     private var headerSubtitle: String {
-        if enabled { return "sms codes are on" }
-        return step == .code ? "enter the code we texted" : "add your mobile number"
+        if enabled { return "authenticator app is on" }
+        return enrollment == nil ? "protect your cash outs" : "scan, then enter the code"
     }
 
     private var primaryTitle: String {
         if enabled { return "turn off two-factor" }
-        if step == .code { return "verify and turn on" }
-        return "text me a code"
+        if enrollment != nil { return "verify and turn on" }
+        return "set up authenticator app"
     }
 
     private var canSubmit: Bool {
         if enabled { return true }
-        if step == .code { return code.filter(\.isNumber).count == 6 }
-        return normalizedPhone != nil
-    }
-
-    private var normalizedPhone: String? {
-        Self.normalize(phone)
-    }
-
-    private var maskedPhone: String {
-        let digits = (normalizedPhone ?? phone).filter(\.isNumber)
-        guard digits.count >= 4 else { return phone.isEmpty ? "your phone" : phone }
-        return "••• ••• \(digits.suffix(4))"
+        if enrollment != nil { return code.count == 6 }
+        return !isLoading
     }
 
     private var stepIndicator: some View {
         HStack(spacing: 10) {
-            stepChip(number: 1, title: "number", active: step == .phone, done: step == .code)
+            stepChip(number: 1, title: "scan", active: code.isEmpty, done: !code.isEmpty)
             Rectangle()
                 .fill(campusTheme.border)
                 .frame(height: 1)
-            stepChip(number: 2, title: "verify", active: step == .code, done: false)
+            stepChip(number: 2, title: "verify", active: !code.isEmpty, done: false)
         }
     }
 
@@ -146,135 +125,123 @@ struct TwoFactorAuthView: View {
         }
     }
 
-    private var phoneStep: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("mobile number")
+    private var introCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("authenticator app")
                 .font(Theme.syne(15, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
-            Text("We’ll text a random 6-digit code to this number. Enter that code on the next screen.")
+            Text("Use Google Authenticator, 1Password, Authy or the iPhone Passwords app. popup asks for a 6-digit code from it before you change where payouts go or cash out.")
                 .font(Theme.syne(13))
                 .foregroundStyle(campusTheme.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
-
-            TextField("(555) 555-5555", text: $phone)
-                .keyboardType(.phonePad)
-                .textContentType(.telephoneNumber)
-                .font(Theme.syne(22, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-                .focused($fieldFocus, equals: .phone)
-                .onChange(of: phone) { value in
-                    phone = Self.formatPhone(value)
-                    errorMessage = nil
-                }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(CampusCardBackground())
     }
 
-    private var codeStep: some View {
+    private func scanCard(_ enrollment: PayoutMFA.Enrollment) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("scan this code")
+                .font(Theme.syne(15, weight: .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+            Text("Open your authenticator app, add an account, and scan. On this phone, tap open in authenticator instead.")
+                .font(Theme.syne(13))
+                .foregroundStyle(campusTheme.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let qr = Self.qrImage(enrollment.uri) {
+                Image(uiImage: qr)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 200, height: 200)
+                    .padding(12)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .frame(maxWidth: .infinity)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("or enter this key")
+                    .font(Theme.syne(12, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+                Text(Self.grouped(enrollment.secret))
+                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(campusTheme.elevatedSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            HStack(spacing: 10) {
+                smallButton(title: "copy key", icon: "doc.on.doc") {
+                    UIPasteboard.general.string = enrollment.secret
+                    infoMessage = "Key copied."
+                }
+                smallButton(title: "open in authenticator", icon: "arrow.up.forward.app") {
+                    Task { await openAuthenticator(enrollment.uri) }
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(CampusCardBackground())
+    }
+
+    private func smallButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button {
+            Motion.haptic(.light)
+            action()
+        } label: {
+            Label(title, systemImage: icon)
+                .font(Theme.syne(12, weight: .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+                .background(campusTheme.elevatedSurface)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+    }
+
+    private var codeCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("verification code")
                 .font(Theme.syne(15, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
-            Text(previewCode == nil
-                 ? "Enter the 6-digit code we just texted to \(maskedPhone)."
-                 : "SMS isn’t running on this Mac, so use the preview code below for \(maskedPhone).")
+            Text("Enter the 6-digit code your authenticator app shows for popup.")
                 .font(Theme.syne(13))
                 .foregroundStyle(campusTheme.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let previewCode {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("your code")
-                        .font(Theme.syne(12, weight: .semibold))
-                        .foregroundStyle(campusTheme.textMuted)
-                    Text(previewCode)
-                        .font(Theme.syne(28, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                        .kerning(4)
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(campusTheme.elevatedSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            OneTimeCodeField(code: $code, isFocused: $codeFocused) {
+                Task { await verifyEnrollment() }
             }
-
-            ZStack {
-                TextField("", text: $code)
-                    .keyboardType(.numberPad)
-                    .textContentType(.oneTimeCode)
-                    .focused($fieldFocus, equals: .code)
-                    .tint(.clear)
-                    .foregroundStyle(.clear)
-                    .accentColor(.clear)
-                    .frame(height: 64)
-                    .onChange(of: code) { value in
-                        let digits = String(value.filter(\.isNumber).prefix(6))
-                        code = digits
-                        errorMessage = nil
-                        if digits.count == 6 {
-                            Task { await verifyCode() }
-                        }
-                    }
-
-                HStack(spacing: 8) {
-                    ForEach(0..<6, id: \.self) { index in
-                        let digits = Array(code)
-                        let filled = index < digits.count
-                        Text(filled ? String(digits[index]) : "")
-                            .font(Theme.syne(24, weight: .bold))
-                            .foregroundStyle(campusTheme.textPrimary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 64)
-                            .background(campusTheme.elevatedSurface)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .stroke(
-                                        fieldFocus == .code && index == min(code.count, 5)
-                                            ? campusTheme.primary
-                                            : campusTheme.border,
-                                        lineWidth: 1
-                                    )
-                            )
-                    }
-                }
-                .allowsHitTesting(false)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture { fieldFocus = .code }
-
-            Button {
-                Task { await sendCode(isResend: true) }
-            } label: {
-                Text(resendSeconds > 0 ? "resend code in \(resendSeconds)s" : "resend code")
-                    .font(Theme.syne(13, weight: .semibold))
-                    .foregroundStyle(resendSeconds > 0 ? campusTheme.textMuted : campusTheme.primary)
-            }
-            .buttonStyle(.plain)
-            .disabled(isBusy || resendSeconds > 0)
+            .onChange(of: code) { _ in errorMessage = nil }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(CampusCardBackground())
     }
 
-    private var changeNumberButton: some View {
+    private var restartButton: some View {
         Button {
             Motion.haptic(.light)
-            step = .phone
-            code = ""
-            previewCode = nil
-            errorMessage = nil
-            fieldFocus = .phone
+            Task { await startEnrollment() }
         } label: {
-            Text("use a different number")
+            Text("get a new code to scan")
                 .font(Theme.syne(13, weight: .semibold))
                 .foregroundStyle(campusTheme.textMuted)
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
+        .disabled(isBusy)
     }
 
     private var statusOnCard: some View {
@@ -290,25 +257,11 @@ struct TwoFactorAuthView: View {
                 Text("on")
                     .font(Theme.syne(22, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
-                Text("popup texts a 6-digit code to this phone before cash out.")
+                Text("popup asks for a code from your authenticator app before payout changes and cash outs.")
                     .font(Theme.syne(13))
                     .foregroundStyle(campusTheme.textMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(CampusCardBackground())
-    }
-
-    private var phoneCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("verified number")
-                .font(Theme.syne(15, weight: .semibold))
-                .foregroundStyle(campusTheme.textPrimary)
-            Text(maskedPhone)
-                .font(Theme.syne(18, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -320,15 +273,15 @@ struct TwoFactorAuthView: View {
             Motion.haptic(.medium)
             if enabled {
                 showDisableConfirm = true
-            } else if step == .code {
-                Task { await verifyCode() }
+            } else if enrollment != nil {
+                Task { await verifyEnrollment() }
             } else {
-                Task { await sendCode(isResend: false) }
+                Task { await startEnrollment() }
             }
         } label: {
             Group {
                 if isBusy {
-                    ProgressView().tint(.white)
+                    ProgressView().tint(enabled ? Color(hex: "#E11D48") : .white)
                 } else {
                     Text(primaryTitle)
                 }
@@ -344,94 +297,219 @@ struct TwoFactorAuthView: View {
             )
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-        .disabled(isBusy || (!enabled && !canSubmit))
+        .disabled(isBusy || !canSubmit)
     }
 
-    private func sendCode(isResend: Bool) async {
-        guard let normalizedPhone else {
-            errorMessage = "Enter a valid US mobile number."
-            return
-        }
+    private func startEnrollment() async {
         isBusy = true
         errorMessage = nil
+        infoMessage = nil
         defer { isBusy = false }
         do {
-            let response = try await Sms2FAService.send(phone: normalizedPhone)
-            phone = Self.formatPhone(response.phone ?? normalizedPhone)
-            previewCode = response.previewCode
-            step = .code
-            if !isResend { code = "" }
-            resendSeconds = 30
-            fieldFocus = .code
-            Motion.haptic(.medium)
+            enrollment = try await PayoutMFA.enroll()
+            code = ""
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func verifyCode() async {
-        let trimmed = code.filter(\.isNumber)
-        guard trimmed.count == 6 else {
-            errorMessage = "Enter the 6-digit code from the text."
-            return
-        }
+    private func verifyEnrollment() async {
+        guard let enrollment, code.count == 6, !isBusy else { return }
         isBusy = true
         errorMessage = nil
         defer { isBusy = false }
         do {
-            let response = try await Sms2FAService.verify(code: trimmed)
-            AccountPrefsStore.twoFactorEnabled = true
-            AccountPrefsStore.twoFactorPhone = response.phone ?? (normalizedPhone ?? phone)
+            try await PayoutMFA.verify(factorId: enrollment.factorId, code: code)
+            self.enrollment = nil
             enabled = true
-            step = .on
             code = ""
-            previewCode = nil
-            fieldFocus = nil
+            infoMessage = nil
+            codeFocused = false
+            Motion.haptic(.medium)
+        } catch {
+            errorMessage = "That code didn’t match. Check your authenticator app and try again."
+            code = ""
+            codeFocused = true
+        }
+    }
+
+    private func turnOff() async {
+        showDisableConfirm = false
+        isBusy = true
+        errorMessage = nil
+        defer { isBusy = false }
+        do {
+            try await PayoutMFAGate.shared.requireCode(for: "Confirm it’s you to turn off two-factor.")
+            try await PayoutMFA.turnOff()
+            enabled = false
             Motion.haptic(.medium)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func openAuthenticator(_ uri: String) async {
+        guard let url = URL(string: uri) else { return }
+        let opened = await UIApplication.shared.open(url)
+        if !opened {
+            infoMessage = "No authenticator app picked up the link. Copy the key into your app instead."
+        }
+    }
+
+    private static func grouped(_ secret: String) -> String {
+        stride(from: 0, to: secret.count, by: 4).map { start in
+            let begin = secret.index(secret.startIndex, offsetBy: start)
+            let end = secret.index(begin, offsetBy: 4, limitedBy: secret.endIndex) ?? secret.endIndex
+            return String(secret[begin..<end])
+        }
+        .joined(separator: " ")
+    }
+
+    private static func qrImage(_ string: String) -> UIImage? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(string.utf8)
+        filter.correctionLevel = "M"
+        guard let output = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 10, y: 10)),
+              let cgImage = CIContext().createCGImage(output, from: output.extent) else { return nil }
+        return UIImage(cgImage: cgImage)
+    }
+}
+
+/// Six digit boxes over a hidden field; calls `onComplete` when all six are entered.
+struct OneTimeCodeField: View {
+    @Binding var code: String
+    var isFocused: FocusState<Bool>.Binding
+    var onComplete: () -> Void
+
+    @Environment(\.campusTheme) private var campusTheme
+
+    var body: some View {
+        ZStack {
+            TextField("", text: $code)
+                .keyboardType(.numberPad)
+                .textContentType(.oneTimeCode)
+                .focused(isFocused)
+                .tint(.clear)
+                .foregroundStyle(.clear)
+                .accentColor(.clear)
+                .frame(height: 64)
+                .onChange(of: code) { value in
+                    let digits = String(value.filter(\.isNumber).prefix(6))
+                    if digits != value { code = digits }
+                    if digits.count == 6 { onComplete() }
+                }
+
+            HStack(spacing: 8) {
+                ForEach(0..<6, id: \.self) { index in
+                    let digits = Array(code)
+                    let filled = index < digits.count
+                    Text(filled ? String(digits[index]) : "")
+                        .font(Theme.syne(24, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 64)
+                        .background(campusTheme.elevatedSurface)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(
+                                    isFocused.wrappedValue && index == min(code.count, 5)
+                                        ? campusTheme.primary
+                                        : campusTheme.border,
+                                    lineWidth: 1
+                                )
+                        )
+                }
+            }
+            .allowsHitTesting(false)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { isFocused.wrappedValue = true }
+    }
+}
+
+/// Step-up prompt shown by `PayoutMFAGate` before payout changes and cash outs.
+struct PayoutCodeSheet: View {
+    @ObservedObject var gate: PayoutMFAGate
+    @Environment(\.campusTheme) private var campusTheme
+
+    @State private var code = ""
+    @State private var isBusy = false
+    @State private var errorMessage: String?
+    @FocusState private var codeFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("enter your code")
+                .font(Theme.syne(22, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+            Text(gate.reason)
+                .font(Theme.syne(13))
+                .foregroundStyle(campusTheme.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            OneTimeCodeField(code: $code, isFocused: $codeFocused) {
+                Task { await verify() }
+            }
+            .onChange(of: code) { _ in errorMessage = nil }
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(Theme.syne(13))
+                    .foregroundStyle(Color(hex: "#E11D48"))
+            }
+
+            Button {
+                Motion.haptic(.medium)
+                Task { await verify() }
+            } label: {
+                Group {
+                    if isBusy {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("continue")
+                    }
+                }
+                .font(Theme.syne(15, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(campusTheme.primary)
+                .clipShape(Capsule())
+            }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+            .disabled(isBusy || code.count != 6)
+
+            Button {
+                gate.cancelIfPending()
+            } label: {
+                Text("cancel")
+                    .font(Theme.syne(13, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 28)
+        .background(campusTheme.background.ignoresSafeArea())
+        .onAppear { codeFocused = true }
+    }
+
+    private func verify() async {
+        guard code.count == 6, !isBusy else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            try await PayoutMFA.verifyPayoutCode(code)
+            Motion.haptic(.medium)
+            gate.verified()
+        } catch {
+            errorMessage = "That code didn’t match. Try the current one in your app."
             code = ""
-            fieldFocus = .code
+            codeFocused = true
         }
-    }
-
-    private func turnOff() {
-        showDisableConfirm = false
-        enabled = false
-        step = .phone
-        code = ""
-        phone = ""
-        AccountPrefsStore.twoFactorEnabled = false
-        AccountPrefsStore.twoFactorPhone = ""
-        fieldFocus = .phone
-        Motion.haptic(.medium)
-    }
-
-    private static func normalize(_ raw: String) -> String? {
-        let digits = raw.filter(\.isNumber)
-        if digits.count == 10 { return "+1\(digits)" }
-        if digits.count == 11, digits.hasPrefix("1") { return "+\(digits)" }
-        if raw.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("+"), digits.count >= 10 {
-            return "+\(digits)"
-        }
-        return nil
-    }
-
-    private static func formatPhone(_ raw: String) -> String {
-        let digits = raw.filter(\.isNumber)
-        var rest = digits
-        if rest.hasPrefix("1"), rest.count > 10 {
-            rest = String(rest.dropFirst())
-        }
-        rest = String(rest.prefix(10))
-        if rest.isEmpty { return "" }
-        if rest.count <= 3 { return "(\(rest)" }
-        let area = rest.prefix(3)
-        if rest.count <= 6 {
-            return "(\(area)) \(rest.dropFirst(3))"
-        }
-        let mid = rest.dropFirst(3).prefix(3)
-        let last = rest.dropFirst(6)
-        return "(\(area)) \(mid)-\(last)"
     }
 }

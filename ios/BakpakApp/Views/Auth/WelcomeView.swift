@@ -11,10 +11,7 @@ struct WelcomeView: View {
             VStack(spacing: 16) {
                 Spacer()
 
-                Text("popup")
-                    .font(Theme.syne(34, weight: .black))
-                    .tracking(1.5)
-                    .foregroundStyle(PopupBrand.textPrimary)
+                PopupWordmark(scale: .hero)
 
                 Text("What's Poppin' on YOUR Campus")
                     .font(Theme.syne(14, weight: .medium))
