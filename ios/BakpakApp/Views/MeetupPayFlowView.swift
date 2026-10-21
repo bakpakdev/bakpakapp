@@ -43,6 +43,7 @@ struct MeetupPayFlowView: View {
     @State private var showSellerReceivedCard = false
     @State private var paymentConfirmed = false
     @State private var sessionChannel: RealtimeChannelV2?
+    @State private var sellerFeeLabel: String?
 
     @StateObject private var paymentPresenter = PaymentSheetPresenter()
 
@@ -96,6 +97,15 @@ struct MeetupPayFlowView: View {
             return String(format: "$%.2f", dollars)
         }
         return priceLabel ?? "$—"
+    }
+
+    /// "You get $18 after popup's 10% (min $0.50) fee" under the seller's amount.
+    private var sellerNetLine: String? {
+        guard let net = activeSession?.sellerNetCents else { return nil }
+        let dollars = Double(net) / 100
+        let amount = dollars.rounded() == dollars ? "$\(Int(dollars))" : String(format: "$%.2f", dollars)
+        if let sellerFeeLabel { return "You get \(amount) after popup’s \(sellerFeeLabel) fee" }
+        return "You get \(amount) after popup’s service fee"
     }
 
     var body: some View {
@@ -314,6 +324,12 @@ struct MeetupPayFlowView: View {
                 if let title = (activeSession?.productTitle ?? item.productTitle), !title.isEmpty {
                     Text(title)
                         .font(Theme.syne(15, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .multilineTextAlignment(.center)
+                }
+                if let sellerNetLine {
+                    Text(sellerNetLine)
+                        .font(Theme.syne(13, weight: .semibold))
                         .foregroundStyle(campusTheme.textMuted)
                         .multilineTextAlignment(.center)
                 }
@@ -732,6 +748,7 @@ struct MeetupPayFlowView: View {
                 buyerId: item.otherUserId
             )
             activeSession = response.session
+            sellerFeeLabel = response.feeLabel
             sellerCanReceive = true
             buyerCanPay = false
             selectedMethod = "Apple Pay"

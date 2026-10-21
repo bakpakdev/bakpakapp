@@ -78,7 +78,7 @@ struct SellerCashOutSetupView: View {
         if status?.needsMoreInfo == true {
             return "Stripe needs a little more info before you can cash out. Pick up where you left off."
         }
-        return "Your sales wait safely in your popup balance. Set up payouts once with Stripe, our payments partner, to send them to your bank."
+        return "Your sales, minus popup’s service fee, wait safely in your popup balance. Set up payouts once with Stripe, our payments partner, to send them to your bank."
     }
 
     // MARK: - Cards

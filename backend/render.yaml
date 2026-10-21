@@ -39,6 +39,11 @@ services:
       # return links and the webhook URL are built from it.
       - key: PUBLIC_BASE_URL
         sync: false
+      # Seller service fee popup keeps (see backend/lib/platformFee.js).
+      - key: PLATFORM_FEE_PERCENT
+        value: "10"
+      - key: PLATFORM_FEE_MIN_CENTS
+        value: "50"
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL

@@ -1,5 +1,6 @@
 const { getSupabaseAdmin } = require('./supabaseAdmin');
 const { creditSellerSale } = require('./sellerBalance');
+const { splitSale } = require('./platformFee');
 
 const MEETUP_ADDRESS = 'Campus meetup';
 
@@ -15,7 +16,7 @@ async function fetchProduct(supabase, productId) {
 
 /**
  * Marks a meetup payment paid, lists the item sold, and credits the seller's
- * popup balance. The money sits in popup's Stripe balance until the seller cashes
+ * popup balance, minus popup's service fee. The money sits in popup's Stripe balance until the seller cashes
  * out, which transfers it to their Stripe Express account.
  *
  * Safe to call more than once for the same payment (the app's confirm call and
@@ -39,9 +40,13 @@ async function fulfillMeetupPayment({
   const resolvedBuyer = buyerId || requestRow.buyer_id || null;
   const now = new Date().toISOString();
 
+  // The seller is credited the sale minus popup's service fee.
+  const { platformFeeCents, sellerNetCents } = splitSale(requestRow.amount_cents);
   const claim = {
     status: 'paid',
     amount_cents: requestRow.amount_cents,
+    platform_fee_cents: platformFeeCents,
+    seller_net_cents: sellerNetCents,
     updated_at: now,
   };
   if (paymentId && !String(paymentId).includes(':pending')) {
@@ -59,7 +64,7 @@ async function fulfillMeetupPayment({
   if (!claimed) return { alreadyPaid: true };
 
   // Credit first: once the row is claimed nothing retries, and the seller's money matters most.
-  await creditSellerSale(supabase, sellerId, requestRow.amount_cents);
+  await creditSellerSale(supabase, sellerId, sellerNetCents);
 
   if (resolvedBuyer) {
     const { data: order, error: orderError } = await supabase

@@ -4,6 +4,7 @@ const { protectSupabase } = require('../middleware/supabaseAuth');
 const { getSupabaseAdmin } = require('../lib/supabaseAdmin');
 const { fulfillMeetupPayment, fetchProduct } = require('../lib/meetupFulfill');
 const stripe = require('../lib/stripe');
+const { splitSale, feeLabel } = require('../lib/platformFee');
 
 const router = express.Router();
 const ACTIVE_STATUSES = ['awaiting_payment'];
@@ -75,7 +76,7 @@ async function fetchWaitingSession(supabase, productId) {
   const { data, error } = await supabase
     .from('payment_sessions')
     .select(
-      'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, product_title, status, expires_at, created_at'
+      'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, seller_net_cents, product_title, status, expires_at, created_at'
     )
     .eq('product_id', productId)
     .eq('status', 'waiting')
@@ -97,6 +98,7 @@ function serializeSession(session) {
     seller_id: session.seller_id,
     buyer_id: session.buyer_id,
     amount_cents: session.amount_cents,
+    seller_net_cents: session.seller_net_cents ?? null,
     product_title: session.product_title,
     status: session.status,
     expires_at: session.expires_at,
@@ -169,6 +171,7 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
 
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
     const pendingId = `stripe:pending:${crypto.randomUUID()}`;
+    const { platformFeeCents, sellerNetCents } = splitSale(amountCents);
 
     const { data: requestRow, error: insertError } = await supabase
       .from('payment_requests')
@@ -178,6 +181,8 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
         buyer_id: resolvedBuyerId,
         payment_intent_id: pendingId,
         amount_cents: amountCents,
+        platform_fee_cents: platformFeeCents,
+        seller_net_cents: sellerNetCents,
         status: 'awaiting_payment',
         expires_at: expiresAt,
         provider: 'stripe',
@@ -195,12 +200,13 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
         seller_id: product.user_id,
         buyer_id: resolvedBuyerId,
         amount_cents: amountCents,
+        seller_net_cents: sellerNetCents,
         product_title: product.title || '',
         status: 'waiting',
         expires_at: expiresAt,
       })
       .select(
-        'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, product_title, status, expires_at, created_at'
+        'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, seller_net_cents, product_title, status, expires_at, created_at'
       )
       .single();
     if (sessionError) throw sessionError;
@@ -211,6 +217,9 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
       productTitle: product.title,
       amount: product.price,
       amountCents,
+      platformFeeCents,
+      sellerNetCents,
+      feeLabel: feeLabel(),
       provider: 'stripe',
       mode: 'receive_session',
     });
@@ -457,13 +466,19 @@ router.get('/meetup/:requestId/checkout', protectSupabase, requireStripePayments
       return res.status(400).json({ message: 'Invalid listing price' });
     }
     if (amountCents !== requestRow.amount_cents) {
+      const split = splitSale(amountCents);
       await supabase
         .from('payment_requests')
-        .update({ amount_cents: amountCents, updated_at: new Date().toISOString() })
+        .update({
+          amount_cents: amountCents,
+          platform_fee_cents: split.platformFeeCents,
+          seller_net_cents: split.sellerNetCents,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', requestRow.id);
       await supabase
         .from('payment_sessions')
-        .update({ amount_cents: amountCents, updated_at: new Date().toISOString() })
+        .update({ amount_cents: amountCents, seller_net_cents: split.sellerNetCents, updated_at: new Date().toISOString() })
         .eq('id', session.id);
     }
 

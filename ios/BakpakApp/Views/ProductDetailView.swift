@@ -25,6 +25,7 @@ struct ProductDetailView: View {
     @State private var sellerWaitingRequestId: String?
     @State private var sellerWaitingSessionId: String?
     @State private var showSellerPaymentSheet = false
+    @State private var sellerNetCents: Int?
     @State private var isPaymentBusy = false
     @State private var showOfferSheet = false
     @State private var selectedOfferPercent: Int? = 15
@@ -1127,6 +1128,11 @@ struct ProductDetailView: View {
                         .font(Theme.syne(32, weight: .bold))
                         .foregroundStyle(campusTheme.primary)
                 }
+                if let sellerNetCents {
+                    Text("You get $\(formattedPrice(Double(sellerNetCents) / 100)) after popup’s service fee")
+                        .font(Theme.syne(13, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
 
                 ProgressView()
                     .padding(.top, 4)
@@ -1225,6 +1231,7 @@ struct ProductDetailView: View {
             )
             sellerWaitingRequestId = response.paymentRequest.id
             sellerWaitingSessionId = response.session.id
+            sellerNetCents = response.sellerNetCents
             Motion.haptic(.medium)
             showSellerPaymentSheet = true
             await refreshActivePayment()
