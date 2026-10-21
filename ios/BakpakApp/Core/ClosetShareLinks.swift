@@ -82,7 +82,7 @@ enum ClosetShareLinks {
     }
 
     private static func publicOrigin() -> String? {
-        let raw = SquareConfig.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let raw = PaymentsConfig.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: raw), let host = url.host, !host.isEmpty else { return nil }
         let local = host == "localhost" || host == "127.0.0.1" || host.hasPrefix("192.168.")
         if local { return nil }

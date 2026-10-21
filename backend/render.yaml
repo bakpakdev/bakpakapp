@@ -4,12 +4,12 @@
 #   https://popup-api-hwbg.onrender.com
 # iOS Secrets: API_BASE_URL_RELEASE = https:/$()/popup-api-hwbg.onrender.com/api
 #
-# Required Square sandbox env (set in Render dashboard; sync: false = never in git):
+# Required Stripe env (set in Render dashboard; sync: false = never in git):
 #   PUBLIC_BASE_URL=https://popup-api-hwbg.onrender.com
-#   SQUARE_OAUTH_REDIRECT_URI=https://popup-api-hwbg.onrender.com/api/payments/square/oauth/callback
-#   SQUARE_WEBHOOK_NOTIFICATION_URL=https://popup-api-hwbg.onrender.com/api/payments/square/webhook
-# Register those two URLs in the Square Developer Dashboard (sandbox app), then paste
-# SQUARE_WEBHOOK_SIGNATURE_KEY. Probe: GET /api/payments/health
+#   STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY (test keys until launch)
+#   STRIPE_WEBHOOK_SECRET from a Stripe webhook pointed at
+#     https://popup-api-hwbg.onrender.com/api/payments/webhook
+# Probe: GET /api/payments/health
 services:
   - type: web
     name: popup-api
@@ -29,25 +29,15 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: SQUARE_ENVIRONMENT
+      - key: STRIPE_SECRET_KEY
         sync: false
-      - key: SQUARE_APPLICATION_ID
+      - key: STRIPE_PUBLISHABLE_KEY
         sync: false
-      - key: SQUARE_APPLICATION_SECRET
+      - key: STRIPE_WEBHOOK_SECRET
         sync: false
-      - key: SQUARE_ACCESS_TOKEN
-        sync: false
-      - key: SQUARE_LOCATION_ID
-        sync: false
-      - key: SQUARE_WEBHOOK_SIGNATURE_KEY
-        sync: false
-      # Must match the live host (popup-api-hwbg.onrender.com). Also register OAuth
-      # redirect + webhook URLs in the Square developer dashboard (sandbox).
+      # Must match the live host (popup-api-hwbg.onrender.com). Stripe onboarding
+      # return links and the webhook URL are built from it.
       - key: PUBLIC_BASE_URL
-        sync: false
-      - key: SQUARE_OAUTH_REDIRECT_URI
-        sync: false
-      - key: SQUARE_WEBHOOK_NOTIFICATION_URL
         sync: false
       - key: OPENAI_API_KEY
         sync: false

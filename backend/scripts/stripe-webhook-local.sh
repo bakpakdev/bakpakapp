@@ -40,7 +40,7 @@ if [[ "$SK" == sk_live_* ]]; then
   echo "  $STRIPE_BIN listen --live --forward-to http://127.0.0.1:5001/api/payments/webhook"
   echo "Then paste the printed whsec_... into STRIPE_WEBHOOK_SECRET in backend/.env"
   echo ""
-  echo "Recommended for development: switch .env + iOS Secrets to TEST keys (sk_test_ / pk_test_)."
+  echo "Recommended for development: switch backend/.env to TEST keys (sk_test_ / pk_test_)."
   exit 2
 fi
 
@@ -72,4 +72,4 @@ PY
 exec "$STRIPE_BIN" listen \
   --api-key "$SK" \
   --forward-to http://127.0.0.1:5001/api/payments/webhook \
-  --events payment_intent.succeeded,payment_intent.payment_failed,account.updated
+  --events payment_intent.succeeded,payment_intent.payment_failed,transfer.reversed,charge.refunded,charge.dispute.created

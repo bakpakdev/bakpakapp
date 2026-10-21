@@ -23,7 +23,7 @@ final class APIClient {
     static let shared = APIClient()
     private init() {}
 
-    var baseURL: String = SquareConfig.apiBaseURL
+    var baseURL: String = PaymentsConfig.apiBaseURL
 
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()

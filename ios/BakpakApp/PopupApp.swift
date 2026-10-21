@@ -1,5 +1,8 @@
 import SwiftUI
 import UIKit
+#if canImport(StripePaymentSheet)
+import StripePaymentSheet
+#endif
 
 @main
 struct PopupApp: App {
@@ -11,7 +14,7 @@ struct PopupApp: App {
     init() {
         SquareConfig.initializeSDKIfNeeded()
         TapToPayCollector.configureIfNeeded()
-        APIClient.shared.setBaseURL(SquareConfig.apiBaseURL)
+        APIClient.shared.setBaseURL(PaymentsConfig.apiBaseURL)
     }
 
     var body: some Scene {
@@ -28,10 +31,14 @@ struct PopupApp: App {
                 .onOpenURL { url in
                     Task { @MainActor in
                         if url.host == "instagram-auth" { return }
-                        if url.host == "square-oauth" {
-                            NotificationCenter.default.post(name: .squareOAuthReturned, object: url)
+                        if url.host == "stripe-redirect" {
+                            #if canImport(StripePaymentSheet)
+                            StripeAPI.handleURLCallback(with: url)
+                            #endif
                             return
                         }
+                        // Stripe payout signup return; the in-app browser normally catches this.
+                        if url.host == "stripe-connect" { return }
                         if ClosetShareLinks.handle(url, appState: appState) { return }
                         await appState.authVM.handleAuthRedirect(url)
                     }

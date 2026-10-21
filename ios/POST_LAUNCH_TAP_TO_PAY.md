@@ -1,5 +1,11 @@
 # Post-launch update: Tap to Pay on iPhone (seller Receive)
 
+> **Payments moved to Stripe (Oct 2026).** Buyer checkout and seller payouts now run on
+> Stripe Connect Express, so money taken with this Square Tap to Pay prototype would land in
+> Square where popup can't pay it out. Before turning Tap to Pay on, rebuild it on Stripe
+> Terminal's Tap to Pay on iPhone (StripeTerminal SDK) so it charges popup's Stripe account
+> like the buyer checkout does. The steps below describe the old Square version.
+
 **Status:** Paused until Popup has an **LLC / Organization** Apple Developer team.  
 In-person pay ships today as **seller Receive session + buyer Apple Pay** (no Tap to Pay).  
 Tap to Pay remains an optional later Receive path once Apple grants the entitlement.

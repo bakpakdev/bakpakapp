@@ -1,10 +1,12 @@
-import PassKit
 import SwiftUI
 import UIKit
-#if canImport(SquareInAppPaymentsSDK)
-import SquareInAppPaymentsSDK
+#if canImport(StripePaymentSheet)
+import StripePaymentSheet
 #endif
 
+/// Buyer checkout at a meetup: Stripe PaymentSheet (Apple Pay + card). The API
+/// creates one PaymentIntent per payment request; after the sheet succeeds we ask
+/// the API to confirm with Stripe, and the Stripe webhook does the same as a backup.
 @MainActor
 final class PaymentSheetPresenter: ObservableObject {
     @Published var isPresenting = false
@@ -12,19 +14,17 @@ final class PaymentSheetPresenter: ObservableObject {
     @Published var didComplete = false
 
     private var checkout: MeetupCheckoutResponse?
-    private var host: UIViewController?
 
     func prepareAndPresent(checkout: MeetupCheckoutResponse) {
         errorMessage = nil
         didComplete = false
         self.checkout = checkout
-        SquareConfig.initializeSDKIfNeeded()
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = PaymentsConfig.userFacingBlocker {
             errorMessage = blocker
             return
         }
-        guard SquareConfig.isConfigured else {
-            errorMessage = "Square is not configured."
+        guard !(checkout.clientSecret ?? "").isEmpty, !(checkout.publishableKey ?? "").isEmpty else {
+            errorMessage = "Payments aren’t set up on the server yet. Add the Stripe keys to the API."
             return
         }
         isPresenting = true
@@ -32,132 +32,63 @@ final class PaymentSheetPresenter: ObservableObject {
 
     func present(from viewController: UIViewController) {
         guard isPresenting, errorMessage == nil, let checkout else { return }
-        host = viewController
         isPresenting = false
 
-        #if canImport(SquareInAppPaymentsSDK)
-        if SquareConfig.isApplePayConfigured, PKPaymentAuthorizationController.canMakePayments() {
-            presentApplePay(checkout: checkout, from: viewController)
-        } else {
-            presentCardEntry(from: viewController)
+        #if canImport(StripePaymentSheet)
+        guard let clientSecret = checkout.clientSecret, let publishableKey = checkout.publishableKey else { return }
+        STPAPIClient.shared.publishableKey = publishableKey
+
+        var configuration = PaymentSheet.Configuration()
+        configuration.merchantDisplayName = checkout.merchantDisplayName
+        configuration.returnURL = PaymentsConfig.stripeReturnURL
+        configuration.allowsDelayedPaymentMethods = false
+        if PaymentsConfig.isApplePayConfigured {
+            configuration.applePay = .init(
+                merchantId: PaymentsConfig.applePayMerchantId,
+                merchantCountryCode: checkout.countryCode ?? "US"
+            )
+        }
+
+        let sheet = PaymentSheet(paymentIntentClientSecret: clientSecret, configuration: configuration)
+        sheet.present(from: viewController) { [weak self] result in
+            Task { @MainActor in
+                await self?.handle(result)
+            }
         }
         #else
-        errorMessage = "Square In-App Payments SDK is not linked."
+        errorMessage = "Stripe isn’t linked in this build. Re-run ios/generate_xcode_project.py."
         #endif
     }
 
-    #if canImport(SquareInAppPaymentsSDK)
-    private func presentCardEntry(from viewController: UIViewController) {
-        let theme = SQIPTheme()
-        let cardEntry = SQIPCardEntryViewController(theme: theme)
-        cardEntry.delegate = SquareCardEntryBridge.shared
-        SquareCardEntryBridge.shared.owner = self
-        let nav = UINavigationController(rootViewController: cardEntry)
-        viewController.present(nav, animated: true)
-    }
-
-    private func presentApplePay(checkout: MeetupCheckoutResponse, from viewController: UIViewController) {
-        let request = PKPaymentRequest()
-        request.merchantIdentifier = SquareConfig.applePayMerchantId
-        request.supportedNetworks = [.visa, .masterCard, .amex, .discover]
-        request.merchantCapabilities = .capability3DS
-        request.countryCode = checkout.countryCode ?? "US"
-        request.currencyCode = checkout.currencyCode ?? "USD"
-        request.paymentSummaryItems = [
-            PKPaymentSummaryItem(
-                label: checkout.productTitle,
-                amount: NSDecimalNumber(value: Double(checkout.amountCents) / 100.0)
-            ),
-            PKPaymentSummaryItem(
-                label: checkout.merchantDisplayName,
-                amount: NSDecimalNumber(value: Double(checkout.amountCents) / 100.0)
-            ),
-        ]
-        guard let controller = PKPaymentAuthorizationViewController(paymentRequest: request) else {
-            presentCardEntry(from: viewController)
-            return
-        }
-        SquareApplePayBridge.shared.owner = self
-        controller.delegate = SquareApplePayBridge.shared
-        viewController.present(controller, animated: true)
-    }
-
-    func finishCharge(nonce: String) async -> Error? {
-        guard let checkout else { return APIError.server("Missing checkout.") }
-        do {
-            try await MeetupPaymentService.shared.confirm(
-                requestId: checkout.paymentRequestId,
-                nonce: nonce
-            )
-            didComplete = true
-            Motion.haptic(.medium)
-            return nil
-        } catch {
+    #if canImport(StripePaymentSheet)
+    private func handle(_ result: PaymentSheetResult) async {
+        switch result {
+        case .completed:
+            await finishCharge()
+        case .canceled:
+            break
+        case .failed(let error):
             errorMessage = error.localizedDescription
-            return error
         }
     }
     #endif
-}
 
-#if canImport(SquareInAppPaymentsSDK)
-private final class SquareCardEntryBridge: NSObject, SQIPCardEntryViewControllerDelegate {
-    static let shared = SquareCardEntryBridge()
-    weak var owner: PaymentSheetPresenter?
-
-    func cardEntryViewController(
-        _ cardEntryViewController: SQIPCardEntryViewController,
-        didObtain cardDetails: SQIPCardDetails,
-        completionHandler: @escaping (Error?) -> Void
-    ) {
-        Task { @MainActor in
-            let error = await owner?.finishCharge(nonce: cardDetails.nonce)
-            completionHandler(error)
+    private func finishCharge() async {
+        guard let checkout else { return }
+        do {
+            try await MeetupPaymentService.shared.confirm(
+                requestId: checkout.paymentRequestId,
+                paymentIntentId: checkout.paymentIntentId
+            )
+        } catch {
+            // Stripe already charged the card, so don't show a failure: the webhook
+            // marks the sale paid and the receive session updates over realtime.
+            print("Meetup confirm after Stripe success failed: \(error.localizedDescription)")
         }
-    }
-
-    func cardEntryViewController(
-        _ cardEntryViewController: SQIPCardEntryViewController,
-        didCompleteWith status: SQIPCardEntryCompletionStatus
-    ) {
-        cardEntryViewController.dismiss(animated: true)
+        didComplete = true
+        Motion.haptic(.medium)
     }
 }
-
-private final class SquareApplePayBridge: NSObject, PKPaymentAuthorizationViewControllerDelegate {
-    static let shared = SquareApplePayBridge()
-    weak var owner: PaymentSheetPresenter?
-
-    func paymentAuthorizationViewControllerDidFinish(_ controller: PKPaymentAuthorizationViewController) {
-        controller.dismiss(animated: true)
-    }
-
-    func paymentAuthorizationViewController(
-        _ controller: PKPaymentAuthorizationViewController,
-        didAuthorizePayment payment: PKPayment,
-        handler completion: @escaping (PKPaymentAuthorizationResult) -> Void
-    ) {
-        let nonceRequest = SQIPApplePayNonceRequest(payment: payment)
-        nonceRequest.perform { cardDetails, error in
-            if let error {
-                completion(PKPaymentAuthorizationResult(status: .failure, errors: [error]))
-                return
-            }
-            guard let nonce = cardDetails?.nonce else {
-                completion(PKPaymentAuthorizationResult(status: .failure, errors: nil))
-                return
-            }
-            Task { @MainActor in
-                if let chargeError = await self.owner?.finishCharge(nonce: nonce) {
-                    completion(PKPaymentAuthorizationResult(status: .failure, errors: [chargeError]))
-                } else {
-                    completion(PKPaymentAuthorizationResult(status: .success, errors: nil))
-                }
-            }
-        }
-    }
-}
-#endif
 
 struct PaymentSheetHost: UIViewControllerRepresentable {
     @ObservedObject var presenter: PaymentSheetPresenter

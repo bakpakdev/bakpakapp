@@ -75,9 +75,10 @@ def main() -> None:
     square_build = gid("popup:swiftpkg:square-buildfile")
     square_mock_product = gid("popup:swiftpkg:square-mock-product")
     square_mock_build = gid("popup:swiftpkg:square-mock-buildfile")
-    square_iap_remote = gid("popup:swiftpkg:square-iap-remote")
-    square_iap_product = gid("popup:swiftpkg:square-iap-product")
-    square_iap_build = gid("popup:swiftpkg:square-iap-buildfile")
+    # Buyer checkout (PaymentSheet: Apple Pay + card) runs on Stripe.
+    stripe_remote = gid("popup:swiftpkg:stripe-remote")
+    stripe_product = gid("popup:swiftpkg:stripe-paymentsheet-product")
+    stripe_build = gid("popup:swiftpkg:stripe-paymentsheet-buildfile")
     debug_entitlements_ref = gid("popup:fileref:PopupApp.Debug.entitlements")
     release_entitlements_ref = gid("popup:fileref:PopupApp.entitlements")
     applepay_entitlements_ref = gid("popup:fileref:PopupApp.ApplePay.entitlements")
@@ -160,7 +161,7 @@ def main() -> None:
 \t\t{spa_build} /* Supabase in Frameworks */ = {{isa = PBXBuildFile; productRef = {spa_product} /* Supabase */; }};
 \t\t{square_build} /* SquareMobilePaymentsSDK in Frameworks */ = {{isa = PBXBuildFile; productRef = {square_product} /* SquareMobilePaymentsSDK */; }};
 \t\t{square_mock_build} /* MockReaderUI in Frameworks */ = {{isa = PBXBuildFile; productRef = {square_mock_product} /* MockReaderUI */; }};
-\t\t{square_iap_build} /* SquareInAppPaymentsSDK in Frameworks */ = {{isa = PBXBuildFile; productRef = {square_iap_product} /* SquareInAppPaymentsSDK */; }};
+\t\t{stripe_build} /* StripePaymentSheet in Frameworks */ = {{isa = PBXBuildFile; productRef = {stripe_product} /* StripePaymentSheet */; }};
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -188,7 +189,7 @@ def main() -> None:
 \t\t\t\t{spa_build} /* Supabase in Frameworks */,
 \t\t\t\t{square_build} /* SquareMobilePaymentsSDK in Frameworks */,
 \t\t\t\t{square_mock_build} /* MockReaderUI in Frameworks */,
-\t\t\t\t{square_iap_build} /* SquareInAppPaymentsSDK in Frameworks */,
+\t\t\t\t{stripe_build} /* StripePaymentSheet in Frameworks */,
 \t\t\t);
 \t\t\trunOnlyForDeploymentPostprocessing = 0;
 \t\t}};
@@ -317,7 +318,7 @@ def main() -> None:
 \t\t\t\t{spa_product} /* Supabase */,
 \t\t\t\t{square_product} /* SquareMobilePaymentsSDK */,
 \t\t\t\t{square_mock_product} /* MockReaderUI */,
-\t\t\t\t{square_iap_product} /* SquareInAppPaymentsSDK */,
+\t\t\t\t{stripe_product} /* StripePaymentSheet */,
 \t\t\t);
 \t\t\tname = PopupApp;
 \t\t\tproductName = PopupApp;
@@ -351,7 +352,7 @@ def main() -> None:
 \t\t\tpackageReferences = (
 \t\t\t\t{spa_remote} /* XCRemoteSwiftPackageReference "supabase-swift" */,
 \t\t\t\t{square_remote} /* XCRemoteSwiftPackageReference "mobile-payments-sdk-ios" */,
-\t\t\t\t{square_iap_remote} /* XCRemoteSwiftPackageReference "in-app-payments-ios" */,
+\t\t\t\t{stripe_remote} /* XCRemoteSwiftPackageReference "stripe-ios-spm" */,
 \t\t\t);
 \t\t\tproductRefGroup = {products_group} /* Products */;
 \t\t\tprojectDirPath = "";
@@ -404,7 +405,7 @@ def main() -> None:
 \t\t\t);
 \t\t\trunOnlyForDeploymentPostprocessing = 0;
 \t\t\tshellPath = /bin/sh;
-\t\t\tshellScript = "set -e\\n# Square's setup re-signs nested frameworks with EXPANDED_CODE_SIGN_IDENTITY.\\n# Skip when there is no identity (simulator / CODE_SIGNING_ALLOWED=NO). Archive always has one.\\nif [ \\"${{PLATFORM_NAME}}\\" != \\"iphoneos\\" ]; then\\n  exit 0\\nfi\\nif [ -z \\"${{EXPANDED_CODE_SIGN_IDENTITY}}\\" ] || [ \\"${{EXPANDED_CODE_SIGN_IDENTITY}}\\" = \\"-\\" ]; then\\n  echo \\"warning: Square SDK setup skipped (no signing identity)\\"\\n  exit 0\\nfi\\nFRAMEWORKS=\\"${{BUILT_PRODUCTS_DIR}}/${{FRAMEWORKS_FOLDER_PATH}}\\"\\nfor SDK in SquareMobilePaymentsSDK SquareInAppPaymentsSDK; do\\n  SETUP=\\"${{FRAMEWORKS}}/${{SDK}}.framework/setup\\"\\n  if [ -f \\"$SETUP\\" ]; then\\n    echo \\"Running $SETUP\\"\\n    \\"$SETUP\\"\\n  fi\\ndone\\n";
+\t\t\tshellScript = "set -e\\n# Square's setup re-signs nested frameworks with EXPANDED_CODE_SIGN_IDENTITY.\\n# Skip when there is no identity (simulator / CODE_SIGNING_ALLOWED=NO). Archive always has one.\\nif [ \\"${{PLATFORM_NAME}}\\" != \\"iphoneos\\" ]; then\\n  exit 0\\nfi\\nif [ -z \\"${{EXPANDED_CODE_SIGN_IDENTITY}}\\" ] || [ \\"${{EXPANDED_CODE_SIGN_IDENTITY}}\\" = \\"-\\" ]; then\\n  echo \\"warning: Square SDK setup skipped (no signing identity)\\"\\n  exit 0\\nfi\\nFRAMEWORKS=\\"${{BUILT_PRODUCTS_DIR}}/${{FRAMEWORKS_FOLDER_PATH}}\\"\\nfor SDK in SquareMobilePaymentsSDK; do\\n  SETUP=\\"${{FRAMEWORKS}}/${{SDK}}.framework/setup\\"\\n  if [ -f \\"$SETUP\\" ]; then\\n    echo \\"Running $SETUP\\"\\n    \\"$SETUP\\"\\n  fi\\ndone\\n";
 \t\t}};
 /* End PBXShellScriptBuildPhase section */
 
@@ -425,12 +426,12 @@ def main() -> None:
 \t\t\t\tminimumVersion = 2.6.0;
 \t\t\t}};
 \t\t}};
-\t\t{square_iap_remote} /* XCRemoteSwiftPackageReference "in-app-payments-ios" */ = {{
+\t\t{stripe_remote} /* XCRemoteSwiftPackageReference "stripe-ios-spm" */ = {{
 \t\t\tisa = XCRemoteSwiftPackageReference;
-\t\t\trepositoryURL = "https://github.com/square/in-app-payments-ios";
+\t\t\trepositoryURL = "https://github.com/stripe/stripe-ios-spm";
 \t\t\trequirement = {{
 \t\t\t\tkind = upToNextMajorVersion;
-\t\t\t\tminimumVersion = 1.6.4;
+\t\t\t\tminimumVersion = 26.0.0;
 \t\t\t}};
 \t\t}};
 /* End XCRemoteSwiftPackageReference section */
@@ -451,10 +452,10 @@ def main() -> None:
 \t\t\tpackage = {square_remote} /* XCRemoteSwiftPackageReference "mobile-payments-sdk-ios" */;
 \t\t\tproductName = MockReaderUI;
 \t\t}};
-\t\t{square_iap_product} /* SquareInAppPaymentsSDK */ = {{
+\t\t{stripe_product} /* StripePaymentSheet */ = {{
 \t\t\tisa = XCSwiftPackageProductDependency;
-\t\t\tpackage = {square_iap_remote} /* XCRemoteSwiftPackageReference "in-app-payments-ios" */;
-\t\t\tproductName = SquareInAppPaymentsSDK;
+\t\t\tpackage = {stripe_remote} /* XCRemoteSwiftPackageReference "stripe-ios-spm" */;
+\t\t\tproductName = StripePaymentSheet;
 \t\t}};
 /* End XCSwiftPackageProductDependency section */
 

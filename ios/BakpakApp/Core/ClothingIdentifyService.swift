@@ -177,7 +177,7 @@ enum ClothingIdentifyService {
     }
 
     private static func endpoint() throws -> URL {
-        var base = SquareConfig.apiBaseURL
+        var base = PaymentsConfig.apiBaseURL
         while base.hasSuffix("/") { base.removeLast() }
         guard let url = URL(string: base + "/identify-clothing") else {
             throw ClothingIdentifyError.failed("Invalid server URL.")

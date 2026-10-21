@@ -47,7 +47,7 @@ struct MeetupPayFlowView: View {
     @StateObject private var paymentPresenter = PaymentSheetPresenter()
 
     private var canUseApplePayUI: Bool {
-        SquareConfig.isApplePayConfigured
+        PaymentsConfig.isApplePayConfigured
     }
 
     private let paymentService = MeetupPaymentService.shared
@@ -445,7 +445,7 @@ struct MeetupPayFlowView: View {
 
             Text(paymentConfirmed
                  ? "Payment went through — tap Continue."
-                 : "Payment must succeed in Square before you can finish.")
+                 : "Payment must go through before you can finish.")
                 .font(Theme.syne(13, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, 4)
@@ -559,7 +559,7 @@ struct MeetupPayFlowView: View {
                 Text(
                     canUseApplePayUI
                         ? "Pay securely on your phone. The seller gets paid in popup."
-                        : "Enter a card to pay. Sandbox test cards work while Square is in sandbox."
+                        : "Enter a card to pay. The seller gets paid in popup."
                 )
                     .font(Theme.syne(15))
                     .foregroundStyle(campusTheme.textMuted)
@@ -718,7 +718,7 @@ struct MeetupPayFlowView: View {
             paymentError = "This meetup isn’t linked to a listing."
             return
         }
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = PaymentsConfig.userFacingBlocker {
             paymentError = blocker
             return
         }
@@ -752,7 +752,7 @@ struct MeetupPayFlowView: View {
     }
 
     private func startBuyerPay() async {
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = PaymentsConfig.userFacingBlocker {
             paymentError = blocker
             return
         }
@@ -782,7 +782,7 @@ struct MeetupPayFlowView: View {
     }
 
     private func presentBuyerCheckout() async {
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = PaymentsConfig.userFacingBlocker {
             paymentError = blocker
             return
         }

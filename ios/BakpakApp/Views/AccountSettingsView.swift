@@ -9,14 +9,13 @@ struct AccountSettingsView: View {
 
     @State private var soldBalance: Double = 0
     @State private var comingSoonMessage: String?
-    @State private var squareStatus: SquareConnectStatus?
-    @State private var isLoadingSquare = false
+    @State private var payoutStatus: PayoutAccountStatus?
+    @State private var isLoadingPayouts = false
     @State private var showLogoutModal = false
-    @State private var showDisconnectSquare = false
     @State private var isLoggingOut = false
     @State private var twoFactorOn = AccountPrefsStore.twoFactorEnabled
 
-    private let squareConnect = SquareConnectService.shared
+    private let stripeConnect = StripeConnectService.shared
 
     private var user: User? { authVM.user }
 
@@ -38,10 +37,7 @@ struct AccountSettingsView: View {
         .hidesSystemNavigationBar(showLogoutModal)
         .task {
             twoFactorOn = await PayoutMFA.isEnrolled()
-            await loadSquareStatus()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .squareOAuthReturned)) { _ in
-            Task { await loadSquareStatus() }
+            await loadPayoutStatus()
         }
         .alert("Settings", isPresented: Binding(
             get: { comingSoonMessage != nil },
@@ -50,14 +46,6 @@ struct AccountSettingsView: View {
             Button("OK", role: .cancel) { comingSoonMessage = nil }
         } message: {
             Text(comingSoonMessage ?? "")
-        }
-        .confirmationDialog("Disconnect Square?", isPresented: $showDisconnectSquare, titleVisibility: .visible) {
-            Button("Disconnect", role: .destructive) {
-                Task { await disconnectSquare() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You won’t be able to cash out until you connect again.")
         }
         .overlay {
             if showLogoutModal {
@@ -101,11 +89,8 @@ struct AccountSettingsView: View {
                     .init(icon: "creditcard", title: paymentSettingsTitle, subtitle: paymentSettingsSubtitle) {
                         openCashOutSetupOrManage()
                     },
-                    .init(icon: "building.columns", title: "Payout methods", subtitle: payoutMethodsSubtitle) {
-                        openCashOutSetupOrManage()
-                    },
-                    .init(icon: "link", title: squareSettingsTitle, subtitle: squareSettingsSubtitle) {
-                        Task { await squareConnectTapped() }
+                    .init(icon: "building.columns", title: "Payout bank", subtitle: payoutMethodsSubtitle) {
+                        Task { await payoutBankTapped() }
                     },
                 ]
             )
@@ -167,7 +152,7 @@ struct AccountSettingsView: View {
                     .font(Theme.syne(13, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.75))
                 Spacer()
-                if isLoadingSquare {
+                if isLoadingPayouts {
                     ProgressView().tint(.white)
                 }
             }
@@ -208,72 +193,51 @@ struct AccountSettingsView: View {
     // MARK: - Groups
 
     private var displayBalance: Double {
-        Double(squareStatus?.availableCents ?? 0) / 100.0
+        Double(payoutStatus?.availableCents ?? 0) / 100.0
     }
 
     private var balanceSubtitle: String {
-        let available = squareStatus?.availableCents ?? 0
+        let available = payoutStatus?.availableCents ?? 0
         if available > 0 {
-            if squareStatus?.onboardingComplete == true {
-                return "From Tap to Pay · held in your popup account until cash out"
+            if payoutStatus?.onboardingComplete == true {
+                return "From your meetup sales · cash out to your bank anytime"
             }
-            return "From Tap to Pay · connect Square to cash out"
+            return "From your meetup sales · set up payouts to cash out"
         }
-        return "Only Tap to Pay sales add to your popup balance"
+        return "Meetup sales paid in the app land here"
     }
 
     private var paymentSettingsTitle: String {
-        if squareStatus?.onboardingComplete == true {
-            return "Payouts"
-        }
-        return "Cash out setup"
+        payoutStatus?.onboardingComplete == true ? "Cash out" : "Cash out setup"
     }
 
     private var paymentSettingsSubtitle: String {
-        guard SquareConfig.isConfigured else {
-            return "Add Square keys to finish cash-out setup"
+        guard let payoutStatus else {
+            return "Only needed when you’re ready to cash out"
         }
-        guard let squareStatus else {
-            return "Your account is ready — Square details only needed to cash out"
+        if payoutStatus.onboardingComplete == true {
+            return "Payouts ready · cash out anytime"
         }
-        if squareStatus.onboardingComplete == true {
-            return "Square connected · cash out anytime"
+        if payoutStatus.needsMoreInfo {
+            return "Stripe needs a bit more info"
         }
-        return "Sales are held in your popup account until you connect Square"
-    }
-
-    private var squareSettingsTitle: String {
-        if squareStatus?.connected == true {
-            return "Disconnect Square"
-        }
-        return "Connect Square"
-    }
-
-    private var squareSettingsSubtitle: String {
-        if squareStatus?.connected == true {
-            let env = squareStatus?.environment == "production" ? "Live" : "Sandbox"
-            return "Connected · \(env) · cash out to your Square account"
-        }
-        if SquareConfig.isConfigured {
-            return "Needed once when you’re ready to cash out"
-        }
-        return "Add SQUARE_APPLICATION_ID to finish setup"
+        return "A few minutes with Stripe, once"
     }
 
     private var payoutMethodsSubtitle: String {
-        guard let squareStatus else { return "Add once when you’re ready to cash out" }
-        if squareStatus.payoutsEnabled == true {
-            return "Square account ready for payouts"
+        guard let payoutStatus else { return "Add once when you’re ready to cash out" }
+        if payoutStatus.onboardingComplete == true {
+            return "Change your bank or debit card on Stripe"
         }
-        return "Connect Square when you cash out"
+        return "Added during payout setup"
     }
 
     private var cashOutButtonTitle: String {
-        let available = squareStatus?.availableCents ?? 0
-        if available > 0 {
-            return squareStatus?.onboardingComplete == true ? "Cash out" : "Connect Square & cash out"
+        let available = payoutStatus?.availableCents ?? 0
+        if payoutStatus?.onboardingComplete == true {
+            return available >= 100 ? "Cash out" : "Payout details"
         }
-        return squareStatus?.onboardingComplete == true ? "Open Square dashboard" : "Set up cash out"
+        return available > 0 ? "Set up payouts & cash out" : "Set up cash out"
     }
 
     private struct SettingsRowModel {
@@ -333,79 +297,62 @@ struct AccountSettingsView: View {
         }
     }
 
-    // MARK: - Square
+    // MARK: - Payouts
 
-    private func loadSquareStatus() async {
-        isLoadingSquare = true
-        defer { isLoadingSquare = false }
+    private func loadPayoutStatus() async {
+        isLoadingPayouts = true
+        defer { isLoadingPayouts = false }
         do {
-            squareStatus = try await squareConnect.fetchStatus()
-            if let cents = squareStatus?.availableCents {
+            payoutStatus = try await stripeConnect.fetchStatus()
+            if let cents = payoutStatus?.availableCents {
                 soldBalance = Double(cents) / 100.0
             }
         } catch {
-            squareStatus = nil
-        }
-    }
-
-    private func squareConnectTapped() async {
-        if squareStatus?.connected == true {
-            showDisconnectSquare = true
-            return
-        }
-        guard SquareConfig.isConfigured else {
-            comingSoonMessage = "Add your Square application ID in Secrets.xcconfig and backend Square env vars first."
-            return
-        }
-        do {
-            try await squareConnect.startOAuth()
-        } catch {
-            comingSoonMessage = error.localizedDescription
-        }
-    }
-
-    private func disconnectSquare() async {
-        do {
-            _ = try await squareConnect.disconnect()
-            await loadSquareStatus()
-            comingSoonMessage = "Square disconnected. Connect again when you’re ready to cash out."
-        } catch {
-            comingSoonMessage = error.localizedDescription
+            payoutStatus = nil
         }
     }
 
     private func openCashOutSetupOrManage() {
-        if squareStatus?.onboardingComplete == true {
-            Task { await openSquareOnboardingOrDashboard() }
-        } else {
+        appState.path.append(.sellerCashOutSetup)
+    }
+
+    private func payoutBankTapped() async {
+        guard payoutStatus?.onboardingComplete == true else {
             appState.path.append(.sellerCashOutSetup)
+            return
+        }
+        do {
+            try await stripeConnect.openDashboard()
+        } catch PayoutMFAError.cancelled {
+            return
+        } catch {
+            comingSoonMessage = error.localizedDescription
         }
     }
 
     private func cashOutTapped() async {
+        let available = payoutStatus?.availableCents ?? 0
+        guard payoutStatus?.onboardingComplete == true, available >= 100 else {
+            appState.path.append(.sellerCashOutSetup)
+            return
+        }
         guard await PayoutMFA.isEnrolled() else {
             comingSoonMessage = "Turn on two-factor with an authenticator app, then cash out."
             appState.path.append(.twoFactorAuth)
             return
         }
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = PaymentsConfig.userFacingBlocker {
             comingSoonMessage = blocker
             return
         }
 
-        let available = squareStatus?.availableCents ?? 0
-        if available <= 0 || squareStatus?.onboardingComplete != true {
-            appState.path.append(.sellerCashOutSetup)
-            return
-        }
-
-        isLoadingSquare = true
-        defer { isLoadingSquare = false }
+        isLoadingPayouts = true
+        defer { isLoadingPayouts = false }
 
         do {
-            let response = try await squareConnect.cashOut()
+            let response = try await stripeConnect.cashOut()
             if let updated = response.status {
-                squareStatus = updated
+                payoutStatus = updated
                 soldBalance = updated.availableDollars
             }
             if response.requiresOnboarding == true {
@@ -413,34 +360,8 @@ struct AccountSettingsView: View {
                 return
             }
             comingSoonMessage = response.message ?? "Cash out sent."
-        } catch {
-            comingSoonMessage = error.localizedDescription
-        }
-    }
-
-    private func openSquareOnboardingOrDashboard() async {
-        guard SquareConfig.isConfigured else {
-            comingSoonMessage = "Add Square application ID and backend Square env vars first."
+        } catch PayoutMFAError.cancelled {
             return
-        }
-
-        isLoadingSquare = true
-        defer { isLoadingSquare = false }
-
-        do {
-            let status = try await squareConnect.fetchStatus()
-            squareStatus = status
-
-            if status.onboardingComplete == true {
-                let response = try await squareConnect.createDashboardLink()
-                guard let url = response.url, !url.isEmpty else {
-                    throw APIError.server("Square did not return a dashboard link.")
-                }
-                try await squareConnect.open(url)
-                return
-            }
-
-            appState.path.append(.sellerCashOutSetup)
         } catch {
             comingSoonMessage = error.localizedDescription
         }

@@ -49,12 +49,8 @@ struct CreateMeetupPaymentResponse: Decodable {
     let productTitle: String
     let amount: Double
     let amountCents: Int?
-    let clientSecret: String?
-    let locationId: String?
     let publishableKey: String?
     let provider: String?
-    let accessToken: String?
-    let applicationId: String?
     let environment: String?
     let mode: String?
 }
@@ -96,8 +92,9 @@ struct PaymentSessionStatusResponse: Decodable {
 }
 
 struct MeetupCheckoutResponse: Decodable {
-    let applicationId: String?
-    let locationId: String?
+    let paymentIntentId: String?
+    let clientSecret: String?
+    let publishableKey: String?
     let amountCents: Int
     let productTitle: String
     let merchantDisplayName: String
@@ -154,13 +151,11 @@ final class MeetupPaymentService {
         )
     }
 
-    func confirm(requestId: String, squarePaymentId: String? = nil, nonce: String? = nil) async throws {
+    /// Asks the API to check the Stripe PaymentIntent and mark the sale paid.
+    func confirm(requestId: String, paymentIntentId: String?) async throws {
         var payload: [String: String] = [:]
-        if let squarePaymentId, !squarePaymentId.isEmpty {
-            payload["squarePaymentId"] = squarePaymentId
-        }
-        if let nonce, !nonce.isEmpty {
-            payload["nonce"] = nonce
+        if let paymentIntentId, !paymentIntentId.isEmpty {
+            payload["paymentIntentId"] = paymentIntentId
         }
         let body = try JSONEncoder().encode(payload)
         let _: APIMessage = try await api.request(

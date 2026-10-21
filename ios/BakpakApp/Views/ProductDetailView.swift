@@ -1194,7 +1194,7 @@ struct ProductDetailView: View {
     }
 
     private func refreshActivePayment() async {
-        guard SquareConfig.isConfigured || !SquareConfig.apiBaseURL.isEmpty else { return }
+        guard PaymentsConfig.isAPIConfigured else { return }
         do {
             let active = try await paymentService.fetchActive(productId: productId)
             activePayment = active
@@ -1210,7 +1210,7 @@ struct ProductDetailView: View {
     }
 
     private func startSellerPayment() async {
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = PaymentsConfig.userFacingBlocker {
             actionError = blocker
             return
         }
@@ -1234,7 +1234,7 @@ struct ProductDetailView: View {
     }
 
     private func startBuyerPayment() async {
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = PaymentsConfig.userFacingBlocker {
             actionError = blocker
             return
         }
@@ -1424,7 +1424,7 @@ struct ProductDetailView: View {
         defer { isBusy = false }
         let next = !(product.isSold == true)
         do {
-            // Manual sold = sold outside Square — no balance credit.
+            // Manual sold = sold outside the app — no balance credit.
             if next, let requestId = activePayment?.paymentRequestId ?? sellerWaitingRequestId {
                 if let sessionId = sellerWaitingSessionId {
                     try? await paymentService.cancelSession(sessionId: sessionId)
