@@ -600,23 +600,36 @@ router.get('/meetup/:requestId/checkout', protectSupabase, requireStripePayments
 /**
  * One PaymentIntent per payment request. If the buyer backs out of the sheet and
  * taps Pay again we reuse it, so a retry can never create a second charge.
+ *
+ * Sellers who finished Stripe onboarding get a destination charge: the price goes
+ * straight to their Express account and popup keeps only its service fee. Everyone
+ * else gets a plain charge on popup's account that credits their popup balance.
  */
 async function findOrCreatePaymentIntent({ requestRow, totalCents, priceCents, serviceFeeCents, buyerId, productTitle }) {
   const client = stripe.getStripe();
+  const supabase = getSupabaseAdmin();
+  const destination = await stripe.directPayoutAccountId(supabase, requestRow.seller_id);
   const existingId = String(requestRow.payment_intent_id || '');
   if (existingId.startsWith('pi_')) {
     const existing = await client.paymentIntents.retrieve(existingId);
-    if (REUSABLE_INTENT_STATUSES.includes(existing.status)) {
-      if (existing.amount === totalCents) return existing;
-      return client.paymentIntents.update(existing.id, {
-        amount: totalCents,
-        metadata: { popup_price_cents: String(priceCents), popup_service_fee_cents: String(serviceFeeCents) },
-      });
-    }
     if (existing.status === 'succeeded' || existing.status === 'processing') {
       const error = new Error('This item has already been paid for.');
       error.status = 409;
       throw error;
+    }
+    const existingDestination = existing.transfer_data?.destination || null;
+    if (REUSABLE_INTENT_STATUSES.includes(existing.status)) {
+      if (existingDestination === destination) {
+        if (existing.amount === totalCents) return existing;
+        return client.paymentIntents.update(existing.id, {
+          amount: totalCents,
+          ...(destination ? { application_fee_amount: serviceFeeCents } : {}),
+          metadata: { popup_price_cents: String(priceCents), popup_service_fee_cents: String(serviceFeeCents) },
+        });
+      }
+      // The seller finished (or lost) Stripe onboarding since this intent was made:
+      // swap it for one that routes the money the right way.
+      await client.paymentIntents.cancel(existing.id);
     }
   }
 
@@ -629,6 +642,9 @@ async function findOrCreatePaymentIntent({ requestRow, totalCents, priceCents, s
       description: `popup meetup: ${String(productTitle || 'item').slice(0, 200)}`,
       statement_descriptor_suffix: 'POPUP',
       transfer_group: `popup-request-${requestRow.id}`,
+      ...(destination
+        ? { transfer_data: { destination }, application_fee_amount: serviceFeeCents }
+        : {}),
       metadata: {
         popup_payment_request_id: requestRow.id,
         popup_product_id: requestRow.product_id,
@@ -636,12 +652,12 @@ async function findOrCreatePaymentIntent({ requestRow, totalCents, priceCents, s
         popup_buyer_id: buyerId,
         popup_price_cents: String(priceCents),
         popup_service_fee_cents: String(serviceFeeCents),
+        popup_settlement: destination ? 'destination' : 'popup_balance',
       },
     },
-    { idempotencyKey: `popup-pi-${requestRow.id}-${totalCents}` }
+    { idempotencyKey: `popup-pi-${requestRow.id}-${totalCents}-${destination || 'platform'}` }
   );
 
-  const supabase = getSupabaseAdmin();
   await supabase
     .from('payment_requests')
     .update({ payment_intent_id: intent.id, updated_at: new Date().toISOString() })
@@ -738,6 +754,7 @@ router.post('/meetup/:requestId/confirm', protectSupabase, requireStripePayments
       sellerId: requestRow.seller_id,
       buyerId: intent.metadata?.popup_buyer_id || requestRow.buyer_id,
       paymentId: intent.id,
+      paidToAccountId: intent.transfer_data?.destination || null,
     });
     res.json({ message: 'Payment confirmed', status: 'paid', provider: 'stripe' });
   } catch (error) {

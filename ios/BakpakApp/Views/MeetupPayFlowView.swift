@@ -413,8 +413,8 @@ struct MeetupPayFlowView: View {
             }
 
             Text(paymentConfirmed
-                 ? "Payment landed in your popup balance — tap Continue."
-                 : "Funds credit your popup balance when the buyer pays. Stay here until then.")
+                 ? "Payment received — tap Continue."
+                 : "You get paid the moment the buyer pays. Stay here until then.")
                 .font(Theme.syne(13, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, 4)
@@ -523,7 +523,7 @@ struct MeetupPayFlowView: View {
                 .foregroundStyle(campusTheme.textPrimary)
 
             Text(isCollecting
-                 ? "Funds are in your popup balance. Finish to close out this meetup."
+                 ? "Payment received. Finish to close out this meetup."
                  : "Your Apple Pay charge went through. Finish to close out this meetup.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
@@ -1153,7 +1153,7 @@ private struct SellerReceivedOverlay: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     summaryLine(label: "From", value: fromName)
                     summaryLine(label: "For", value: itemName)
-                    Text("Added to your popup balance")
+                    Text("Added to your earnings")
                         .font(Theme.syne(14, weight: .medium))
                         .foregroundStyle(campusTheme.textMuted)
                         .padding(.top, 4)

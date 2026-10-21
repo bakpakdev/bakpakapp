@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// Seller payouts: one Stripe-hosted signup (a few minutes, prefilled with what
-/// popup knows), then cash out sends the popup balance to the seller's bank or
-/// debit card. Sellers can list and sell before doing any of this.
+/// popup knows). After that each sale goes straight to the seller's Stripe
+/// account and on to their bank. Sales made before signup wait in the popup
+/// balance and move over once they finish. Sellers can list and sell before any of this.
 struct SellerCashOutSetupView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.campusTheme) private var campusTheme
@@ -73,12 +74,12 @@ struct SellerCashOutSetupView: View {
 
     private var subtitle: String {
         if isReady {
-            return "Cash outs go to the bank or debit card you added with Stripe, usually in 1–2 business days."
+            return "Each sale goes straight to your Stripe account and on to the bank or debit card you added, usually in about 2 business days."
         }
         if status?.needsMoreInfo == true {
-            return "Stripe needs a little more info before you can cash out. Pick up where you left off."
+            return "Stripe needs a little more info before sales can go to your bank. Pick up where you left off."
         }
-        return "Your sales wait safely in your popup balance. Set up payouts once with Stripe, our payments partner, to send them to your bank."
+        return "Your sales wait safely in your popup balance. Set up payouts once with Stripe, our payments partner, and they go to your bank from then on."
     }
 
     // MARK: - Cards
@@ -92,7 +93,7 @@ struct SellerCashOutSetupView: View {
                 .font(Theme.syne(32, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             if let paidOut = status?.lifetimePaidOutCents, paidOut > 0 {
-                Text("\(formattedMoney(cents: paidOut)) cashed out so far")
+                Text("\(formattedMoney(cents: paidOut)) sent to Stripe so far")
                     .font(Theme.syne(12))
                     .foregroundStyle(campusTheme.textMuted)
             }
@@ -106,7 +107,7 @@ struct SellerCashOutSetupView: View {
         VStack(alignment: .leading, spacing: 12) {
             stepRow(icon: "1.circle.fill", title: "Verify it's you", body: "Legal name, date of birth, address, and the last 4 of your SSN. Stripe fills in what popup already has.")
             stepRow(icon: "2.circle.fill", title: "Add where money goes", body: "A bank account or debit card. Stripe keeps these, popup never sees them.")
-            stepRow(icon: "3.circle.fill", title: "Cash out anytime", body: "Come back here and tap Cash out whenever you have a balance.")
+            stepRow(icon: "3.circle.fill", title: "Get paid automatically", body: "Every sale after that goes straight to you. Anything in your popup balance moves over too.")
             if let due = status?.requirementsDue, !due.isEmpty, status?.connected == true {
                 statusPill(ok: false, text: "Stripe still needs \(due.count) item\(due.count == 1 ? "" : "s")")
             }
@@ -217,7 +218,7 @@ struct SellerCashOutSetupView: View {
 
     private var primaryTitle: String {
         if isReady {
-            return availableCents >= 100 ? "Cash out \(formattedMoney(cents: availableCents))" : "Nothing to cash out yet"
+            return availableCents >= 100 ? "Cash out \(formattedMoney(cents: availableCents))" : "Sales go straight to your bank"
         }
         return status?.needsMoreInfo == true ? "Continue with Stripe" : "Set up payouts with Stripe"
     }
@@ -265,7 +266,7 @@ struct SellerCashOutSetupView: View {
                 await loadStatus()
                 if isReady {
                     Motion.haptic(.medium)
-                    infoMessage = "Payouts are ready. You can cash out whenever you have a balance."
+                    infoMessage = "Payouts are ready. From now on each sale goes straight to your Stripe account."
                 }
             }
         } catch PayoutMFAError.cancelled {

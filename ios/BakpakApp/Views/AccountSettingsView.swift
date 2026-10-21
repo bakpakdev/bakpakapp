@@ -216,7 +216,7 @@ struct AccountSettingsView: View {
             return "Only needed when you’re ready to cash out"
         }
         if payoutStatus.onboardingComplete == true {
-            return "Payouts ready · cash out anytime"
+            return "Payouts ready · sales go straight to you"
         }
         if payoutStatus.needsMoreInfo {
             return "Stripe needs a bit more info"
