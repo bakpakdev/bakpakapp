@@ -31,6 +31,19 @@ private let styleOptions: [StyleOption] = [
     StyleOption(id: "minimalist", label: "Minimalist"),
     StyleOption(id: "grunge", label: "Grunge"),
     StyleOption(id: "academia", label: "Academia"),
+    StyleOption(id: "sporty", label: "Sporty"),
+    StyleOption(id: "preppy", label: "Preppy"),
+    StyleOption(id: "skater", label: "Skater"),
+    StyleOption(id: "workwear", label: "Workwear"),
+    StyleOption(id: "gorpcore", label: "Gorpcore"),
+    StyleOption(id: "indie", label: "Indie"),
+    StyleOption(id: "retro", label: "Retro"),
+    StyleOption(id: "techwear", label: "Techwear"),
+    StyleOption(id: "coquette", label: "Coquette"),
+    StyleOption(id: "western", label: "Western"),
+    StyleOption(id: "formal", label: "Formal"),
+    StyleOption(id: "boho", label: "Boho"),
+    StyleOption(id: "punk", label: "Punk"),
 ]
 
 enum EditProfilePrefs {

@@ -13,6 +13,8 @@ private enum OnboardingStep: Int, CaseIterable {
 
 private let onboardingStyleOptions = [
     "Streetwear", "Vintage", "Y2K", "Cottagecore", "Minimalist", "Grunge", "Academia", "Sporty",
+    "Preppy", "Skater", "Workwear", "Gorpcore", "Indie", "Retro", "Techwear", "Coquette",
+    "Western", "Formal", "Boho", "Punk",
 ]
 
 private enum OnboardingPrefs {
@@ -125,9 +127,9 @@ struct OnboardingFlowView: View {
     private var photoStep: some View {
         onboardingChrome(
             title: "Add a profile pic",
-            subtitle: "Optional — you can always change this later.",
+            subtitle: "Add a photo to continue, or skip for now.",
             primaryTitle: photoImage == nil ? "Continue" : "Use this photo",
-            canContinue: true,
+            canContinue: photoImage != nil,
             onContinue: { Task { await savePhotoAndAdvance() } },
             showSkip: true,
             onSkip: { advance(to: .style) }
@@ -182,12 +184,15 @@ struct OnboardingFlowView: View {
             showSkip: true,
             onSkip: { Task { await saveStylesAndStartTour() } }
         ) {
-            FlowChipGrid(
-                options: onboardingStyleOptions,
-                selection: $selectedStyles,
-                accent: campus.primary,
-                campusTheme: true
-            )
+            ScrollView(showsIndicators: false) {
+                FlowChipGrid(
+                    options: onboardingStyleOptions,
+                    selection: $selectedStyles,
+                    accent: campus.primary,
+                    campusTheme: true
+                )
+            }
+            .frame(maxHeight: .infinity)
         }
     }
 
