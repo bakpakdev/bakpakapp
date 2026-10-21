@@ -42,6 +42,9 @@ struct RegisterView: View {
     @State private var statusMessage: String?
 
     private var composedEmail: String {
+        if AuthViewModel.isDemoBypassEmail(emailLocal) {
+            return emailLocal.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
         let local = sanitizedEmailLocal(emailLocal)
         guard let domain = selectedSchool?.emailDomain, !local.isEmpty else { return "" }
         return "\(local)@\(domain)"
@@ -56,12 +59,12 @@ struct RegisterView: View {
             return selectedSchool != nil
         case .email:
             let trimmed = composedEmail
-            return !trimmed.isEmpty && trimmed.hasSuffix(".edu")
+            return !trimmed.isEmpty && (trimmed.hasSuffix(".edu") || AuthViewModel.isDemoBypassEmail(trimmed))
         case .verify:
             // Continue only after they opened the email link AND tapped Confirm email.
             return authVM.hasVerifiedSignupEmail
         case .password:
-            return password.count >= 6 && password == confirmPassword
+            return AuthViewModel.passwordMeetsRules(password) && password == confirmPassword
         }
     }
 
@@ -231,7 +234,7 @@ struct RegisterView: View {
             }
             return "We sent a link to \(composedEmail). Open it on this phone, tap Open popup, then tap Confirm email."
         case .password:
-            return "Choose a password with at least 6 characters. You’ll use this to sign in next time."
+            return "Mix uppercase, lowercase, and a number. You’ll use this to sign in next time."
         }
     }
 
@@ -334,7 +337,7 @@ struct RegisterView: View {
                 .foregroundColor(PopupBrand.textPrimary)
                 .onChange(of: emailLocal) { value in
                     // If they paste a full address, keep only the local part.
-                    if value.contains("@") {
+                    if value.contains("@"), !isTypingDemoBypassEmail(value) {
                         emailLocal = sanitizedEmailLocal(value)
                     }
                 }
@@ -436,6 +439,9 @@ struct RegisterView: View {
                     .buttonStyle(.plain)
                 }
                 .authFieldStyle()
+
+                passwordChecklist
+                    .padding(.top, 4)
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -467,6 +473,24 @@ struct RegisterView: View {
                 .authFieldStyle()
             }
         }
+    }
+
+    private var passwordChecklist: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(AuthViewModel.passwordRules) { rule in
+                let met = rule.isMet(password)
+                HStack(spacing: 8) {
+                    Image(systemName: met ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(met ? Color(hex: "#22C55E") : PopupBrand.textMuted)
+                    Text(rule.label)
+                        .font(Theme.syne(13, weight: .medium))
+                        .foregroundStyle(met ? PopupBrand.textPrimary : PopupBrand.textMuted)
+                }
+                .animation(.easeInOut(duration: 0.15), value: met)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Navigation
@@ -525,8 +549,8 @@ struct RegisterView: View {
             withAnimation(.easeInOut(duration: 0.3)) { step = .password }
 
         case .password:
-            guard password.count >= 6 else {
-                localError = "Password must be at least 6 characters."
+            guard AuthViewModel.passwordMeetsRules(password) else {
+                localError = AuthViewModel.passwordRulesMessage
                 return
             }
             guard password == confirmPassword else {
@@ -539,7 +563,7 @@ struct RegisterView: View {
 
     private func sendVerificationAndAdvance() async {
         let trimmed = composedEmail
-        guard !trimmed.isEmpty, trimmed.hasSuffix(".edu") else {
+        guard !trimmed.isEmpty, trimmed.hasSuffix(".edu") || AuthViewModel.isDemoBypassEmail(trimmed) else {
             localError = "Enter the name part of your school email."
             return
         }
@@ -561,6 +585,11 @@ struct RegisterView: View {
         )
         guard ok else { return }
 
+        if authVM.hasVerifiedSignupEmail {
+            withAnimation(.easeInOut(duration: 0.3)) { step = .password }
+            return
+        }
+
         statusMessage = "Open the email on this phone and tap the popup link. Then come back here."
         withAnimation(.easeInOut(duration: 0.3)) { step = .verify }
     }
@@ -578,6 +607,16 @@ struct RegisterView: View {
         if ok {
             statusMessage = "New verification email sent — check inbox and spam."
         }
+    }
+
+    /// Debug builds let the demo address be typed in full instead of stripping its domain.
+    private func isTypingDemoBypassEmail(_ value: String) -> Bool {
+        #if DEBUG
+        let typed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return !typed.isEmpty && AuthViewModel.demoBypassEmail.hasPrefix(typed)
+        #else
+        return false
+        #endif
     }
 
     private func sanitizedEmailLocal(_ raw: String) -> String {

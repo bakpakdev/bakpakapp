@@ -58,6 +58,10 @@ struct FeatureTourView: View {
                     .font(Theme.syne(26, weight: .black))
                     .foregroundStyle(PopupBrand.textPrimary)
                     .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 24)
                 Text("A 30-second look at how campus thrift actually works here.")
                     .font(Theme.syne(15, weight: .medium))
                     .foregroundStyle(PopupBrand.textMuted)
@@ -78,6 +82,10 @@ struct FeatureTourView: View {
                     .font(Theme.syne(24, weight: .black))
                     .foregroundStyle(PopupBrand.textPrimary)
                     .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .allowsTightening(true)
+                    .layoutPriority(1)
                 Text(page.subtitle(campus: campus))
                     .font(Theme.syne(14, weight: .medium))
                     .foregroundStyle(PopupBrand.textMuted)
@@ -147,10 +155,11 @@ struct FeatureTourView: View {
 private enum FeatureTourPage: Int, CaseIterable, Identifiable {
     case welcome
     case homeCampus
-    case aiCamera
+    case listingMeetup
     case meetOnCampus
-    case reminders
     case payTogether
+    case aiCamera
+    case reminders
     case profile
 
     var id: Int { rawValue }
@@ -163,12 +172,13 @@ private enum FeatureTourPage: Int, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .welcome: return "welcome to popup"
-        case .meetOnCampus: return "Meet on campus"
-        case .payTogether: return "Pay on the same screen"
         case .homeCampus: return "Your campus home"
-        case .profile: return "Your profile"
-        case .reminders: return "Meetup reminders"
+        case .listingMeetup: return "Request a meetup"
+        case .meetOnCampus: return "Meet on campus"
+        case .payTogether: return "Pay in person"
         case .aiCamera: return "AI camera"
+        case .reminders: return "Meetup reminders"
+        case .profile: return "Your profile"
         }
     }
 
@@ -176,18 +186,20 @@ private enum FeatureTourPage: Int, CaseIterable, Identifiable {
         switch self {
         case .welcome:
             return ""
+        case .homeCampus:
+            return "Discover thrift from \(campus.shortName) students — not the whole internet."
+        case .listingMeetup:
+            return "On a listing, tap Meetup request to pick a campus spot and time."
         case .meetOnCampus:
             return "Pick a public campus spot, confirm in chat, then show up in person."
         case .payTogether:
             return "Seller taps Receive. Buyer taps Pay. Apple Pay only works when you’re both on it."
-        case .homeCampus:
-            return "Discover thrift from \(campus.shortName) students — not the whole internet."
-        case .profile:
-            return "Your shop, closet, and campus rank live here."
-        case .reminders:
-            return "Popup pings you before a meetup so you don’t miss the handoff."
         case .aiCamera:
             return "Scan a piece and popup fills in the listing — title, brand, price."
+        case .reminders:
+            return "Popup pings you before a meetup so you don’t miss the handoff."
+        case .profile:
+            return "Your shop, closet, and campus rank live here."
         }
     }
 
@@ -196,18 +208,20 @@ private enum FeatureTourPage: Int, CaseIterable, Identifiable {
         switch self {
         case .welcome:
             Color.clear
+        case .homeCampus:
+            TourHomeScreen(campus: campus)
+        case .listingMeetup:
+            TourListingMeetupScreen(campus: campus)
         case .meetOnCampus:
             TourMeetupScreen(campus: campus)
         case .payTogether:
             TourPayScreen(campus: campus)
-        case .homeCampus:
-            TourHomeScreen(campus: campus)
-        case .profile:
-            TourProfileScreen(campus: campus)
-        case .reminders:
-            TourReminderScreen(campus: campus)
         case .aiCamera:
             TourCameraScreen(campus: campus)
+        case .reminders:
+            TourReminderScreen(campus: campus)
+        case .profile:
+            TourProfileScreen(campus: campus)
         }
     }
 }
@@ -388,6 +402,93 @@ private struct TourHomeScreen: View {
                 .foregroundStyle(campus.primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct TourListingMeetupScreen: View {
+    let campus: CampusTheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(campus.textPrimary)
+                Spacer()
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(campus.textMuted)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 36)
+
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(campus.listingCaptionBackground)
+                .overlay(
+                    Image(systemName: "tshirt.fill")
+                        .font(.system(size: 36, weight: .regular))
+                        .foregroundStyle(campus.textMuted)
+                )
+                .frame(height: 132)
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("vintage broncos tee")
+                    .font(Theme.syne(12, weight: .bold))
+                    .foregroundStyle(campus.textPrimary)
+                Text("$25")
+                    .font(Theme.syne(14, weight: .black))
+                    .foregroundStyle(campus.textPrimary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(campus.elevatedSurface)
+                    .frame(width: 18, height: 18)
+                Text("campus seller")
+                    .font(Theme.syne(8, weight: .semibold))
+                    .foregroundStyle(campus.textMuted)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 6) {
+                Text("Offer")
+                    .font(Theme.syne(8, weight: .bold))
+                    .foregroundStyle(campus.textPrimary)
+                    .frame(width: 52)
+                    .frame(height: 28)
+                    .background(campus.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(campus.border, lineWidth: 1)
+                    )
+
+                Text("Meetup request")
+                    .font(Theme.syne(8, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 28)
+                    .background(campus.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.white.opacity(0.55), lineWidth: 1.5)
+                    )
+                    .shadow(color: campus.primary.opacity(0.45), radius: 6, y: 2)
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 10)
+
+            TourMiniTabBar(campus: campus, selected: 0)
+        }
+        .background(campus.background)
     }
 }
 

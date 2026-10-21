@@ -15,6 +15,9 @@ API_BASE_URL[config=Release] = $(API_BASE_URL_RELEASE)
 // TestFlight / App Store: hosted HTTPS API (Secrets.xcconfig can override).
 API_BASE_URL_RELEASE = https:/$()/popup-api-hwbg.onrender.com/api
 
+// Lets `#if DEBUG` code (demo signup email, test reminders) compile into Debug builds only.
+SWIFT_ACTIVE_COMPILATION_CONDITIONS[config=Debug] = $(inherited) DEBUG
+
 // Release entitlements. Switch as Apple approves capabilities for team 38BTDK54M3:
 //   PopupApp.entitlements          no payment entitlements (TestFlight-safe default)
 //   PopupApp.ApplePay.entitlements Apple Pay (needs APPLE_PAY_MERCHANT_ID + Merchant ID in the portal)

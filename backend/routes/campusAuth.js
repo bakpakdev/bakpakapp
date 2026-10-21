@@ -98,6 +98,18 @@ function isEduEmail(email) {
   return email.includes('@') && email.endsWith('.edu');
 }
 
+// Demo/dev signup that skips the confirmation email. Needs DEMO_BYPASS_ENABLED=true
+// and refuses to run when NODE_ENV=production, so the hosted API can never honor it.
+function demoBypassEmail() {
+  return (process.env.DEMO_BYPASS_EMAIL || 'demo@popupdev.test').trim().toLowerCase();
+}
+
+function isDemoBypass(email) {
+  if (process.env.NODE_ENV === 'production') return false;
+  if (String(process.env.DEMO_BYPASS_ENABLED || '').trim().toLowerCase() !== 'true') return false;
+  return Boolean(email) && email === demoBypassEmail();
+}
+
 function confirmLinkFor(userId, email) {
   const token = signCampusToken(userId, email);
   return `${publicOrigin()}/auth/confirm-email.html?campus_token=${encodeURIComponent(token)}`;
@@ -119,8 +131,17 @@ async function findUserByEmail(admin, email) {
     }
   }
 
-  const listed = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
-  return (listed.data?.users || []).find((u) => String(u.email || '').toLowerCase() === email) || null;
+  // GoTrue ignores ?email= on some versions and returns one page of everyone,
+  // so walk every page rather than stopping at the first 200 users.
+  const perPage = 200;
+  for (let page = 1; page <= 50; page += 1) {
+    const listed = await admin.auth.admin.listUsers({ page, perPage });
+    const users = listed.data?.users || [];
+    const match = users.find((u) => String(u.email || '').toLowerCase() === email);
+    if (match) return match;
+    if (users.length < perPage) break;
+  }
+  return null;
 }
 
 function isConfirmed(user) {
@@ -150,8 +171,9 @@ router.post('/campus-register', async (req, res) => {
     const firstName = String(req.body?.first_name || '').trim();
     const lastName = String(req.body?.last_name || '').trim();
     const school = String(req.body?.school || '').trim();
+    const demo = isDemoBypass(email);
 
-    if (!isEduEmail(email)) {
+    if (!demo && !isEduEmail(email)) {
       return res.status(400).json({ message: 'Use a college .edu email.' });
     }
     if (password.length < 8) {
@@ -178,7 +200,7 @@ router.post('/campus-register', async (req, res) => {
     const created = await admin.auth.admin.createUser({
       email,
       password,
-      email_confirm: false,
+      email_confirm: demo,
       user_metadata: metadata,
     });
 
@@ -195,7 +217,7 @@ router.post('/campus-register', async (req, res) => {
       if (!user) {
         return res.status(400).json({ message: 'Could not create account.' });
       }
-      if (isConfirmed(user)) {
+      if (isConfirmed(user) && !demo) {
         return res.status(409).json({
           emailed: false,
           message: 'That email already has an account. Sign in instead.',
@@ -204,6 +226,7 @@ router.post('/campus-register', async (req, res) => {
       const updated = await admin.auth.admin.updateUserById(user.id, {
         password,
         user_metadata: metadata,
+        ...(demo ? { email_confirm: true } : {}),
       });
       if (updated.error) {
         console.error('campus-register updateUser:', updated.error);
@@ -216,6 +239,10 @@ router.post('/campus-register', async (req, res) => {
 
     if (!user?.id) {
       return res.status(400).json({ message: 'Could not create account.' });
+    }
+
+    if (demo) {
+      return res.json({ emailed: false, confirmed: true, demo: true, message: 'Demo account ready.' });
     }
 
     const emailed = await emailConfirmLink(email, user.id);

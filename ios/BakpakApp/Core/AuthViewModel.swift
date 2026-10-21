@@ -53,6 +53,20 @@ final class AuthViewModel: ObservableObject {
 
     var usesSupabase: Bool { SupabaseConfig.isConfigured }
 
+    /// Debug-only signup address that skips email confirmation. The API honors it only when
+    /// DEMO_BYPASS_ENABLED=true and NODE_ENV isn't production; keep in sync with DEMO_BYPASS_EMAIL.
+    static func isDemoBypassEmail(_ email: String) -> Bool {
+        #if DEBUG
+        return email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == demoBypassEmail
+        #else
+        return false
+        #endif
+    }
+
+    #if DEBUG
+    static let demoBypassEmail = "demo@popupdev.test"
+    #endif
+
     /// Show the in-app confirm gate (link opened, Confirm not tapped yet).
     var needsInAppEmailConfirm: Bool {
         isAwaitingEmailVerification && emailConfirmationLinkOpened && !hasVerifiedSignupEmail
@@ -318,7 +332,8 @@ final class AuthViewModel: ObservableObject {
 
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let trimmedUser = username.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedEmail.contains("@"), trimmedEmail.hasSuffix(".edu") else {
+        let isDemo = Self.isDemoBypassEmail(trimmedEmail)
+        guard isDemo || (trimmedEmail.contains("@") && trimmedEmail.hasSuffix(".edu")) else {
             errorMessage = "Use a valid college email ending in .edu."
             return false
         }
@@ -357,6 +372,16 @@ final class AuthViewModel: ObservableObject {
                     )
                 )
             )
+            if isDemo, response.confirmed == true {
+                // API created the account already confirmed; sign in and skip the email step.
+                guard let client = SupabaseManager.shared.client() else { return false }
+                _ = try await signInWithPasswordRetry(client: client, email: trimmedEmail, password: tempPassword)
+                emailConfirmationLinkOpened = true
+                hasVerifiedSignupEmail = true
+                persistSignupGate()
+                errorMessage = nil
+                return true
+            }
             if response.emailed != true {
                 errorMessage = response.message ?? "We couldn’t send the confirmation email. Tap Resend verification email."
                 return false
@@ -378,6 +403,7 @@ final class AuthViewModel: ObservableObject {
 
     private struct CampusConfirmResponse: Decodable {
         let emailed: Bool?
+        let confirmed: Bool?
         let message: String?
     }
 
@@ -500,8 +526,7 @@ final class AuthViewModel: ObservableObject {
                 }
             } else if let tokenHash = params["token_hash"] ?? params["token"], !tokenHash.isEmpty {
                 let otpType = Self.emailOTPType(from: params["type"])
-                let response = try await Self.verifyEmailTokenHash(client: client, tokenHash: tokenHash, type: otpType)
-                if let verified = response.session {
+                if let verified = try await Self.verifyEmailTokenHash(client: client, tokenHash: tokenHash, type: otpType) {
                     session = verified
                 } else if let existing = try? await client.auth.session, existing.user.emailConfirmedAt != nil {
                     session = existing
@@ -626,12 +651,12 @@ final class AuthViewModel: ObservableObject {
         client: SupabaseClient,
         tokenHash: String,
         type: EmailOTPType
-    ) async throws -> AuthResponse {
+    ) async throws -> Session? {
         do {
-            return try await client.auth.verifyOTP(tokenHash: tokenHash, type: type)
+            return try await client.auth.verifyOTP(tokenHash: tokenHash, type: type).session
         } catch {
             if type != .magiclink {
-                return try await client.auth.verifyOTP(tokenHash: tokenHash, type: .magiclink)
+                return try await client.auth.verifyOTP(tokenHash: tokenHash, type: .magiclink).session
             }
             throw error
         }
@@ -738,8 +763,8 @@ final class AuthViewModel: ObservableObject {
             return
         }
 
-        guard password.count >= 6 else {
-            errorMessage = "Password must be at least 6 characters."
+        guard Self.passwordMeetsRules(password) else {
+            errorMessage = Self.passwordRulesMessage
             return
         }
 
@@ -793,10 +818,38 @@ final class AuthViewModel: ObservableObject {
             clearSignupVerificationState()
             KeychainManager.shared.clearToken()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = Self.isPasswordRuleError(error) ? Self.passwordRulesMessage : error.localizedDescription
             isAuthenticated = false
             user = nil
         }
+    }
+
+    // MARK: Password rules
+
+    /// Mirrors the Supabase project's password policy (min length + lower, upper, digit).
+    struct PasswordRule: Identifiable {
+        let id: String
+        let label: String
+        let isMet: (String) -> Bool
+    }
+
+    static let passwordRules: [PasswordRule] = [
+        PasswordRule(id: "length", label: "At least 6 characters") { $0.count >= 6 },
+        PasswordRule(id: "lower", label: "One lowercase letter") { $0.contains(where: \.isLowercase) },
+        PasswordRule(id: "upper", label: "One uppercase letter") { $0.contains(where: \.isUppercase) },
+        PasswordRule(id: "digit", label: "One number") { $0.contains(where: \.isNumber) },
+    ]
+
+    static let passwordRulesMessage = "Use at least 6 characters with a lowercase letter, an uppercase letter, and a number."
+
+    static func passwordMeetsRules(_ password: String) -> Bool {
+        passwordRules.allSatisfy { $0.isMet(password) }
+    }
+
+    /// Supabase returns e.g. "Password should contain at least one character of each: abcdef…"
+    private static func isPasswordRuleError(_ error: Error) -> Bool {
+        let lower = error.localizedDescription.lowercased()
+        return lower.contains("password should") || lower.contains("weak password") || lower.contains("weak_password")
     }
 
     /// Call after first-time profile setup finishes.
