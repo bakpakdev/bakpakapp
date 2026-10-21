@@ -43,7 +43,6 @@ struct MeetupPayFlowView: View {
     @State private var showSellerReceivedCard = false
     @State private var paymentConfirmed = false
     @State private var sessionChannel: RealtimeChannelV2?
-    @State private var sellerFeeLabel: String?
 
     @StateObject private var paymentPresenter = PaymentSheetPresenter()
 
@@ -99,13 +98,28 @@ struct MeetupPayFlowView: View {
         return priceLabel ?? "$—"
     }
 
-    /// "You get $18 after popup's 10% (min $0.50) fee" under the seller's amount.
+    private func moneyLabel(cents: Int) -> String {
+        let dollars = Double(cents) / 100
+        if dollars.rounded() == dollars { return "$\(Int(dollars))" }
+        return String(format: "$%.2f", dollars)
+    }
+
+    /// What the buyer pays: the price plus popup's service fee.
+    private var buyerTotalLabel: String {
+        if let total = activeSession?.totalCents { return moneyLabel(cents: total) }
+        return sessionAmountLabel
+    }
+
+    /// "$25 + $2.50 service fee" under the buyer's total.
+    private var buyerFeeLine: String? {
+        guard let fee = activeSession?.serviceFeeCents, fee > 0 else { return nil }
+        return "\(sessionAmountLabel) + \(moneyLabel(cents: fee)) service fee"
+    }
+
+    /// Under the seller's amount: they keep the whole price.
     private var sellerNetLine: String? {
-        guard let net = activeSession?.sellerNetCents else { return nil }
-        let dollars = Double(net) / 100
-        let amount = dollars.rounded() == dollars ? "$\(Int(dollars))" : String(format: "$%.2f", dollars)
-        if let sellerFeeLabel { return "You get \(amount) after popup’s \(sellerFeeLabel) fee" }
-        return "You get \(amount) after popup’s service fee"
+        guard activeSession?.serviceFeeCents != nil else { return nil }
+        return "You get the full \(sessionAmountLabel). The buyer pays popup’s service fee on top."
     }
 
     var body: some View {
@@ -148,7 +162,7 @@ struct MeetupPayFlowView: View {
         .overlay {
             if showBuyerSentAnimation {
                 BuyerSentOverlay(
-                    amountLabel: sessionAmountLabel,
+                    amountLabel: buyerTotalLabel,
                     onContinue: {
                         withAnimation(.easeInOut(duration: 0.25)) {
                             showBuyerSentAnimation = false
@@ -394,10 +408,15 @@ struct MeetupPayFlowView: View {
                 .padding(.top, -8)
 
             VStack(spacing: 8) {
-                Text(sessionAmountLabel)
+                Text(buyerTotalLabel)
                     .font(Theme.syne(48, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .frame(maxWidth: .infinity)
+                if let buyerFeeLine {
+                    Text(buyerFeeLine)
+                        .font(Theme.syne(13, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
                 if let title = item.productTitle, !title.isEmpty {
                     Text(title)
                         .font(Theme.syne(15, weight: .medium))
@@ -582,9 +601,14 @@ struct MeetupPayFlowView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 8)
 
-                Text(sessionAmountLabel)
+                Text(buyerTotalLabel)
                     .font(Theme.syne(36, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
+                if let buyerFeeLine {
+                    Text(buyerFeeLine)
+                        .font(Theme.syne(13, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
 
                 Spacer()
 
@@ -748,7 +772,6 @@ struct MeetupPayFlowView: View {
                 buyerId: item.otherUserId
             )
             activeSession = response.session
-            sellerFeeLabel = response.feeLabel
             sellerCanReceive = true
             buyerCanPay = false
             selectedMethod = "Apple Pay"

@@ -1,6 +1,6 @@
-// popup's seller service fee. It comes out of the sale before it reaches the
-// seller's balance; popup keeps it, and it covers Stripe's processing and payout
-// costs. Server-side settings, so the fee can change without an app update.
+// popup's service fee. The buyer pays it on top of the listing price, popup keeps
+// it, and it covers Stripe's processing and payout costs. The seller always gets
+// the full listing price. Server-side settings, so it changes without an app update.
 
 function envNumber(key, fallback) {
   const raw = (process.env[key] ?? '').toString().trim();
@@ -17,13 +17,12 @@ function feeSettings() {
   };
 }
 
-/** Splits a sale into popup's fee and what the seller receives. */
-function splitSale(amountCents) {
-  const amount = Math.max(0, Math.round(Number(amountCents) || 0));
+/** What the buyer pays for a listing: the price plus popup's service fee. */
+function buyerTotal(priceCents) {
+  const price = Math.max(0, Math.round(Number(priceCents) || 0));
   const { percent, fixedCents, minCents } = feeSettings();
-  let fee = Math.round((amount * percent) / 100) + fixedCents;
-  fee = Math.min(Math.max(fee, minCents), amount);
-  return { platformFeeCents: fee, sellerNetCents: amount - fee };
+  const fee = Math.max(Math.round((price * percent) / 100) + fixedCents, minCents);
+  return { priceCents: price, serviceFeeCents: fee, totalCents: price + fee };
 }
 
 /** Short label for the app, e.g. "10% (min $0.50)" or "8% + $0.30". */
@@ -35,4 +34,4 @@ function feeLabel() {
   return label;
 }
 
-module.exports = { splitSale, feeLabel, feeSettings };
+module.exports = { buyerTotal, feeLabel, feeSettings };

@@ -24,8 +24,9 @@ struct PaymentSessionDTO: Decodable, Equatable {
     let sellerId: String?
     let buyerId: String?
     let amountCents: Int?
-    /// What the seller gets after popup's service fee.
-    let sellerNetCents: Int?
+    /// popup's service fee the buyer pays on top of the price, and the buyer's total.
+    let serviceFeeCents: Int?
+    let totalCents: Int?
     let productTitle: String?
     let status: String
     let expiresAt: String?
@@ -33,7 +34,8 @@ struct PaymentSessionDTO: Decodable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, status
-        case sellerNetCents = "seller_net_cents"
+        case serviceFeeCents = "service_fee_cents"
+        case totalCents = "total_cents"
         case productId = "product_id"
         case meetupId = "meetup_id"
         case paymentRequestId = "payment_request_id"
@@ -64,8 +66,8 @@ struct CreateReceiveSessionResponse: Decodable {
     let productTitle: String
     let amount: Double
     let amountCents: Int?
-    let platformFeeCents: Int?
-    let sellerNetCents: Int?
+    let serviceFeeCents: Int?
+    let totalCents: Int?
     /// e.g. "10% (min $0.50)"
     let feeLabel: String?
     let provider: String?
@@ -102,7 +104,10 @@ struct MeetupCheckoutResponse: Decodable {
     let paymentIntentId: String?
     let clientSecret: String?
     let publishableKey: String?
+    /// What the buyer is charged: the listing price plus popup's service fee.
     let amountCents: Int
+    let priceCents: Int?
+    let serviceFeeCents: Int?
     let productTitle: String
     let merchantDisplayName: String
     let countryCode: String?

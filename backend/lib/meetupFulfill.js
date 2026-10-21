@@ -1,6 +1,5 @@
 const { getSupabaseAdmin } = require('./supabaseAdmin');
 const { creditSellerSale } = require('./sellerBalance');
-const { splitSale } = require('./platformFee');
 
 const MEETUP_ADDRESS = 'Campus meetup';
 
@@ -16,7 +15,8 @@ async function fetchProduct(supabase, productId) {
 
 /**
  * Marks a meetup payment paid, lists the item sold, and credits the seller's
- * popup balance, minus popup's service fee. The money sits in popup's Stripe balance until the seller cashes
+ * popup balance with the full listing price. The buyer's service fee on top
+ * stays with popup. The money sits in popup's Stripe balance until the seller cashes
  * out, which transfers it to their Stripe Express account.
  *
  * Safe to call more than once for the same payment (the app's confirm call and
@@ -28,6 +28,7 @@ async function fulfillMeetupPayment({
   sellerId,
   buyerId,
   paymentId,
+  chargedCents = null,
   sessionId = null,
 }) {
   const supabase = getSupabaseAdmin();
@@ -36,17 +37,19 @@ async function fulfillMeetupPayment({
   const product = await fetchProduct(supabase, productId);
   if (!product) return { skipped: true };
 
-  const total = (requestRow.amount_cents || 0) / 100;
+  // amount_cents = listing price (the seller's share); the buyer paid that plus
+  // popup's service fee. chargedCents is what Stripe actually collected.
+  const priceCents = requestRow.amount_cents || 0;
+  const charged = Number.isFinite(Number(chargedCents)) && chargedCents > 0 ? Number(chargedCents) : priceCents;
+  const serviceFeeCents = Math.max(0, charged - priceCents);
+  const total = charged / 100;
   const resolvedBuyer = buyerId || requestRow.buyer_id || null;
   const now = new Date().toISOString();
 
-  // The seller is credited the sale minus popup's service fee.
-  const { platformFeeCents, sellerNetCents } = splitSale(requestRow.amount_cents);
   const claim = {
     status: 'paid',
-    amount_cents: requestRow.amount_cents,
-    platform_fee_cents: platformFeeCents,
-    seller_net_cents: sellerNetCents,
+    platform_fee_cents: serviceFeeCents,
+    total_cents: charged,
     updated_at: now,
   };
   if (paymentId && !String(paymentId).includes(':pending')) {
@@ -64,7 +67,7 @@ async function fulfillMeetupPayment({
   if (!claimed) return { alreadyPaid: true };
 
   // Credit first: once the row is claimed nothing retries, and the seller's money matters most.
-  await creditSellerSale(supabase, sellerId, sellerNetCents);
+  await creditSellerSale(supabase, sellerId, priceCents);
 
   if (resolvedBuyer) {
     const { data: order, error: orderError } = await supabase

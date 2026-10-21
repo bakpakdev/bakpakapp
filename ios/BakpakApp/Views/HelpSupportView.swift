@@ -36,7 +36,7 @@ struct HelpSupportView: View {
                             faqRow(
                                 id: "cashout",
                                 question: "How do I cash out?",
-                                answer: "Meetup sales sit in your popup balance, minus popup’s service fee (shown before the buyer pays). Open Settings → Cash out setup and set up payouts with Stripe once (a few minutes). Then tap Cash out and the money usually reaches your bank or debit card in 1–2 business days."
+                                answer: "Meetup sales sit in your popup balance at the full listing price. Buyers pay a small popup service fee on top. Open Settings → Cash out setup and set up payouts with Stripe once (a few minutes). Then tap Cash out and the money usually reaches your bank or debit card in 1–2 business days."
                             )
                             faqRow(
                                 id: "meetup",

@@ -270,7 +270,8 @@ async function fulfillFromPaymentIntent(intent) {
     return;
   }
   await fulfillMeetupPayment({
-    requestRow: { ...requestRow, amount_cents: intent.amount_received || intent.amount },
+    requestRow,
+    chargedCents: intent.amount_received || intent.amount,
     productId: requestRow.product_id,
     sellerId: requestRow.seller_id,
     buyerId: intent.metadata?.popup_buyer_id || requestRow.buyer_id,

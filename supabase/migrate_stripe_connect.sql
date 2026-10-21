@@ -28,11 +28,13 @@ DROP POLICY IF EXISTS "payment_requests_update_participants" ON public.payment_r
 CREATE INDEX IF NOT EXISTS seller_payouts_stripe_transfer_id_idx
   ON public.seller_payouts (stripe_transfer_id);
 
--- popup's seller service fee (backend/lib/platformFee.js). Recorded per sale so
--- popup's revenue is queryable: SUM(platform_fee_cents) WHERE status = 'paid'.
+-- popup's service fee (backend/lib/platformFee.js): the buyer pays it on top of the
+-- listing price and popup keeps it; the seller gets the full price (amount_cents).
+-- popup's revenue: SUM(platform_fee_cents) WHERE status = 'paid'.
 ALTER TABLE public.payment_requests
   ADD COLUMN IF NOT EXISTS platform_fee_cents INTEGER CHECK (platform_fee_cents >= 0),
-  ADD COLUMN IF NOT EXISTS seller_net_cents INTEGER CHECK (seller_net_cents >= 0);
+  ADD COLUMN IF NOT EXISTS total_cents INTEGER CHECK (total_cents >= 0);
 
 ALTER TABLE public.payment_sessions
-  ADD COLUMN IF NOT EXISTS seller_net_cents INTEGER CHECK (seller_net_cents >= 0);
+  ADD COLUMN IF NOT EXISTS service_fee_cents INTEGER CHECK (service_fee_cents >= 0),
+  ADD COLUMN IF NOT EXISTS total_cents INTEGER CHECK (total_cents >= 0);

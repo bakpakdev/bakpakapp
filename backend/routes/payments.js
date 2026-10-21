@@ -4,7 +4,7 @@ const { protectSupabase } = require('../middleware/supabaseAuth');
 const { getSupabaseAdmin } = require('../lib/supabaseAdmin');
 const { fulfillMeetupPayment, fetchProduct } = require('../lib/meetupFulfill');
 const stripe = require('../lib/stripe');
-const { splitSale, feeLabel } = require('../lib/platformFee');
+const { buyerTotal, feeLabel } = require('../lib/platformFee');
 
 const router = express.Router();
 const ACTIVE_STATUSES = ['awaiting_payment'];
@@ -76,7 +76,7 @@ async function fetchWaitingSession(supabase, productId) {
   const { data, error } = await supabase
     .from('payment_sessions')
     .select(
-      'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, seller_net_cents, product_title, status, expires_at, created_at'
+      'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, service_fee_cents, total_cents, product_title, status, expires_at, created_at'
     )
     .eq('product_id', productId)
     .eq('status', 'waiting')
@@ -98,7 +98,8 @@ function serializeSession(session) {
     seller_id: session.seller_id,
     buyer_id: session.buyer_id,
     amount_cents: session.amount_cents,
-    seller_net_cents: session.seller_net_cents ?? null,
+    service_fee_cents: session.service_fee_cents ?? null,
+    total_cents: session.total_cents ?? null,
     product_title: session.product_title,
     status: session.status,
     expires_at: session.expires_at,
@@ -171,7 +172,7 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
 
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
     const pendingId = `stripe:pending:${crypto.randomUUID()}`;
-    const { platformFeeCents, sellerNetCents } = splitSale(amountCents);
+    const { serviceFeeCents, totalCents } = buyerTotal(amountCents);
 
     const { data: requestRow, error: insertError } = await supabase
       .from('payment_requests')
@@ -181,8 +182,8 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
         buyer_id: resolvedBuyerId,
         payment_intent_id: pendingId,
         amount_cents: amountCents,
-        platform_fee_cents: platformFeeCents,
-        seller_net_cents: sellerNetCents,
+        platform_fee_cents: serviceFeeCents,
+        total_cents: totalCents,
         status: 'awaiting_payment',
         expires_at: expiresAt,
         provider: 'stripe',
@@ -200,13 +201,14 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
         seller_id: product.user_id,
         buyer_id: resolvedBuyerId,
         amount_cents: amountCents,
-        seller_net_cents: sellerNetCents,
+        service_fee_cents: serviceFeeCents,
+        total_cents: totalCents,
         product_title: product.title || '',
         status: 'waiting',
         expires_at: expiresAt,
       })
       .select(
-        'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, seller_net_cents, product_title, status, expires_at, created_at'
+        'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, service_fee_cents, total_cents, product_title, status, expires_at, created_at'
       )
       .single();
     if (sessionError) throw sessionError;
@@ -217,8 +219,8 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
       productTitle: product.title,
       amount: product.price,
       amountCents,
-      platformFeeCents,
-      sellerNetCents,
+      serviceFeeCents,
+      totalCents,
       feeLabel: feeLabel(),
       provider: 'stripe',
       mode: 'receive_session',
@@ -466,19 +468,24 @@ router.get('/meetup/:requestId/checkout', protectSupabase, requireStripePayments
       return res.status(400).json({ message: 'Invalid listing price' });
     }
     if (amountCents !== requestRow.amount_cents) {
-      const split = splitSale(amountCents);
+      const split = buyerTotal(amountCents);
       await supabase
         .from('payment_requests')
         .update({
           amount_cents: amountCents,
-          platform_fee_cents: split.platformFeeCents,
-          seller_net_cents: split.sellerNetCents,
+          platform_fee_cents: split.serviceFeeCents,
+          total_cents: split.totalCents,
           updated_at: new Date().toISOString(),
         })
         .eq('id', requestRow.id);
       await supabase
         .from('payment_sessions')
-        .update({ amount_cents: amountCents, seller_net_cents: split.sellerNetCents, updated_at: new Date().toISOString() })
+        .update({
+          amount_cents: amountCents,
+          service_fee_cents: split.serviceFeeCents,
+          total_cents: split.totalCents,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', session.id);
     }
 
@@ -493,9 +500,13 @@ router.get('/meetup/:requestId/checkout', protectSupabase, requireStripePayments
         .eq('id', session.id);
     }
 
+    // The buyer pays the listing price plus popup's service fee.
+    const { serviceFeeCents, totalCents } = buyerTotal(amountCents);
     const intent = await findOrCreatePaymentIntent({
       requestRow,
-      amountCents,
+      totalCents,
+      priceCents: amountCents,
+      serviceFeeCents,
       buyerId: req.user.id,
       productTitle: product.title,
     });
@@ -506,7 +517,10 @@ router.get('/meetup/:requestId/checkout', protectSupabase, requireStripePayments
       paymentIntentId: intent.id,
       clientSecret: intent.client_secret,
       publishableKey: stripe.publishableKey(),
-      amountCents,
+      amountCents: totalCents,
+      priceCents: amountCents,
+      serviceFeeCents,
+      feeLabel: feeLabel(),
       productTitle: product.title,
       merchantDisplayName: 'popup',
       countryCode: 'US',
@@ -525,14 +539,17 @@ router.get('/meetup/:requestId/checkout', protectSupabase, requireStripePayments
  * One PaymentIntent per payment request. If the buyer backs out of the sheet and
  * taps Pay again we reuse it, so a retry can never create a second charge.
  */
-async function findOrCreatePaymentIntent({ requestRow, amountCents, buyerId, productTitle }) {
+async function findOrCreatePaymentIntent({ requestRow, totalCents, priceCents, serviceFeeCents, buyerId, productTitle }) {
   const client = stripe.getStripe();
   const existingId = String(requestRow.payment_intent_id || '');
   if (existingId.startsWith('pi_')) {
     const existing = await client.paymentIntents.retrieve(existingId);
     if (REUSABLE_INTENT_STATUSES.includes(existing.status)) {
-      if (existing.amount === amountCents) return existing;
-      return client.paymentIntents.update(existing.id, { amount: amountCents });
+      if (existing.amount === totalCents) return existing;
+      return client.paymentIntents.update(existing.id, {
+        amount: totalCents,
+        metadata: { popup_price_cents: String(priceCents), popup_service_fee_cents: String(serviceFeeCents) },
+      });
     }
     if (existing.status === 'succeeded' || existing.status === 'processing') {
       const error = new Error('This item has already been paid for.');
@@ -543,7 +560,7 @@ async function findOrCreatePaymentIntent({ requestRow, amountCents, buyerId, pro
 
   const intent = await client.paymentIntents.create(
     {
-      amount: amountCents,
+      amount: totalCents,
       currency: 'usd',
       // Cards + Apple Pay only: nothing that redirects away or settles days later.
       automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
@@ -555,9 +572,11 @@ async function findOrCreatePaymentIntent({ requestRow, amountCents, buyerId, pro
         popup_product_id: requestRow.product_id,
         popup_seller_id: requestRow.seller_id,
         popup_buyer_id: buyerId,
+        popup_price_cents: String(priceCents),
+        popup_service_fee_cents: String(serviceFeeCents),
       },
     },
-    { idempotencyKey: `popup-pi-${requestRow.id}-${amountCents}` }
+    { idempotencyKey: `popup-pi-${requestRow.id}-${totalCents}` }
   );
 
   const supabase = getSupabaseAdmin();
@@ -651,7 +670,8 @@ router.post('/meetup/:requestId/confirm', protectSupabase, requireStripePayments
     }
 
     await fulfillMeetupPayment({
-      requestRow: { ...requestRow, amount_cents: intent.amount_received || intent.amount },
+      requestRow,
+      chargedCents: intent.amount_received || intent.amount,
       productId: requestRow.product_id,
       sellerId: requestRow.seller_id,
       buyerId: intent.metadata?.popup_buyer_id || requestRow.buyer_id,
