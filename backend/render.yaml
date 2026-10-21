@@ -41,9 +41,11 @@ services:
         sync: false
       # Buyer service fee popup keeps (see backend/lib/platformFee.js).
       - key: PLATFORM_FEE_PERCENT
-        value: "10"
+        value: "8"
+      - key: PLATFORM_FEE_FIXED_CENTS
+        value: "30"
       - key: PLATFORM_FEE_MIN_CENTS
-        value: "50"
+        value: "0"
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL

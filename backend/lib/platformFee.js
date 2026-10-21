@@ -11,9 +11,9 @@ function envNumber(key, fallback) {
 
 function feeSettings() {
   return {
-    percent: envNumber('PLATFORM_FEE_PERCENT', 10),
-    fixedCents: Math.round(envNumber('PLATFORM_FEE_FIXED_CENTS', 0)),
-    minCents: Math.round(envNumber('PLATFORM_FEE_MIN_CENTS', 50)),
+    percent: envNumber('PLATFORM_FEE_PERCENT', 8),
+    fixedCents: Math.round(envNumber('PLATFORM_FEE_FIXED_CENTS', 30)),
+    minCents: Math.round(envNumber('PLATFORM_FEE_MIN_CENTS', 0)),
   };
 }
 
