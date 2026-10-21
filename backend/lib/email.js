@@ -41,12 +41,12 @@ const PAYOUT_CHANGE_COPY = {
   connected: {
     subject: 'Your popup payout account was connected',
     headline: 'Payout account connected',
-    detail: 'A Square account was just connected to your popup account for cash outs.',
+    detail: 'A Stripe payout account was just set up on your popup account for cash outs.',
   },
   disconnected: {
     subject: 'Your popup payout account was removed',
     headline: 'Payout account removed',
-    detail: 'The Square account used for your popup cash outs was just disconnected.',
+    detail: 'The payout account used for your popup cash outs was just disconnected.',
   },
 };
 

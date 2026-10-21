@@ -41,7 +41,7 @@ struct ProfileView: View {
     @State private var loadingRank = false
     @State private var reviews: [SellerReview] = []
     @State private var loadingReviews = false
-    @State private var squareStatus: SquareConnectStatus?
+    @State private var payoutStatus: PayoutAccountStatus?
     @State private var loadingBalance = false
     @State private var showShareCloset = false
 
@@ -514,11 +514,11 @@ struct ProfileView: View {
     private var balanceBar: some View {
         HStack(spacing: 0) {
             balanceStat(
-                value: "$\(formattedMoney(squareStatus?.availableDollars ?? 0))",
+                value: "$\(formattedMoney(payoutStatus?.availableDollars ?? 0))",
                 label: "balance",
-                caption: (squareStatus?.availableCents ?? 0) > 0
+                caption: (payoutStatus?.availableCents ?? 0) > 0
                     ? "ready to cash out"
-                    : "from tap to pay",
+                    : "from meetup sales",
                 isLoading: loadingBalance
             )
             Rectangle()
@@ -576,9 +576,9 @@ struct ProfileView: View {
         loadingBalance = true
         defer { loadingBalance = false }
         do {
-            squareStatus = try await SquareConnectService.shared.fetchStatus()
+            payoutStatus = try await StripeConnectService.shared.fetchStatus()
         } catch {
-            squareStatus = nil
+            payoutStatus = nil
         }
     }
 

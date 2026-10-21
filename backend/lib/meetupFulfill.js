@@ -15,7 +15,12 @@ async function fetchProduct(supabase, productId) {
 
 /**
  * Marks a meetup payment paid, lists the item sold, and credits the seller's
- * popup wallet. Square holds the cash on Popup's merchant account until cash out.
+ * popup balance with the full listing price. The buyer's service fee on top
+ * stays with popup. The money sits in popup's Stripe balance until the seller cashes
+ * out, which transfers it to their Stripe Express account.
+ *
+ * Safe to call more than once for the same payment (the app's confirm call and
+ * the Stripe webhook usually both arrive): only the first call claims the row.
  */
 async function fulfillMeetupPayment({
   requestRow,
@@ -23,6 +28,7 @@ async function fulfillMeetupPayment({
   sellerId,
   buyerId,
   paymentId,
+  chargedCents = null,
   sessionId = null,
 }) {
   const supabase = getSupabaseAdmin();
@@ -31,9 +37,37 @@ async function fulfillMeetupPayment({
   const product = await fetchProduct(supabase, productId);
   if (!product) return { skipped: true };
 
-  const total = (requestRow.amount_cents || 0) / 100;
+  // amount_cents = listing price (the seller's share); the buyer paid that plus
+  // popup's service fee. chargedCents is what Stripe actually collected.
+  const priceCents = requestRow.amount_cents || 0;
+  const charged = Number.isFinite(Number(chargedCents)) && chargedCents > 0 ? Number(chargedCents) : priceCents;
+  const serviceFeeCents = Math.max(0, charged - priceCents);
+  const total = charged / 100;
   const resolvedBuyer = buyerId || requestRow.buyer_id || null;
   const now = new Date().toISOString();
+
+  const claim = {
+    status: 'paid',
+    platform_fee_cents: serviceFeeCents,
+    total_cents: charged,
+    updated_at: now,
+  };
+  if (paymentId && !String(paymentId).includes(':pending')) {
+    claim.payment_intent_id = paymentId;
+    if (requestRow.provider === 'square') claim.square_payment_id = paymentId;
+  }
+  const { data: claimed, error: claimError } = await supabase
+    .from('payment_requests')
+    .update(claim)
+    .eq('id', requestRow.id)
+    .neq('status', 'paid')
+    .select('id')
+    .maybeSingle();
+  if (claimError) throw claimError;
+  if (!claimed) return { alreadyPaid: true };
+
+  // Credit first: once the row is claimed nothing retries, and the seller's money matters most.
+  await creditSellerSale(supabase, sellerId, priceCents);
 
   if (resolvedBuyer) {
     const { data: order, error: orderError } = await supabase
@@ -65,18 +99,6 @@ async function fulfillMeetupPayment({
     .eq('id', productId);
   if (soldError) throw soldError;
 
-  const update = {
-    status: 'paid',
-    amount_cents: requestRow.amount_cents,
-    updated_at: now,
-  };
-  if (paymentId && !String(paymentId).startsWith('square:pending')) {
-    update.square_payment_id = paymentId;
-    update.payment_intent_id = paymentId;
-  }
-
-  await supabase.from('payment_requests').update(update).eq('id', requestRow.id);
-
   // Mark receive session complete so buyer/seller UIs unlock in realtime.
   const sessionUpdate = { status: 'paid', updated_at: now };
   if (sessionId) {
@@ -88,8 +110,6 @@ async function fulfillMeetupPayment({
       .eq('payment_request_id', requestRow.id)
       .eq('status', 'waiting');
   }
-
-  await creditSellerSale(supabase, sellerId, requestRow.amount_cents);
 
   // Existing meetup status only — do not invent delivered/released here.
   const { error: meetupError } = await supabase

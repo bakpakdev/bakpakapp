@@ -24,6 +24,9 @@ struct PaymentSessionDTO: Decodable, Equatable {
     let sellerId: String?
     let buyerId: String?
     let amountCents: Int?
+    /// popup's service fee the buyer pays on top of the price, and the buyer's total.
+    let serviceFeeCents: Int?
+    let totalCents: Int?
     let productTitle: String?
     let status: String
     let expiresAt: String?
@@ -31,6 +34,8 @@ struct PaymentSessionDTO: Decodable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, status
+        case serviceFeeCents = "service_fee_cents"
+        case totalCents = "total_cents"
         case productId = "product_id"
         case meetupId = "meetup_id"
         case paymentRequestId = "payment_request_id"
@@ -49,12 +54,8 @@ struct CreateMeetupPaymentResponse: Decodable {
     let productTitle: String
     let amount: Double
     let amountCents: Int?
-    let clientSecret: String?
-    let locationId: String?
     let publishableKey: String?
     let provider: String?
-    let accessToken: String?
-    let applicationId: String?
     let environment: String?
     let mode: String?
 }
@@ -65,6 +66,10 @@ struct CreateReceiveSessionResponse: Decodable {
     let productTitle: String
     let amount: Double
     let amountCents: Int?
+    let serviceFeeCents: Int?
+    let totalCents: Int?
+    /// e.g. "10% (min $0.50)"
+    let feeLabel: String?
     let provider: String?
     let mode: String?
 }
@@ -96,9 +101,13 @@ struct PaymentSessionStatusResponse: Decodable {
 }
 
 struct MeetupCheckoutResponse: Decodable {
-    let applicationId: String?
-    let locationId: String?
+    let paymentIntentId: String?
+    let clientSecret: String?
+    let publishableKey: String?
+    /// What the buyer is charged: the listing price plus popup's service fee.
     let amountCents: Int
+    let priceCents: Int?
+    let serviceFeeCents: Int?
     let productTitle: String
     let merchantDisplayName: String
     let countryCode: String?
@@ -154,13 +163,11 @@ final class MeetupPaymentService {
         )
     }
 
-    func confirm(requestId: String, squarePaymentId: String? = nil, nonce: String? = nil) async throws {
+    /// Asks the API to check the Stripe PaymentIntent and mark the sale paid.
+    func confirm(requestId: String, paymentIntentId: String?) async throws {
         var payload: [String: String] = [:]
-        if let squarePaymentId, !squarePaymentId.isEmpty {
-            payload["squarePaymentId"] = squarePaymentId
-        }
-        if let nonce, !nonce.isEmpty {
-            payload["nonce"] = nonce
+        if let paymentIntentId, !paymentIntentId.isEmpty {
+            payload["paymentIntentId"] = paymentIntentId
         }
         let body = try JSONEncoder().encode(payload)
         let _: APIMessage = try await api.request(

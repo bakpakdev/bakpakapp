@@ -25,6 +25,7 @@ struct ProductDetailView: View {
     @State private var sellerWaitingRequestId: String?
     @State private var sellerWaitingSessionId: String?
     @State private var showSellerPaymentSheet = false
+    @State private var buyerServiceFeeCents: Int?
     @State private var isPaymentBusy = false
     @State private var showOfferSheet = false
     @State private var selectedOfferPercent: Int? = 15
@@ -1127,6 +1128,11 @@ struct ProductDetailView: View {
                         .font(Theme.syne(32, weight: .bold))
                         .foregroundStyle(campusTheme.primary)
                 }
+                if buyerServiceFeeCents != nil {
+                    Text("You get the full price. The buyer pays popup’s service fee on top.")
+                        .font(Theme.syne(13, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
 
                 ProgressView()
                     .padding(.top, 4)
@@ -1194,7 +1200,7 @@ struct ProductDetailView: View {
     }
 
     private func refreshActivePayment() async {
-        guard SquareConfig.isConfigured || !SquareConfig.apiBaseURL.isEmpty else { return }
+        guard PaymentsConfig.isAPIConfigured else { return }
         do {
             let active = try await paymentService.fetchActive(productId: productId)
             activePayment = active
@@ -1210,7 +1216,7 @@ struct ProductDetailView: View {
     }
 
     private func startSellerPayment() async {
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = PaymentsConfig.userFacingBlocker {
             actionError = blocker
             return
         }
@@ -1225,6 +1231,7 @@ struct ProductDetailView: View {
             )
             sellerWaitingRequestId = response.paymentRequest.id
             sellerWaitingSessionId = response.session.id
+            buyerServiceFeeCents = response.serviceFeeCents
             Motion.haptic(.medium)
             showSellerPaymentSheet = true
             await refreshActivePayment()
@@ -1234,7 +1241,7 @@ struct ProductDetailView: View {
     }
 
     private func startBuyerPayment() async {
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = PaymentsConfig.userFacingBlocker {
             actionError = blocker
             return
         }
@@ -1424,7 +1431,7 @@ struct ProductDetailView: View {
         defer { isBusy = false }
         let next = !(product.isSold == true)
         do {
-            // Manual sold = sold outside Square — no balance credit.
+            // Manual sold = sold outside the app — no balance credit.
             if next, let requestId = activePayment?.paymentRequestId ?? sellerWaitingRequestId {
                 if let sessionId = sellerWaitingSessionId {
                     try? await paymentService.cancelSession(sessionId: sessionId)

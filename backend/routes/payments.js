@@ -3,29 +3,47 @@ const express = require('express');
 const { protectSupabase } = require('../middleware/supabaseAuth');
 const { getSupabaseAdmin } = require('../lib/supabaseAdmin');
 const { fulfillMeetupPayment, fetchProduct } = require('../lib/meetupFulfill');
-const square = require('../lib/square');
+const stripe = require('../lib/stripe');
+const { buyerTotal, feeLabel } = require('../lib/platformFee');
 
 const router = express.Router();
 const ACTIVE_STATUSES = ['awaiting_payment'];
 const SESSION_TTL_MS = 20 * 60 * 1000;
 
-function requireSquarePayments(_req, res, next) {
-  if (!square.canTakePayments()) {
+function requireStripePayments(_req, res, next) {
+  if (!stripe.isStripeConfigured()) {
     return res.status(503).json({
-      message: 'Square payments are not configured. Add SQUARE_APPLICATION_ID, SQUARE_ACCESS_TOKEN, and SQUARE_LOCATION_ID.',
+      message: 'Stripe payments are not configured. Add STRIPE_SECRET_KEY and STRIPE_PUBLISHABLE_KEY.',
     });
   }
   next();
 }
 
+// PaymentIntent states where the buyer can still (re)try paying.
+const REUSABLE_INTENT_STATUSES = ['requires_payment_method', 'requires_confirmation', 'requires_action'];
+
+/** Best effort: stop a buyer's half-open checkout from charging after the seller closed Receive. */
+async function cancelIntentIfOpen(paymentIntentId) {
+  if (!String(paymentIntentId || '').startsWith('pi_') || !stripe.isStripeConfigured()) return;
+  try {
+    const intent = await stripe.getStripe().paymentIntents.retrieve(paymentIntentId);
+    if (REUSABLE_INTENT_STATUSES.includes(intent.status)) {
+      await stripe.getStripe().paymentIntents.cancel(paymentIntentId);
+    }
+  } catch (err) {
+    console.warn('Could not cancel PaymentIntent', paymentIntentId, err.message);
+  }
+}
+
 async function cancelOpenRequestsForProduct(supabase, productId) {
   const { data: openRows, error } = await supabase
     .from('payment_requests')
-    .select('id')
+    .select('id, payment_intent_id')
     .eq('product_id', productId)
     .in('status', ACTIVE_STATUSES);
   if (error) throw error;
   if (openRows?.length) {
+    await Promise.all(openRows.map((row) => cancelIntentIfOpen(row.payment_intent_id)));
     await supabase
       .from('payment_requests')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() })
@@ -58,7 +76,7 @@ async function fetchWaitingSession(supabase, productId) {
   const { data, error } = await supabase
     .from('payment_sessions')
     .select(
-      'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, product_title, status, expires_at, created_at'
+      'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, service_fee_cents, total_cents, product_title, status, expires_at, created_at'
     )
     .eq('product_id', productId)
     .eq('status', 'waiting')
@@ -80,6 +98,8 @@ function serializeSession(session) {
     seller_id: session.seller_id,
     buyer_id: session.buyer_id,
     amount_cents: session.amount_cents,
+    service_fee_cents: session.service_fee_cents ?? null,
+    total_cents: session.total_cents ?? null,
     product_title: session.product_title,
     status: session.status,
     expires_at: session.expires_at,
@@ -88,26 +108,16 @@ function serializeSession(session) {
 }
 
 router.get('/health', (_req, res) => {
-  const missing = [];
-  if (!(process.env.SQUARE_APPLICATION_ID || '').trim()) missing.push('SQUARE_APPLICATION_ID');
-  if (!(process.env.SQUARE_ACCESS_TOKEN || '').trim()) missing.push('SQUARE_ACCESS_TOKEN');
-  if (!(process.env.SQUARE_LOCATION_ID || '').trim()) missing.push('SQUARE_LOCATION_ID');
-  if (!(process.env.SQUARE_APPLICATION_SECRET || '').trim()) missing.push('SQUARE_APPLICATION_SECRET');
-  if (!(process.env.PUBLIC_BASE_URL || '').trim()) missing.push('PUBLIC_BASE_URL');
-  if (!(process.env.SQUARE_OAUTH_REDIRECT_URI || '').trim()) missing.push('SQUARE_OAUTH_REDIRECT_URI');
-  if (!(process.env.SQUARE_WEBHOOK_NOTIFICATION_URL || '').trim()) missing.push('SQUARE_WEBHOOK_NOTIFICATION_URL');
-  const webhookKeyMissing = !(process.env.SQUARE_WEBHOOK_SIGNATURE_KEY || '').trim();
+  const missing = ['STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET', 'PUBLIC_BASE_URL']
+    .filter((key) => !(process.env[key] || '').trim());
 
   res.json({
-    squareConfigured: square.isSquareConfigured(),
-    squareCanTakePayments: square.canTakePayments(),
-    squareCanOAuthSellers: square.canOAuthSellers(),
-    squareEnvironment: square.squareEnvironment(),
+    stripeConfigured: stripe.isStripeConfigured(),
+    stripeEnvironment: stripe.stripeEnvironment(),
     supabaseUrl: !!process.env.SUPABASE_URL,
     supabaseServiceRole: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     publicBaseUrl: process.env.PUBLIC_BASE_URL || null,
-    missingSquareEnv: missing,
-    missingWebhookSignatureKey: webhookKeyMissing,
+    missingStripeEnv: missing,
   });
 });
 
@@ -115,7 +125,7 @@ router.get('/health', (_req, res) => {
  * Seller opens Receive: creates a waiting payment_session + payment_request.
  * Buyer Apple Pay is gated on this session being active.
  */
-router.post('/meetup/receive', protectSupabase, requireSquarePayments, async (req, res) => {
+router.post('/meetup/receive', protectSupabase, requireStripePayments, async (req, res) => {
   try {
     const { productId, meetupId, buyerId } = req.body || {};
     if (!productId) {
@@ -161,7 +171,8 @@ router.post('/meetup/receive', protectSupabase, requireSquarePayments, async (re
     await cancelOpenRequestsForProduct(supabase, productId);
 
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
-    const pendingId = `square:pending:${crypto.randomUUID()}`;
+    const pendingId = `stripe:pending:${crypto.randomUUID()}`;
+    const { serviceFeeCents, totalCents } = buyerTotal(amountCents);
 
     const { data: requestRow, error: insertError } = await supabase
       .from('payment_requests')
@@ -171,9 +182,11 @@ router.post('/meetup/receive', protectSupabase, requireSquarePayments, async (re
         buyer_id: resolvedBuyerId,
         payment_intent_id: pendingId,
         amount_cents: amountCents,
+        platform_fee_cents: serviceFeeCents,
+        total_cents: totalCents,
         status: 'awaiting_payment',
         expires_at: expiresAt,
-        provider: 'square',
+        provider: 'stripe',
       })
       .select('id, status, amount_cents, expires_at, created_at')
       .single();
@@ -188,12 +201,14 @@ router.post('/meetup/receive', protectSupabase, requireSquarePayments, async (re
         seller_id: product.user_id,
         buyer_id: resolvedBuyerId,
         amount_cents: amountCents,
+        service_fee_cents: serviceFeeCents,
+        total_cents: totalCents,
         product_title: product.title || '',
         status: 'waiting',
         expires_at: expiresAt,
       })
       .select(
-        'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, product_title, status, expires_at, created_at'
+        'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, service_fee_cents, total_cents, product_title, status, expires_at, created_at'
       )
       .single();
     if (sessionError) throw sessionError;
@@ -204,7 +219,10 @@ router.post('/meetup/receive', protectSupabase, requireSquarePayments, async (re
       productTitle: product.title,
       amount: product.price,
       amountCents,
-      provider: 'square',
+      serviceFeeCents,
+      totalCents,
+      feeLabel: feeLabel(),
+      provider: 'stripe',
       mode: 'receive_session',
     });
   } catch (error) {
@@ -279,11 +297,14 @@ router.post('/meetup/session/:sessionId/cancel', protectSupabase, async (req, re
       .from('payment_sessions')
       .update({ status: 'cancelled', updated_at: now })
       .eq('id', sessionId);
-    await supabase
+    const { data: cancelledRequest } = await supabase
       .from('payment_requests')
       .update({ status: 'cancelled', updated_at: now })
       .eq('id', session.payment_request_id)
-      .eq('status', 'awaiting_payment');
+      .eq('status', 'awaiting_payment')
+      .select('payment_intent_id')
+      .maybeSingle();
+    await cancelIntentIfOpen(cancelledRequest?.payment_intent_id);
 
     res.json({ message: 'Receive session cancelled', status: 'cancelled' });
   } catch (error) {
@@ -293,7 +314,7 @@ router.post('/meetup/session/:sessionId/cancel', protectSupabase, async (req, re
 });
 
 // Legacy: buyer-only Apple Pay request creation (still gated by an active receive session).
-router.post('/meetup/request', protectSupabase, requireSquarePayments, async (req, res) => {
+router.post('/meetup/request', protectSupabase, requireStripePayments, async (req, res) => {
   try {
     const { productId } = req.body;
     if (!productId) {
@@ -354,11 +375,10 @@ router.post('/meetup/request', protectSupabase, requireSquarePayments, async (re
       productTitle: product.title,
       amount: product.price,
       amountCents: requestRow.amount_cents,
-      provider: 'square',
+      provider: 'stripe',
       mode: 'apple_pay',
-      locationId: square.platformLocationId(),
-      applicationId: process.env.SQUARE_APPLICATION_ID,
-      environment: square.squareEnvironment(),
+      publishableKey: stripe.publishableKey(),
+      environment: stripe.stripeEnvironment(),
     });
   } catch (error) {
     console.error('Create meetup payment request error:', error);
@@ -394,7 +414,7 @@ router.get('/meetup/active/:productId', protectSupabase, async (req, res) => {
       expiresAt: session.expires_at,
       role: isSeller ? 'seller' : 'buyer',
       canPay: !isSeller && !product.is_sold,
-      provider: 'square',
+      provider: 'stripe',
     });
   } catch (error) {
     console.error('Get active meetup payment error:', error);
@@ -402,14 +422,14 @@ router.get('/meetup/active/:productId', protectSupabase, async (req, res) => {
   }
 });
 
-// Buyer pays on their phone (Apple Pay / card) via Square nonce — requires active receive session.
-router.get('/meetup/:requestId/checkout', protectSupabase, requireSquarePayments, async (req, res) => {
+// Buyer pays on their phone (Apple Pay / card) with Stripe PaymentSheet — requires active receive session.
+router.get('/meetup/:requestId/checkout', protectSupabase, requireStripePayments, async (req, res) => {
   try {
     const { requestId } = req.params;
     const supabase = getSupabaseAdmin();
     const { data: requestRow, error } = await supabase
       .from('payment_requests')
-      .select('id, product_id, seller_id, amount_cents, status, expires_at')
+      .select('id, product_id, seller_id, amount_cents, status, expires_at, payment_intent_id')
       .eq('id', requestId)
       .maybeSingle();
     if (error) throw error;
@@ -433,6 +453,9 @@ router.get('/meetup/:requestId/checkout', protectSupabase, requireSquarePayments
         code: 'RECEIVE_SESSION_REQUIRED',
       });
     }
+    if (session.buyer_id && session.buyer_id !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized for this receive session' });
+    }
 
     const product = await fetchProduct(supabase, requestRow.product_id);
     if (!product || product.is_sold) {
@@ -445,13 +468,24 @@ router.get('/meetup/:requestId/checkout', protectSupabase, requireSquarePayments
       return res.status(400).json({ message: 'Invalid listing price' });
     }
     if (amountCents !== requestRow.amount_cents) {
+      const split = buyerTotal(amountCents);
       await supabase
         .from('payment_requests')
-        .update({ amount_cents: amountCents, updated_at: new Date().toISOString() })
+        .update({
+          amount_cents: amountCents,
+          platform_fee_cents: split.serviceFeeCents,
+          total_cents: split.totalCents,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', requestRow.id);
       await supabase
         .from('payment_sessions')
-        .update({ amount_cents: amountCents, updated_at: new Date().toISOString() })
+        .update({
+          amount_cents: amountCents,
+          service_fee_cents: split.serviceFeeCents,
+          total_cents: split.totalCents,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', session.id);
     }
 
@@ -466,12 +500,27 @@ router.get('/meetup/:requestId/checkout', protectSupabase, requireSquarePayments
         .eq('id', session.id);
     }
 
+    // The buyer pays the listing price plus popup's service fee.
+    const { serviceFeeCents, totalCents } = buyerTotal(amountCents);
+    const intent = await findOrCreatePaymentIntent({
+      requestRow,
+      totalCents,
+      priceCents: amountCents,
+      serviceFeeCents,
+      buyerId: req.user.id,
+      productTitle: product.title,
+    });
+
     res.json({
       paymentRequestId: requestRow.id,
       sessionId: session.id,
-      applicationId: process.env.SQUARE_APPLICATION_ID,
-      locationId: square.platformLocationId(),
-      amountCents,
+      paymentIntentId: intent.id,
+      clientSecret: intent.client_secret,
+      publishableKey: stripe.publishableKey(),
+      amountCents: totalCents,
+      priceCents: amountCents,
+      serviceFeeCents,
+      feeLabel: feeLabel(),
       productTitle: product.title,
       merchantDisplayName: 'popup',
       countryCode: 'US',
@@ -479,9 +528,64 @@ router.get('/meetup/:requestId/checkout', protectSupabase, requireSquarePayments
     });
   } catch (error) {
     console.error('Meetup checkout error:', error);
+    if (error.status === 409) {
+      return res.status(409).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+/**
+ * One PaymentIntent per payment request. If the buyer backs out of the sheet and
+ * taps Pay again we reuse it, so a retry can never create a second charge.
+ */
+async function findOrCreatePaymentIntent({ requestRow, totalCents, priceCents, serviceFeeCents, buyerId, productTitle }) {
+  const client = stripe.getStripe();
+  const existingId = String(requestRow.payment_intent_id || '');
+  if (existingId.startsWith('pi_')) {
+    const existing = await client.paymentIntents.retrieve(existingId);
+    if (REUSABLE_INTENT_STATUSES.includes(existing.status)) {
+      if (existing.amount === totalCents) return existing;
+      return client.paymentIntents.update(existing.id, {
+        amount: totalCents,
+        metadata: { popup_price_cents: String(priceCents), popup_service_fee_cents: String(serviceFeeCents) },
+      });
+    }
+    if (existing.status === 'succeeded' || existing.status === 'processing') {
+      const error = new Error('This item has already been paid for.');
+      error.status = 409;
+      throw error;
+    }
+  }
+
+  const intent = await client.paymentIntents.create(
+    {
+      amount: totalCents,
+      currency: 'usd',
+      // Cards + Apple Pay only: nothing that redirects away or settles days later.
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+      description: `popup meetup: ${String(productTitle || 'item').slice(0, 200)}`,
+      statement_descriptor_suffix: 'POPUP',
+      transfer_group: `popup-request-${requestRow.id}`,
+      metadata: {
+        popup_payment_request_id: requestRow.id,
+        popup_product_id: requestRow.product_id,
+        popup_seller_id: requestRow.seller_id,
+        popup_buyer_id: buyerId,
+        popup_price_cents: String(priceCents),
+        popup_service_fee_cents: String(serviceFeeCents),
+      },
+    },
+    { idempotencyKey: `popup-pi-${requestRow.id}-${totalCents}` }
+  );
+
+  const supabase = getSupabaseAdmin();
+  await supabase
+    .from('payment_requests')
+    .update({ payment_intent_id: intent.id, updated_at: new Date().toISOString() })
+    .eq('id', requestRow.id);
+  return intent;
+}
 
 router.post('/meetup/:requestId/cancel', protectSupabase, async (req, res) => {
   try {
@@ -489,7 +593,7 @@ router.post('/meetup/:requestId/cancel', protectSupabase, async (req, res) => {
     const supabase = getSupabaseAdmin();
     const { data: requestRow, error } = await supabase
       .from('payment_requests')
-      .select('id, seller_id, product_id, status')
+      .select('id, seller_id, product_id, status, payment_intent_id')
       .eq('id', requestId)
       .maybeSingle();
     if (error) throw error;
@@ -513,6 +617,7 @@ router.post('/meetup/:requestId/cancel', protectSupabase, async (req, res) => {
       .update({ status: 'cancelled', updated_at: now })
       .eq('payment_request_id', requestId)
       .eq('status', 'waiting');
+    await cancelIntentIfOpen(requestRow.payment_intent_id);
 
     res.json({ message: 'Payment request cancelled' });
   } catch (error) {
@@ -521,16 +626,14 @@ router.post('/meetup/:requestId/cancel', protectSupabase, async (req, res) => {
   }
 });
 
-router.post('/meetup/:requestId/confirm', protectSupabase, requireSquarePayments, async (req, res) => {
+router.post('/meetup/:requestId/confirm', protectSupabase, requireStripePayments, async (req, res) => {
   try {
     const { requestId } = req.params;
-    const nonce = req.body?.nonce || req.body?.sourceId;
-    const squarePaymentId = req.body?.squarePaymentId;
     const supabase = getSupabaseAdmin();
 
     const { data: requestRow, error } = await supabase
       .from('payment_requests')
-      .select('id, product_id, seller_id, buyer_id, square_payment_id, status, provider, amount_cents')
+      .select('id, product_id, seller_id, buyer_id, payment_intent_id, status, provider, amount_cents')
       .eq('id', requestId)
       .maybeSingle();
     if (error) throw error;
@@ -539,76 +642,42 @@ router.post('/meetup/:requestId/confirm', protectSupabase, requireSquarePayments
     }
 
     if (requestRow.status === 'paid') {
-      return res.json({ message: 'Payment already confirmed', status: 'paid', provider: 'square' });
+      return res.json({ message: 'Payment already confirmed', status: 'paid', provider: 'stripe' });
     }
 
     const isSeller = requestRow.seller_id === req.user.id;
     const isBuyer = requestRow.buyer_id && requestRow.buyer_id === req.user.id;
-    if (requestRow.buyer_id && !isSeller && !isBuyer) {
+    if (!isSeller && !isBuyer) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    // Buyer Apple Pay path: require an active receive session (seller still waiting).
-    let session = null;
-    if (nonce) {
-      if (isSeller) {
-        return res.status(403).json({ message: 'Seller cannot pay for their own listing' });
-      }
-      session = await fetchWaitingSession(supabase, requestRow.product_id);
-      if (!session || session.payment_request_id !== requestRow.id) {
-        return res.status(409).json({
-          message: 'Ask the seller to open Receive first.',
-          code: 'RECEIVE_SESSION_REQUIRED',
-        });
-      }
+    const intentId = String(req.body?.paymentIntentId || requestRow.payment_intent_id || '');
+    if (!intentId.startsWith('pi_')) {
+      return res.status(409).json({ message: 'Payment is not complete yet' });
     }
 
-    const product = await fetchProduct(supabase, requestRow.product_id);
-    if (!product || product.is_sold) {
-      return res.status(400).json({ message: 'This item is no longer available' });
+    // Never trust the app's word that it paid: ask Stripe, and make sure the
+    // PaymentIntent belongs to this request.
+    const intent = await stripe.getStripe().paymentIntents.retrieve(intentId);
+    if (intent.metadata?.popup_payment_request_id !== requestRow.id) {
+      return res.status(400).json({ message: 'Payment does not match this request' });
     }
-    const amountCents = Math.round(Number(product.price) * 100);
-    if (!Number.isFinite(amountCents) || amountCents < 50) {
-      return res.status(400).json({ message: 'Invalid listing price' });
+    if (intent.status === 'processing') {
+      return res.status(202).json({ message: 'Payment is processing', status: 'processing', provider: 'stripe' });
     }
-
-    let payment;
-    if (nonce) {
-      payment = await square.createPlatformPayment({
-        sourceId: nonce,
-        amountCents,
-        referenceId: requestRow.id,
-        note: 'popup meetup',
-        // Idempotent: same request + nonce path cannot double-charge.
-        idempotencyKey: `${requestRow.id}:nonce`,
-      });
-    } else {
-      const paymentId = squarePaymentId || requestRow.square_payment_id;
-      if (!paymentId) {
-        return res.status(409).json({ message: 'Payment is not complete yet' });
-      }
-      payment = await square.retrievePlatformPayment(paymentId);
+    if (intent.status !== 'succeeded') {
+      return res.status(409).json({ message: 'Payment is not complete yet', status: intent.status });
     }
-
-    if (payment.status !== 'COMPLETED') {
-      return res.status(409).json({
-        message: 'Payment is not complete yet',
-        status: payment.status,
-      });
-    }
-
-    // Keep wallet credit aligned with DB listing price, not client.
-    const fulfillRow = { ...requestRow, amount_cents: amountCents };
 
     await fulfillMeetupPayment({
-      requestRow: fulfillRow,
+      requestRow,
+      chargedCents: intent.amount_received || intent.amount,
       productId: requestRow.product_id,
       sellerId: requestRow.seller_id,
-      buyerId: isBuyer || nonce ? req.user.id : requestRow.buyer_id,
-      paymentId: payment.id,
-      sessionId: session?.id || null,
+      buyerId: intent.metadata?.popup_buyer_id || requestRow.buyer_id,
+      paymentId: intent.id,
     });
-    res.json({ message: 'Payment confirmed', status: 'paid', provider: 'square' });
+    res.json({ message: 'Payment confirmed', status: 'paid', provider: 'stripe' });
   } catch (error) {
     console.error('Meetup confirm error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });

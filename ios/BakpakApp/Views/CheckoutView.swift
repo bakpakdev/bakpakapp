@@ -15,7 +15,7 @@ struct CheckoutView: View {
             }
             Section {
                 Button {
-                    // Hook to POST /orders. Square checkout can be attached here.
+                    // Hook to POST /orders. Meetup checkout uses PaymentSheetPresenter (Stripe).
                 } label: {
                     Text("Place Order")
                         .font(Theme.syne(16, weight: .bold))

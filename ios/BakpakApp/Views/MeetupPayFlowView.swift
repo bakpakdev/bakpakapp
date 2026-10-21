@@ -47,7 +47,7 @@ struct MeetupPayFlowView: View {
     @StateObject private var paymentPresenter = PaymentSheetPresenter()
 
     private var canUseApplePayUI: Bool {
-        SquareConfig.isApplePayConfigured
+        PaymentsConfig.isApplePayConfigured
     }
 
     private let paymentService = MeetupPaymentService.shared
@@ -98,6 +98,30 @@ struct MeetupPayFlowView: View {
         return priceLabel ?? "$—"
     }
 
+    private func moneyLabel(cents: Int) -> String {
+        let dollars = Double(cents) / 100
+        if dollars.rounded() == dollars { return "$\(Int(dollars))" }
+        return String(format: "$%.2f", dollars)
+    }
+
+    /// What the buyer pays: the price plus popup's service fee.
+    private var buyerTotalLabel: String {
+        if let total = activeSession?.totalCents { return moneyLabel(cents: total) }
+        return sessionAmountLabel
+    }
+
+    /// "$25 + $2.50 service fee" under the buyer's total.
+    private var buyerFeeLine: String? {
+        guard let fee = activeSession?.serviceFeeCents, fee > 0 else { return nil }
+        return "\(sessionAmountLabel) + \(moneyLabel(cents: fee)) service fee"
+    }
+
+    /// Under the seller's amount: they keep the whole price.
+    private var sellerNetLine: String? {
+        guard activeSession?.serviceFeeCents != nil else { return nil }
+        return "You get the full \(sessionAmountLabel). The buyer pays popup’s service fee on top."
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             CampusPageBackground()
@@ -138,7 +162,7 @@ struct MeetupPayFlowView: View {
         .overlay {
             if showBuyerSentAnimation {
                 BuyerSentOverlay(
-                    amountLabel: sessionAmountLabel,
+                    amountLabel: buyerTotalLabel,
                     onContinue: {
                         withAnimation(.easeInOut(duration: 0.25)) {
                             showBuyerSentAnimation = false
@@ -317,6 +341,12 @@ struct MeetupPayFlowView: View {
                         .foregroundStyle(campusTheme.textMuted)
                         .multilineTextAlignment(.center)
                 }
+                if let sellerNetLine {
+                    Text(sellerNetLine)
+                        .font(Theme.syne(13, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .multilineTextAlignment(.center)
+                }
                 if activeSession?.status == "waiting" {
                     ProgressView()
                         .padding(.top, 8)
@@ -378,10 +408,15 @@ struct MeetupPayFlowView: View {
                 .padding(.top, -8)
 
             VStack(spacing: 8) {
-                Text(sessionAmountLabel)
+                Text(buyerTotalLabel)
                     .font(Theme.syne(48, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .frame(maxWidth: .infinity)
+                if let buyerFeeLine {
+                    Text(buyerFeeLine)
+                        .font(Theme.syne(13, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
                 if let title = item.productTitle, !title.isEmpty {
                     Text(title)
                         .font(Theme.syne(15, weight: .medium))
@@ -445,7 +480,7 @@ struct MeetupPayFlowView: View {
 
             Text(paymentConfirmed
                  ? "Payment went through — tap Continue."
-                 : "Payment must succeed in Square before you can finish.")
+                 : "Payment must go through before you can finish.")
                 .font(Theme.syne(13, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, 4)
@@ -559,16 +594,21 @@ struct MeetupPayFlowView: View {
                 Text(
                     canUseApplePayUI
                         ? "Pay securely on your phone. The seller gets paid in popup."
-                        : "Enter a card to pay. Sandbox test cards work while Square is in sandbox."
+                        : "Enter a card to pay. The seller gets paid in popup."
                 )
                     .font(Theme.syne(15))
                     .foregroundStyle(campusTheme.textMuted)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 8)
 
-                Text(sessionAmountLabel)
+                Text(buyerTotalLabel)
                     .font(Theme.syne(36, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
+                if let buyerFeeLine {
+                    Text(buyerFeeLine)
+                        .font(Theme.syne(13, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
 
                 Spacer()
 
@@ -718,7 +758,7 @@ struct MeetupPayFlowView: View {
             paymentError = "This meetup isn’t linked to a listing."
             return
         }
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = PaymentsConfig.userFacingBlocker {
             paymentError = blocker
             return
         }
@@ -752,7 +792,7 @@ struct MeetupPayFlowView: View {
     }
 
     private func startBuyerPay() async {
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = PaymentsConfig.userFacingBlocker {
             paymentError = blocker
             return
         }
@@ -782,7 +822,7 @@ struct MeetupPayFlowView: View {
     }
 
     private func presentBuyerCheckout() async {
-        if let blocker = SquareConfig.userFacingBlocker {
+        if let blocker = PaymentsConfig.userFacingBlocker {
             paymentError = blocker
             return
         }

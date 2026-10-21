@@ -24,7 +24,7 @@ const app = express();
 const server = http.createServer(app);
 
 // Register health BEFORE any other route requires so Render/load balancers still
-// get a 200 even if Prisma/Square/etc fail to boot.
+// get a 200 even if Prisma/Stripe/etc fail to boot.
 app.get('/api/health', (_req, res) => {
   res.status(200).json({ status: 'OK', message: 'popup API is running' });
 });
@@ -48,12 +48,12 @@ let routesReady = false;
 let bootError = null;
 
 try {
-  // Square webhooks must receive raw body (register before express.json()).
-  const { squareWebhookHandler } = require('./routes/square');
+  // Stripe webhooks must receive the raw body to verify the signature (register before express.json()).
+  const { stripeWebhookHandler } = require('./routes/stripeConnect');
   app.post(
-    '/api/payments/square/webhook',
+    '/api/payments/webhook',
     express.raw({ type: 'application/json' }),
-    squareWebhookHandler
+    stripeWebhookHandler
   );
 
   // Middleware
@@ -92,7 +92,7 @@ try {
   app.use('/api/cart', require('./routes/cart'));
   app.use('/api/social', require('./routes/social'));
   app.use('/api/payments', require('./routes/payments'));
-  app.use('/api/payments/square', require('./routes/square'));
+  app.use('/api/payments/stripe', require('./routes/stripeConnect'));
   app.use('/api/identify-clothing', require('./routes/identify'));
 
   app.get('/u/:username', (req, res) => {
