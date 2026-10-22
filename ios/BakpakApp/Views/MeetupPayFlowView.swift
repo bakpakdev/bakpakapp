@@ -524,7 +524,7 @@ struct MeetupPayFlowView: View {
 
             Text(isCollecting
                  ? "Payment received. Finish to close out this meetup."
-                 : "Your Apple Pay charge went through. Finish to close out this meetup.")
+                 : "Your payment went through. Finish to close out this meetup.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, -8)
@@ -955,7 +955,8 @@ struct MeetupPayFlowView: View {
         guard !paymentConfirmed else { return }
         paymentConfirmed = true
         activeSession = session
-        selectedMethod = "Apple Pay"
+        // Stripe's sheet also offers card, Link, and bank; we don't know which was used, so hide the row.
+        selectedMethod = nil
         Motion.haptic(.medium)
         if isCollecting {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) {

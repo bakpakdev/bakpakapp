@@ -739,7 +739,7 @@ struct SearchView: View {
                 sectionTitle(resultsTitle)
                     .lineLimit(1)
                 Spacer()
-                Text("\(filteredProducts.count) items")
+                Text(filteredProducts.count == 1 ? "1 item" : "\(filteredProducts.count) items")
                     .font(Theme.syne(12, weight: .semibold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .padding(.horizontal, 12)
