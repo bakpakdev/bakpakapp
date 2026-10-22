@@ -297,7 +297,7 @@ struct EditListingView: View {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 13))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
                 Text(title)
                     .font(Theme.syne(13, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
@@ -352,7 +352,7 @@ struct EditListingView: View {
                 Button(action: onAdd) {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                         .frame(width: 40, height: 40)
                         .background(campusTheme.surface)
                         .clipShape(Circle())
@@ -512,7 +512,7 @@ private struct EditBrandPickerSheet: View {
                                 Spacer()
                                 if selectedBrand == brand {
                                     Image(systemName: "checkmark")
-                                        .foregroundStyle(campusTheme.primary)
+                                        .foregroundStyle(campusTheme.tint)
                                 }
                             }
                             .padding(.horizontal, 20)

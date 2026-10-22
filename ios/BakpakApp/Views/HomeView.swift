@@ -401,7 +401,7 @@ struct HomeView: View {
                 Text(campusTheme.shortName)
                     .font(Theme.syne(13, weight: .black))
                     .tracking(0.6)
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
             }
             .frame(width: 52, height: 52)
             .background(campusTheme.surface)

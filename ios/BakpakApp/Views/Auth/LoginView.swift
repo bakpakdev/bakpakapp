@@ -119,6 +119,8 @@ struct PopupLanding: View {
                     }
 
                     Button {
+                        // Don't carry a failed sign-in error onto the register screen.
+                        authVM.errorMessage = nil
                         showRegister = true
                     } label: {
                         Text("Need an account? Register")
@@ -179,7 +181,10 @@ struct LoginTwoFactorView: View {
                     border: PopupBrand.border,
                     accent: PopupBrand.textPrimary
                 )
-                .onChange(of: code) { _ in authVM.errorMessage = nil }
+                // Clearing the field after a wrong code must not wipe the error it just set.
+                .onChange(of: code) { value in
+                    if !value.isEmpty { authVM.errorMessage = nil }
+                }
 
                 AuthPrimaryButton {
                     Task { await submit() }

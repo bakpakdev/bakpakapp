@@ -51,7 +51,7 @@ struct MainTabView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .navigationBarHidden(true)
         .hidesSystemNavigationBar(true)
-        .tint(campusTheme.primary)
+        .tint(campusTheme.tint)
         .preferredColorScheme(campusTheme.isDark ? .dark : .light)
         .onAppear {
             CampusAppearance.apply(campusTheme)

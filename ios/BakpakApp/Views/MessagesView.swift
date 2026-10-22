@@ -237,7 +237,7 @@ struct MessageBubbleView: View {
                     Text("offer")
                         .font(Theme.syne(11, weight: .bold))
                 }
-                .foregroundStyle(campusTheme.primary)
+                .foregroundStyle(campusTheme.tint)
 
                 if let listing {
                     Button {
@@ -365,7 +365,7 @@ struct MessageBubbleView: View {
                             : String(format: "$%.2f", listing.price)
                     )
                         .font(Theme.syne(13, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                 }
             }
             Spacer(minLength: 0)
@@ -630,7 +630,9 @@ struct MessagesView: View {
                 .font(Theme.syne(17, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text(searchTerm.isEmpty
-                 ? "Message a seller about a find and it’ll show up here."
+                 ? (activeTab == "selling"
+                    ? "When a buyer messages you about a listing, it’ll show up here."
+                    : "Message a seller about a find and it’ll show up here.")
                  : "Try another name or listing.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
@@ -658,7 +660,7 @@ struct MessagesView: View {
                     } label: {
                         Text("see all")
                             .font(Theme.syne(13, weight: .bold))
-                            .foregroundStyle(campusTheme.primary)
+                            .foregroundStyle(campusTheme.tint)
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                 }
@@ -702,7 +704,7 @@ struct MessagesView: View {
                     HStack(spacing: 12) {
                         Image(systemName: "clock.arrow.circlepath")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(campusTheme.primary)
+                            .foregroundStyle(campusTheme.tint)
                             .frame(width: 42, height: 42)
                             .background(campusTheme.primary.opacity(0.12))
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -792,7 +794,7 @@ private struct PastMeetupsSheet: View {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text(pastStatusLabel(for: meetup))
                                         .font(Theme.syne(11, weight: .bold))
-                                        .foregroundStyle(campusTheme.primary)
+                                        .foregroundStyle(campusTheme.tint)
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 5)
                                         .background(campusTheme.primary.opacity(0.12))

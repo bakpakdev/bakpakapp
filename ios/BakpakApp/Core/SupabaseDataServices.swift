@@ -983,6 +983,15 @@ enum SupabaseListingService {
 // MARK: - Profile update
 
 enum SupabaseProfileService {
+    /// Turns Postgres errors from a profile save into something a student can act on.
+    static func friendlySaveError(_ error: Error) -> String {
+        let text = String(describing: error).lowercased() + " " + error.localizedDescription.lowercased()
+        if text.contains("profiles_username_key") || (text.contains("duplicate key") && text.contains("username")) {
+            return "That username is taken. Try another one."
+        }
+        return error.localizedDescription
+    }
+
     struct ProfileUpdate: Encodable {
         var username: String?
         var first_name: String?

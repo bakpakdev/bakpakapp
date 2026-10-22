@@ -143,7 +143,7 @@ struct SellerCashOutSetupView: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(campusTheme.primary)
+                .foregroundStyle(campusTheme.tint)
                 .frame(width: 36, height: 36)
                 .background(campusTheme.primary.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))

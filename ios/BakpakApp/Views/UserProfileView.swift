@@ -267,7 +267,7 @@ struct UserProfileView: View {
                     if user?.isVerified == true {
                         Image(systemName: "checkmark.seal.fill")
                             .font(.system(size: 18))
-                            .foregroundStyle(campusTheme.primary)
+                            .foregroundStyle(campusTheme.tint)
                             .background(Circle().fill(campusTheme.surface).padding(-2))
                             .offset(x: 4, y: 4)
                     }

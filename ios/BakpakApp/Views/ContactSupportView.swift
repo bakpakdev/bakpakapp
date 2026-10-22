@@ -105,7 +105,7 @@ struct ContactSupportView: View {
                 if didSend {
                     Text("Message ready — thanks for reaching out.")
                         .font(Theme.syne(14, weight: .semibold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                 }
 
                 Button {

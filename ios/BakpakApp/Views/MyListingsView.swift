@@ -101,7 +101,7 @@ struct MyListingsView: View {
                         } else {
                             Text("$\(Int(product.price))")
                                 .font(Theme.syne(14, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
+                                .foregroundStyle(campusTheme.tint)
                         }
                     }
                     Spacer(minLength: 0)

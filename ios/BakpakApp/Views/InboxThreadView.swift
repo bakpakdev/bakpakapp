@@ -183,7 +183,7 @@ struct InboxThreadView: View {
                             if headerChat?.participant.isVerified == true {
                                 Image(systemName: "checkmark.seal.fill")
                                     .font(.system(size: 12))
-                                    .foregroundStyle(campusTheme.primary)
+                                    .foregroundStyle(campusTheme.tint)
                             }
                         }
                     }
@@ -480,7 +480,7 @@ struct InboxThreadView: View {
         Button(action: action) {
             Label(title, systemImage: icon)
                 .font(Theme.syne(12, weight: .semibold))
-                .foregroundStyle(campusTheme.primary)
+                .foregroundStyle(campusTheme.tint)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(campusTheme.primary.opacity(0.1))
@@ -935,7 +935,7 @@ struct InboxThreadView: View {
                                     if listing.price > 0 {
                                         Text(String(format: "$%.2f", listing.price))
                                             .font(Theme.syne(13, weight: .bold))
-                                            .foregroundStyle(campusTheme.primary)
+                                            .foregroundStyle(campusTheme.tint)
                                     }
                                 }
                                 Spacer(minLength: 0)
@@ -1047,7 +1047,7 @@ struct InboxThreadView: View {
             HStack(spacing: 8) {
                 Text("$")
                     .font(Theme.syne(28, weight: .bold))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
                 MoneyCentsField(text: $offerDraft, fontSize: 28, textColor: campusTheme.textPrimary)
                     .frame(height: 36)
                     .onChange(of: offerDraft) { value in

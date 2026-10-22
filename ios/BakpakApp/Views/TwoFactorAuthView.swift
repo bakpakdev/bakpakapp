@@ -83,7 +83,7 @@ struct TwoFactorAuthView: View {
 
     private var headerSubtitle: String {
         if enabled { return "Passwords authenticator is on" }
-        return enrollment == nil ? "protect sign in and cash outs" : "add popup in Passwords, then enter the code"
+        return enrollment == nil ? "protect sign in and cash outs" : "add the key, then verify"
     }
 
     private var primaryTitle: String {
@@ -168,6 +168,29 @@ struct TwoFactorAuthView: View {
                     .clipShape(Capsule())
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+
+            // Fallback for other authenticator apps, or when Passwords doesn't open.
+            if let secret = enrollment?.secret, !secret.isEmpty {
+                Button {
+                    UIPasteboard.general.string = secret
+                    Motion.haptic(.light)
+                    infoMessage = "Setup key copied. Paste it into your authenticator app."
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("or copy the setup key")
+                            .font(Theme.syne(12, weight: .semibold))
+                            .foregroundStyle(campusTheme.textMuted)
+                        Text(secret)
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
+                            .foregroundStyle(campusTheme.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Copy setup key")
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -187,7 +210,10 @@ struct TwoFactorAuthView: View {
             OneTimeCodeField(code: $code, isFocused: $codeFocused) {
                 Task { await verifyEnrollment() }
             }
-            .onChange(of: code) { _ in errorMessage = nil }
+            // Clearing the field after a wrong code must not wipe the error it just set.
+            .onChange(of: code) { value in
+                if !value.isEmpty { errorMessage = nil }
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -329,7 +355,7 @@ struct TwoFactorAuthView: View {
         guard let url = URL(string: uri) else { return }
         let opened = await UIApplication.shared.open(url)
         if !opened {
-            infoMessage = "Passwords didn’t open. Open the Passwords app, add a verification code for popup, then come back."
+            infoMessage = "Passwords didn’t open. Copy the setup key above into your authenticator app, then come back."
         }
     }
 
@@ -430,7 +456,10 @@ struct PayoutCodeSheet: View {
             OneTimeCodeField(code: $code, isFocused: $codeFocused) {
                 Task { await verify() }
             }
-            .onChange(of: code) { _ in errorMessage = nil }
+            // Clearing the field after a wrong code must not wipe the error it just set.
+            .onChange(of: code) { value in
+                if !value.isEmpty { errorMessage = nil }
+            }
 
             if let errorMessage {
                 Text(errorMessage)

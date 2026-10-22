@@ -299,7 +299,7 @@ struct MeetupDetailView: View {
                         if let price = meetupStore.priceLabel(for: meetup) {
                             Text(price)
                                 .font(Theme.syne(13, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
+                                .foregroundStyle(campusTheme.tint)
                         }
                     }
                     Spacer(minLength: 0)
@@ -308,19 +308,26 @@ struct MeetupDetailView: View {
 
             if meetup.ticksRelativeTime {
                 TimelineView(.periodic(from: .now, by: 30)) { context in
-                    Label(meetup.relativeTimeLabel(now: context.date), systemImage: "clock")
+                    Label(Self.timeLine(for: meetup, now: context.date), systemImage: "clock")
                         .font(Theme.syne(14, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                 }
             } else {
-                Label(meetup.relativeTimeLabel(), systemImage: "clock")
+                Label(Self.timeLine(for: meetup, now: Date()), systemImage: "clock")
                     .font(Theme.syne(14, weight: .bold))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(CampusCardBackground(cornerRadius: 18))
+    }
+
+    /// Countdown plus the clock time ("in 56m · today 4:30pm") so people know when to show up.
+    private static func timeLine(for meetup: Meetup, now: Date) -> String {
+        let relative = meetup.relativeTimeLabel(now: now)
+        let absolute = meetup.absoluteTimeLabel(now: now)
+        return relative == absolute ? absolute : "\(relative) · \(absolute)"
     }
 
     private func listingThumb(_ listing: MeetupListingPreview) -> some View {

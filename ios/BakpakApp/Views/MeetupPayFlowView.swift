@@ -483,7 +483,7 @@ struct MeetupPayFlowView: View {
             } else {
                 HStack(spacing: 10) {
                     Image(systemName: "person.wave.2")
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                     Text(sessionHint ?? "Ask the seller to open Receive first.")
                         .font(Theme.syne(14, weight: .medium))
                         .foregroundStyle(campusTheme.textPrimary)

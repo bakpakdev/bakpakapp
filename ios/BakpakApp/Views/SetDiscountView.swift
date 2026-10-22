@@ -163,7 +163,7 @@ struct SetDiscountView: View {
             HStack(spacing: 8) {
                 Text("$")
                     .font(Theme.syne(24, weight: .bold))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
                 MoneyCentsField(text: $customPriceText, fontSize: 24, textColor: campusTheme.textPrimary)
                     .frame(height: 30)
                     .onChange(of: customPriceText) { value in
@@ -208,7 +208,7 @@ struct SetDiscountView: View {
             if valid, let pct = effectivePercent {
                 Text("\(pct)% off")
                     .font(Theme.syne(13, weight: .bold))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(campusTheme.primary.opacity(0.12))
@@ -343,7 +343,7 @@ struct ListingSummaryCard: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("$\(product.price.rounded() == product.price ? String(Int(product.price)) : String(format: "%.2f", product.price))")
                         .font(Theme.syne(18, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                     if product.hasDiscount, let original = product.originalPrice {
                         Text("$\(Int(original))")
                             .font(Theme.syne(13, weight: .semibold))

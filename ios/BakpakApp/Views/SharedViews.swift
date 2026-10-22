@@ -126,7 +126,7 @@ struct ProductCardView: View {
                 } else {
                     Text("$\(Int(product.price))")
                         .font(.subheadline)
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                 }
                 Text(product.category ?? "")
                     .font(.caption)

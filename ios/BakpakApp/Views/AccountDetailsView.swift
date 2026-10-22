@@ -75,7 +75,7 @@ struct AccountDetailsView: View {
                                 HStack(spacing: 4) {
                                     Text("Manage")
                                         .font(Theme.syne(15, weight: .medium))
-                                        .foregroundStyle(campusTheme.primary)
+                                        .foregroundStyle(campusTheme.tint)
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 11, weight: .semibold))
                                         .foregroundStyle(campusTheme.textMuted)
@@ -106,7 +106,7 @@ struct AccountDetailsView: View {
                                 HStack(spacing: 4) {
                                     Text(graduationLabel)
                                         .font(Theme.syne(15, weight: .medium))
-                                        .foregroundStyle(campusTheme.primary)
+                                        .foregroundStyle(campusTheme.tint)
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 11, weight: .semibold))
                                         .foregroundStyle(campusTheme.textMuted)
@@ -336,7 +336,7 @@ struct AccountDetailsView: View {
                     showGraduationPicker = false
                 }
                 .font(Theme.syne(15, weight: .bold))
-                .foregroundStyle(campusTheme.primary)
+                .foregroundStyle(campusTheme.tint)
             }
             .padding(.horizontal, 20)
             .padding(.top, 18)

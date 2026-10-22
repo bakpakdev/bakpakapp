@@ -389,6 +389,13 @@ final class AuthViewModel: ObservableObject {
             errorMessage = nil
             return true
         } catch {
+            // The API refused the signup (bad email, taken username, server down), so no
+            // email went out. Leave the verify gate, or the next launch opens on a
+            // "We sent a link" screen for an account that was never created.
+            isAwaitingEmailVerification = false
+            pendingSignupEmail = nil
+            pendingTempPassword = nil
+            persistSignupGate()
             errorMessage = friendlyAuthError(error)
             return false
         }

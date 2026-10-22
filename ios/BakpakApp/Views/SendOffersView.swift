@@ -119,7 +119,7 @@ struct SendOffersView: View {
                 } label: {
                     Text(selected.count == buyers.count ? "Clear" : "Select all")
                         .font(Theme.syne(13, weight: .semibold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)
                         .background(campusTheme.primary.opacity(0.12))
@@ -157,7 +157,7 @@ struct SendOffersView: View {
                             campusTheme.elevatedSurface
                             Text(String(name.replacingOccurrences(of: "@", with: "").prefix(1)).uppercased())
                                 .font(Theme.syne(15, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
+                                .foregroundStyle(campusTheme.tint)
                         }
                     }
                     .frame(width: 42, height: 42)
@@ -231,7 +231,7 @@ struct SendOffersView: View {
             HStack(spacing: 8) {
                 Text("$")
                     .font(Theme.syne(22, weight: .bold))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
                 MoneyCentsField(text: $customAmountText, fontSize: 22, textColor: campusTheme.textPrimary, floorAtZero: true)
                     .frame(height: 28)
                     .onChange(of: customAmountText) { value in
@@ -277,7 +277,7 @@ struct SendOffersView: View {
             if valid, savings > 0.5 {
                 Text("$\(formatted(savings)) off")
                     .font(Theme.syne(13, weight: .bold))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(campusTheme.primary.opacity(0.12))
@@ -322,7 +322,7 @@ struct SendOffersView: View {
             VStack(spacing: 20) {
                 Image(systemName: "paperplane.fill")
                     .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
                     .frame(width: 56, height: 56)
                     .background(campusTheme.primary.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))

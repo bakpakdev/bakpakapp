@@ -87,7 +87,7 @@ struct MessagedItemsView: View {
                     } else {
                         Text("$\(Int(item.price))")
                             .font(Theme.syne(15, weight: .bold))
-                            .foregroundStyle(campusTheme.primary)
+                            .foregroundStyle(campusTheme.tint)
                     }
                 }
 

@@ -12,7 +12,7 @@ struct ReviewStars: View {
             ForEach(1...5, id: \.self) { index in
                 Image(systemName: symbol(for: index))
                     .font(.system(size: size, weight: .semibold))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
             }
         }
         .accessibilityElement(children: .ignore)

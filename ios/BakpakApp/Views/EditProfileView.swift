@@ -849,7 +849,7 @@ struct EditProfileView: View {
                 authVM.user = updated
                 dismiss()
             } catch {
-                saveErrorMessage = error.localizedDescription
+                saveErrorMessage = SupabaseProfileService.friendlySaveError(error)
                 showSaveError = true
             }
             return

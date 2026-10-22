@@ -292,7 +292,7 @@ struct IdentifyClothingView: View {
         VStack(spacing: 16) {
             Image(systemName: "camera.viewfinder")
                 .font(.system(size: 38, weight: .medium))
-                .foregroundStyle(campusTheme.primary)
+                .foregroundStyle(campusTheme.tint)
                 .frame(width: 104, height: 104)
                 .background(Circle().fill(campusTheme.elevatedSurface))
                 .padding(.top, 10)
@@ -430,7 +430,7 @@ struct IdentifyClothingView: View {
                                 Link(destination: url) {
                                     Text(url.host ?? url.absoluteString)
                                         .font(Theme.syne(13, weight: .semibold))
-                                        .foregroundStyle(campusTheme.primary)
+                                        .foregroundStyle(campusTheme.tint)
                                         .lineLimit(1)
                                 }
                             }
@@ -563,7 +563,7 @@ struct IdentifyClothingView: View {
                 } label: {
                     Text("Edit")
                         .font(Theme.syne(12, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                         .padding(.horizontal, 14)
                         .frame(height: 32)
                         .background(campusTheme.elevatedSurface)
@@ -647,7 +647,7 @@ struct IdentifyClothingView: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(campusTheme.primary)
+                .foregroundStyle(campusTheme.tint)
             Text(text)
                 .font(Theme.syne(13))
                 .foregroundStyle(campusTheme.textMuted)

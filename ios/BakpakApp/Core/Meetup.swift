@@ -249,6 +249,8 @@ struct Meetup: Codable, Identifiable, Hashable {
 
     func relativeTimeLabel(now: Date = Date()) -> String {
         if status == .confirmed && isLive { return "now" }
+        // A countdown ("in 55m") on a canceled or finished meetup reads as if it's still on.
+        if status.isTerminal { return absoluteTimeLabel(now: now) }
         let interval = scheduledAt.timeIntervalSince(now)
         if abs(interval) < 90 { return "now" }
         if interval > 0 && interval < 24 * 60 * 60 {
@@ -265,8 +267,14 @@ struct Meetup: Codable, Identifiable, Hashable {
             if h > 0 { return "\(h)h \(m)m ago" }
             return "\(max(m, 1))m ago"
         }
+        return absoluteTimeLabel(now: now)
+    }
+
+    /// "today 4:30pm", "tomorrow 4:30pm", "oct 22 4:30pm".
+    func absoluteTimeLabel(now: Date = Date()) -> String {
         let cal = Calendar.current
         let time = Self.clockString(from: scheduledAt)
+        if cal.isDate(scheduledAt, inSameDayAs: now) { return "today \(time)" }
         if cal.isDateInTomorrow(scheduledAt) { return "tomorrow \(time)" }
         if cal.isDateInYesterday(scheduledAt) { return "yesterday \(time)" }
         let day = DateFormatter()
