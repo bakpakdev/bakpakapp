@@ -154,7 +154,14 @@ enum SupabaseSocialService {
 // MARK: - Messages
 
 enum SupabaseMessageService {
-    static func openOrCreateConversation(client: SupabaseClient, otherUserId: String, productId: String?) async throws -> String {
+    /// `honorPrivacy` = refuse a brand-new chat when the other person turned off
+    /// "Allow new messages". An accepted meetup passes false: both sides already agreed.
+    static func openOrCreateConversation(
+        client: SupabaseClient,
+        otherUserId: String,
+        productId: String?,
+        honorPrivacy: Bool = true
+    ) async throws -> String {
         let myId = try await client.auth.session.user.id.uuidString.lowercased()
         let otherId = otherUserId.lowercased()
         guard myId != otherId else { throw SupabaseDataError.notFound }
@@ -174,6 +181,12 @@ enum SupabaseMessageService {
                     .execute()
             }
             return existing
+        }
+
+        if honorPrivacy,
+           let privacy = try? await ProfilePrivacyService.fetch(client: client, userId: otherId),
+           !privacy.allowNewMessages {
+            throw ProfilePrivacyError.notAcceptingMessages
         }
 
         struct Params: Encodable {

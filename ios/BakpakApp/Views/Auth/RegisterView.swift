@@ -151,6 +151,14 @@ struct RegisterView: View {
 
             Spacer(minLength: 24)
 
+            // Shown where the account is created (email step sends the signup request).
+            if step == .email || step == .password {
+                LegalAgreementText()
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 8)
+            }
+
             Text("Step \(step.rawValue) of \(RegisterStep.allCases.count)")
                 .font(Theme.syne(12, weight: .medium))
                 .foregroundStyle(PopupBrand.textMuted)

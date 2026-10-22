@@ -73,9 +73,15 @@ struct HelpSupportView: View {
                             }
                             .buttonStyle(.plain)
                             divider
-                            navLabel(icon: "doc.text", title: "Community guidelines", subtitle: "Be decent. No scams, hate, or off-campus pickups.")
+                            Link(destination: LegalLinks.terms) {
+                                navLabel(icon: "doc.text", title: "Terms & community rules", subtitle: "Be decent. No scams, hate, or off-campus pickups.")
+                            }
+                            .buttonStyle(.plain)
                             divider
-                            navLabel(icon: "lock.doc", title: "Privacy", subtitle: "We use your campus email to keep listings on campus. We don’t sell your data.")
+                            Link(destination: LegalLinks.privacy) {
+                                navLabel(icon: "lock.doc", title: "Privacy Policy", subtitle: "We use your campus email to keep listings on campus. We don’t sell your data.")
+                            }
+                            .buttonStyle(.plain)
                         }
                         .background(CampusCardBackground())
                     }

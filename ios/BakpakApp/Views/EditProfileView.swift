@@ -369,11 +369,9 @@ struct EditProfileView: View {
 
                     EditProfileSectionHeader(title: "Preferences", subtitle: "Control what appears on your profile")
                     EditProfileCard {
-                        EditProfileRow(label: "Open to Trades") {
+                        // School badge visibility lives in Settings → Privacy, where it's saved for other students.
+                        EditProfileRow(label: "Open to Trades", showDivider: false) {
                             EditProfileIOSSwitch(isOn: $isTradesOpen)
-                        }
-                        EditProfileRow(label: "Show School Badge", showDivider: false) {
-                            EditProfileIOSSwitch(isOn: $showBadge)
                         }
                     }
 

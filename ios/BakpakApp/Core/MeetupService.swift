@@ -443,7 +443,8 @@ enum MeetupService {
         let conversationId = try await SupabaseMessageService.openOrCreateConversation(
             client: client,
             otherUserId: other,
-            productId: meetup.productId
+            productId: meetup.productId,
+            honorPrivacy: false
         )
 
         struct Patch: Encodable { let conversation_id: String }
