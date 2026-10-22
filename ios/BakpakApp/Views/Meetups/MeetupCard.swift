@@ -124,12 +124,12 @@ struct MeetupCard: View {
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 Text(meetup.relativeTimeLabel(now: context.date))
                     .font(Theme.syne(22, weight: .bold))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
             }
         } else {
             Text(meetup.relativeTimeLabel())
                 .font(Theme.syne(22, weight: .bold))
-                .foregroundStyle(campusTheme.primary)
+                .foregroundStyle(campusTheme.tint)
         }
     }
 

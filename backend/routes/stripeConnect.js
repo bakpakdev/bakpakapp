@@ -37,19 +37,7 @@ async function loadSellerProfile(supabase, userId) {
   return data;
 }
 
-async function retrieveAccount(accountId) {
-  if (!accountId) return null;
-  try {
-    return await stripe.getStripe().accounts.retrieve(accountId);
-  } catch (err) {
-    // Account deleted in the Stripe dashboard or created with other keys (test vs live).
-    if (err?.code === 'account_invalid' || err?.statusCode === 404 || err?.type === 'StripePermissionError') {
-      console.warn('Stripe account not reachable:', accountId, err.message);
-      return null;
-    }
-    throw err;
-  }
-}
+const retrieveAccount = stripe.retrieveAccount;
 
 async function ensureAccount(supabase, user) {
   const profile = await loadSellerProfile(supabase, user.id);
@@ -71,6 +59,90 @@ async function ensureAccount(supabase, user) {
   return account;
 }
 
+/**
+ * Moves `amountCents` of the seller's popup balance to their Express account with
+ * a Transfer, recorded in seller_payouts. Returns null if the balance changed
+ * underneath us; on a Stripe error the balance is put back and the error rethrown.
+ */
+async function sendBalanceToStripe(supabase, balance, accountId, amountCents, description) {
+  const sellerId = balance.seller_id;
+  const reserved = await reserveForPayout(supabase, balance, amountCents);
+  if (!reserved) return null;
+
+  let payoutRow = null;
+  try {
+    const { data: inserted, error: insertError } = await supabase
+      .from('seller_payouts')
+      .insert({ seller_id: sellerId, amount_cents: amountCents, status: 'pending' })
+      .select('id')
+      .single();
+    if (insertError) throw insertError;
+    payoutRow = inserted;
+
+    const transfer = await stripe.getStripe().transfers.create(
+      {
+        amount: amountCents,
+        currency: 'usd',
+        destination: accountId,
+        description,
+        metadata: { popup_payout_id: payoutRow.id, popup_seller_id: sellerId },
+      },
+      { idempotencyKey: `popup-payout-${payoutRow.id}` }
+    );
+
+    // The transfer lands in the seller's Stripe balance right away; Stripe then
+    // pays it to their bank or debit card on its normal schedule.
+    await supabase
+      .from('seller_payouts')
+      .update({ status: 'paid', stripe_transfer_id: transfer.id, updated_at: new Date().toISOString() })
+      .eq('id', payoutRow.id);
+    return { transfer, balance: reserved };
+  } catch (error) {
+    try {
+      await releasePayout(supabase, sellerId, amountCents);
+      if (payoutRow) {
+        await supabase
+          .from('seller_payouts')
+          .update({
+            status: 'failed',
+            failure_reason: String(error.message || 'Transfer failed').slice(0, 500),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', payoutRow.id);
+      }
+    } catch (releaseError) {
+      console.error('Stripe payout release error (balance needs manual fix):', releaseError);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Once a seller is onboarded, new sales go straight to Stripe, so anything left in
+ * their popup balance (sales from before onboarding) is sent over too. Best effort:
+ * if popup's own Stripe funds are still clearing it stays put and we try again on
+ * the next status check or account update. Returns the new balance, or null.
+ */
+async function sweepBalanceToStripe(supabase, sellerId, account) {
+  if (!stripe.summarizeAccount(account).onboardingComplete) return null;
+  try {
+    const balance = await getOrCreateSellerBalance(supabase, sellerId);
+    const amountCents = balance.available_cents || 0;
+    if (amountCents <= 0) return null;
+    // Skip quietly while popup's funds are still pending, rather than logging a
+    // failed payout in the seller's history on every status check.
+    const platform = await stripe.getStripe().balance.retrieve();
+    const availableUsd = (platform.available || []).find((b) => b.currency === 'usd')?.amount || 0;
+    if (availableUsd < amountCents) return null;
+    const sent = await sendBalanceToStripe(supabase, balance, account.id, amountCents, 'popup balance moved to Stripe');
+    if (sent) console.log(`Swept ${amountCents} cents of popup balance to ${account.id} for seller ${sellerId}`);
+    return sent?.balance || null;
+  } catch (err) {
+    console.warn('Balance sweep to Stripe deferred:', sellerId, err.code || '', err.message);
+    return null;
+  }
+}
+
 function statusPayload(account, balance) {
   return {
     configured: stripe.isStripeConfigured(),
@@ -89,7 +161,10 @@ router.get('/status', protectSupabase, async (req, res) => {
     }
     const profile = await loadSellerProfile(supabase, req.user.id);
     const account = await retrieveAccount(profile?.stripe_account_id);
-    res.json(statusPayload(account, balance));
+    // The app checks status right after Stripe onboarding, so that's when sales
+    // made before onboarding move out of popup's account.
+    const swept = await sweepBalanceToStripe(supabase, req.user.id, account);
+    res.json(statusPayload(account, swept || balance));
   } catch (error) {
     console.error('Stripe status error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -139,8 +214,6 @@ router.post('/dashboard', protectSupabase, requirePayoutMfa, requireStripe, asyn
 
 router.post('/cashout', protectSupabase, requirePayoutMfa, requireStripe, async (req, res) => {
   const supabase = getSupabaseAdmin();
-  let payoutRow = null;
-  let reservedCents = 0;
   try {
     const profile = await loadSellerProfile(supabase, req.user.id);
     const account = await retrieveAccount(profile?.stripe_account_id);
@@ -167,37 +240,11 @@ router.post('/cashout', protectSupabase, requirePayoutMfa, requireStripe, async 
       return res.status(400).json({ message: 'You need at least $1.00 to cash out.' });
     }
 
-    const reserved = await reserveForPayout(supabase, balance, amountCents);
-    if (!reserved) {
+    const sent = await sendBalanceToStripe(supabase, balance, account.id, amountCents, 'popup cash out');
+    if (!sent) {
       return res.status(409).json({ message: 'Your balance just changed. Pull to refresh and try again.' });
     }
-    reservedCents = amountCents;
-
-    const { data: inserted, error: insertError } = await supabase
-      .from('seller_payouts')
-      .insert({ seller_id: req.user.id, amount_cents: amountCents, status: 'pending' })
-      .select('id')
-      .single();
-    if (insertError) throw insertError;
-    payoutRow = inserted;
-
-    const transfer = await stripe.getStripe().transfers.create(
-      {
-        amount: amountCents,
-        currency: 'usd',
-        destination: account.id,
-        description: 'popup cash out',
-        metadata: { popup_payout_id: payoutRow.id, popup_seller_id: req.user.id },
-      },
-      { idempotencyKey: `popup-payout-${payoutRow.id}` }
-    );
-
-    // The transfer lands in the seller's Stripe balance right away; Stripe then
-    // pays it to their bank or debit card on its normal schedule.
-    await supabase
-      .from('seller_payouts')
-      .update({ status: 'paid', stripe_transfer_id: transfer.id, updated_at: new Date().toISOString() })
-      .eq('id', payoutRow.id);
+    const { transfer, balance: reserved } = sent;
 
     res.json({
       requiresOnboarding: false,
@@ -208,23 +255,6 @@ router.post('/cashout', protectSupabase, requirePayoutMfa, requireStripe, async 
     });
   } catch (error) {
     console.error('Stripe cashout error:', error);
-    if (reservedCents > 0) {
-      try {
-        await releasePayout(supabase, req.user.id, reservedCents);
-        if (payoutRow) {
-          await supabase
-            .from('seller_payouts')
-            .update({
-              status: 'failed',
-              failure_reason: String(error.message || 'Transfer failed').slice(0, 500),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', payoutRow.id);
-        }
-      } catch (releaseError) {
-        console.error('Stripe cashout release error (balance needs manual fix):', releaseError);
-      }
-    }
     if (error?.code === 'balance_insufficient') {
       return res.status(409).json({
         code: 'FUNDS_CLEARING',
@@ -276,7 +306,21 @@ async function fulfillFromPaymentIntent(intent) {
     sellerId: requestRow.seller_id,
     buyerId: intent.metadata?.popup_buyer_id || requestRow.buyer_id,
     paymentId: intent.id,
+    paidToAccountId: intent.transfer_data?.destination || null,
   });
+}
+
+/** Connect event: a seller finished (or updated) Stripe onboarding. */
+async function handleAccountUpdated(account) {
+  const supabase = getSupabaseAdmin();
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('stripe_account_id', account.id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!profile) return;
+  await sweepBalanceToStripe(supabase, profile.id, account);
 }
 
 async function handleTransferReversed(transfer) {
@@ -317,6 +361,9 @@ async function stripeWebhookHandler(req, res) {
         break;
       case 'transfer.reversed':
         await handleTransferReversed(event.data.object);
+        break;
+      case 'account.updated':
+        await handleAccountUpdated(event.data.object);
         break;
       case 'charge.refunded':
       case 'charge.dispute.created':

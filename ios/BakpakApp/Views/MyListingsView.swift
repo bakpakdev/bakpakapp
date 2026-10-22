@@ -99,9 +99,9 @@ struct MyListingsView: View {
                                 .font(Theme.syne(14, weight: .bold))
                                 .foregroundStyle(Color(hex: "#E11D48"))
                         } else {
-                            Text("$\(Int(product.price))")
+                            Text(MoneyAmount.label(product.price))
                                 .font(Theme.syne(14, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
+                                .foregroundStyle(campusTheme.tint)
                         }
                     }
                     Spacer(minLength: 0)

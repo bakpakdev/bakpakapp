@@ -35,6 +35,10 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      # Signing secret of the second Stripe webhook (Connected accounts, account.updated)
+      # at the same URL; moves a seller's popup balance to Stripe once they onboard.
+      - key: STRIPE_CONNECT_WEBHOOK_SECRET
+        sync: false
       # Must match the live host (popup-api-hwbg.onrender.com). Stripe onboarding
       # return links and the webhook URL are built from it.
       - key: PUBLIC_BASE_URL

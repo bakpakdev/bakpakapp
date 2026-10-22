@@ -317,7 +317,7 @@ struct ProfileView: View {
                             .font(Theme.syne(10, weight: .black))
                             .tracking(0.5)
                     }
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .background(campusTheme.elevatedSurface)
@@ -415,7 +415,8 @@ struct ProfileView: View {
                         Text("Join the ranking")
                             .font(Theme.syne(18, weight: .bold))
                             .foregroundStyle(campusTheme.textPrimary)
-                        Text("List your first item")
+                        // Rank counts sales, so a seller with live listings still has one step left.
+                        Text(stats.products > 0 ? "Make your first sale" : "List your first item")
                             .font(Theme.syne(12, weight: .medium))
                             .foregroundStyle(campusTheme.textMuted)
                     } else if let snap = rankSnapshot {
@@ -433,7 +434,7 @@ struct ProfileView: View {
                         if let delta = snap.weeklyDelta, delta != 0 {
                             Text(delta > 0 ? "+\(delta) this week" : "\(delta) this week")
                                 .font(Theme.syne(11, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
+                                .foregroundStyle(campusTheme.tint)
                         }
                     }
                 }

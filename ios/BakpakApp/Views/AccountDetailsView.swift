@@ -68,14 +68,14 @@ struct AccountDetailsView: View {
                                 .multilineTextAlignment(.trailing)
                                 .frame(maxWidth: 200, alignment: .trailing)
                         }
-                        EditProfileRow(label: "Password & login", showDivider: false) {
+                        EditProfileRow(label: "Password", showDivider: false) {
                             Button {
-                                comingSoonMessage = "Login management is coming soon."
+                                Task { await sendPasswordReset(to: authVM.user?.email?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") }
                             } label: {
                                 HStack(spacing: 4) {
-                                    Text("Manage")
+                                    Text("Change")
                                         .font(Theme.syne(15, weight: .medium))
-                                        .foregroundStyle(campusTheme.primary)
+                                        .foregroundStyle(campusTheme.tint)
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 11, weight: .semibold))
                                         .foregroundStyle(campusTheme.textMuted)
@@ -106,7 +106,7 @@ struct AccountDetailsView: View {
                                 HStack(spacing: 4) {
                                     Text(graduationLabel)
                                         .font(Theme.syne(15, weight: .medium))
-                                        .foregroundStyle(campusTheme.primary)
+                                        .foregroundStyle(campusTheme.tint)
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 11, weight: .semibold))
                                         .foregroundStyle(campusTheme.textMuted)
@@ -193,6 +193,17 @@ struct AccountDetailsView: View {
             Button("OK", role: .cancel) { comingSoonMessage = nil }
         } message: {
             Text(comingSoonMessage ?? "")
+        }
+    }
+
+    /// Same email link as "Forgot password?": it opens a set-new-password screen.
+    private func sendPasswordReset(to email: String) async {
+        guard !email.isEmpty else { return }
+        if await authVM.requestPasswordReset(email: email) != nil {
+            comingSoonMessage = "We emailed a reset link to \(email). Open it on this phone to pick a new password."
+        } else {
+            comingSoonMessage = authVM.errorMessage ?? "Couldn’t send the reset email. Try again."
+            authVM.errorMessage = nil
         }
     }
 
@@ -336,7 +347,7 @@ struct AccountDetailsView: View {
                     showGraduationPicker = false
                 }
                 .font(Theme.syne(15, weight: .bold))
-                .foregroundStyle(campusTheme.primary)
+                .foregroundStyle(campusTheme.tint)
             }
             .padding(.horizontal, 20)
             .padding(.top, 18)

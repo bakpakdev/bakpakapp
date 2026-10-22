@@ -42,6 +42,8 @@ struct UserProfileView: View {
     @State private var isBlocked = false
     @State private var showBlockConfirm = false
     @State private var isUnavailable = false
+    /// The seller's Settings → Privacy choices. Your own profile always shows everything.
+    @State private var privacy = ProfilePrivacy()
 
     private let service = ProductService()
     private let feedColumns = 3
@@ -76,7 +78,8 @@ struct UserProfileView: View {
     }
 
     private var soldShopItems: [Product] {
-        products.filter { $0.isSold == true }
+        guard privacy.showSoldItems else { return [] }
+        return products.filter { $0.isSold == true }
     }
 
     private var listingCount: Int { activeShopItems.count }
@@ -232,6 +235,9 @@ struct UserProfileView: View {
                 isLoading = false
                 return
             }
+            if !isOwnProfile {
+                privacy = await ProfilePrivacyService.fetchOrDefault(userId: userId)
+            }
             await reload()
         }
         .sheet(isPresented: $showLeaveReview) {
@@ -267,7 +273,7 @@ struct UserProfileView: View {
                     if user?.isVerified == true {
                         Image(systemName: "checkmark.seal.fill")
                             .font(.system(size: 18))
-                            .foregroundStyle(campusTheme.primary)
+                            .foregroundStyle(campusTheme.tint)
                             .background(Circle().fill(campusTheme.surface).padding(-2))
                             .offset(x: 4, y: 4)
                     }
@@ -286,6 +292,7 @@ struct UserProfileView: View {
                             .foregroundStyle(campusTheme.textMuted)
                     }
 
+                    if privacy.showSchoolBadge {
                     HStack(spacing: 8) {
                         HStack(spacing: 5) {
                             Circle()
@@ -306,6 +313,7 @@ struct UserProfileView: View {
                             .foregroundStyle(campusTheme.textMuted)
                             .lineLimit(1)
                     }
+                    }
                 }
                 Spacer(minLength: 0)
             }
@@ -324,12 +332,16 @@ struct UserProfileView: View {
     private var statsRow: some View {
         HStack(spacing: 0) {
             profileStat(value: "\(listingCount)", label: "Listings")
-            statDivider
-            profileStat(value: "\(soldCount)", label: "Sold")
-            statDivider
-            profileStat(value: "\(followCounts.followers)", label: "Followers")
-            statDivider
-            profileStat(value: "\(followCounts.following)", label: "Following")
+            if privacy.showSoldItems {
+                statDivider
+                profileStat(value: "\(soldCount)", label: "Sold")
+            }
+            if privacy.showFollowerCounts {
+                statDivider
+                profileStat(value: "\(followCounts.followers)", label: "Followers")
+                statDivider
+                profileStat(value: "\(followCounts.following)", label: "Following")
+            }
         }
         .padding(.vertical, 16)
         .background(cardBackground())

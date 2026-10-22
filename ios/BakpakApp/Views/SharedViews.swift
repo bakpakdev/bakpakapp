@@ -124,9 +124,9 @@ struct ProductCardView: View {
                         .font(Theme.syne(14, weight: .bold))
                         .foregroundStyle(Color(hex: "#E11D48"))
                 } else {
-                    Text("$\(Int(product.price))")
+                    Text(MoneyAmount.label(product.price))
                         .font(.subheadline)
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                 }
                 Text(product.category ?? "")
                     .font(.caption)
@@ -181,7 +181,7 @@ struct ShopProductCell: View {
                         .frame(height: 52)
                     }
 
-                    Text("$\(Int(product.price))")
+                    Text(MoneyAmount.label(product.price))
                         .font(Theme.syne(13, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)

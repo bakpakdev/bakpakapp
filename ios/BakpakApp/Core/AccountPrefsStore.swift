@@ -18,33 +18,6 @@ enum AccountPrefsStore {
         UserDefaults.standard.set(value, forKey: AccountScopedDefaults.key(base))
     }
 
-    // MARK: Privacy
-
-    static var allowDMs: Bool {
-        get { bool("popup.editProfile.allowDMs", default: true) }
-        set { setBool("popup.editProfile.allowDMs", newValue) }
-    }
-
-    static var showSoldItems: Bool {
-        get { bool("popup.privacy.showSoldItems", default: true) }
-        set { setBool("popup.privacy.showSoldItems", newValue) }
-    }
-
-    static var showSchoolOnProfile: Bool {
-        get { bool("popup.editProfile.showBadge", default: true) }
-        set { setBool("popup.editProfile.showBadge", newValue) }
-    }
-
-    static var showFollowersPublicly: Bool {
-        get { bool("popup.privacy.showFollowers", default: true) }
-        set { setBool("popup.privacy.showFollowers", newValue) }
-    }
-
-    static var campusOnlyProfile: Bool {
-        get { bool("popup.privacy.campusOnly", default: true) }
-        set { setBool("popup.privacy.campusOnly", newValue) }
-    }
-
     // MARK: Notifications
 
     static var notifyMessages: Bool {

@@ -58,7 +58,7 @@ extension Product {
 
     var homePriceLabel: String {
         if isSold == true { return "SOLD" }
-        return "$\(Int(price))"
+        return MoneyAmount.label(price)
     }
 }
 
@@ -109,7 +109,7 @@ struct HomeProductCard: View {
                     .lineLimit(1)
                 Spacer(minLength: 4)
                 if product.isSold != true, product.hasDiscount, let original = product.originalPrice {
-                    Text("$\(Int(original))")
+                    Text(MoneyAmount.label(original))
                         .font(Theme.syne(11, weight: .semibold))
                         .foregroundStyle(campusTheme.textMuted)
                         .strikethrough()
@@ -401,7 +401,7 @@ struct HomeView: View {
                 Text(campusTheme.shortName)
                     .font(Theme.syne(13, weight: .black))
                     .tracking(0.6)
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
             }
             .frame(width: 52, height: 52)
             .background(campusTheme.surface)

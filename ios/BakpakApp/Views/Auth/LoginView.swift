@@ -10,6 +10,7 @@ struct PopupLanding: View {
     @State private var email = ""
     @State private var password = ""
     @State private var showPassword = false
+    @State private var showForgotPassword = false
 
     var body: some View {
         AuthScreenChrome(onBack: onBack) {
@@ -35,7 +36,7 @@ struct PopupLanding: View {
                         TextField(
                             "",
                             text: $email,
-                            prompt: Text("name@school.edu")
+                            prompt: Text(verbatim: "name@school.edu")
                                 .foregroundColor(PopupBrand.textMuted)
                         )
                         .textInputAutocapitalization(.never)
@@ -111,7 +112,7 @@ struct PopupLanding: View {
                     }
                     .padding(.top, 4)
 
-                    if let error = authVM.errorMessage, !authVM.pendingLoginMFA {
+                    if let error = authVM.errorMessage, !authVM.pendingLoginMFA, !showForgotPassword {
                         Text(error)
                             .font(Theme.syne(12))
                             .foregroundStyle(Color.red)
@@ -119,6 +120,19 @@ struct PopupLanding: View {
                     }
 
                     Button {
+                        authVM.errorMessage = nil
+                        showForgotPassword = true
+                    } label: {
+                        Text("Forgot password?")
+                            .font(Theme.syne(13, weight: .semibold))
+                            .foregroundStyle(PopupBrand.textPrimary)
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+                    .frame(maxWidth: .infinity, alignment: .center)
+
+                    Button {
+                        // Don't carry a failed sign-in error onto the register screen.
+                        authVM.errorMessage = nil
                         showRegister = true
                     } label: {
                         Text("Need an account? Register")
@@ -134,13 +148,16 @@ struct PopupLanding: View {
 
             Spacer(minLength: 24)
 
-            Text("By continuing, you agree to our Terms & Privacy Policy.")
-                .font(Theme.syne(11))
-                .foregroundStyle(PopupBrand.textMuted)
-                .multilineTextAlignment(.center)
+            LegalAgreementText()
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
+        }
+        .sheet(isPresented: $showForgotPassword) {
+            ForgotPasswordSheet(email: email)
+                .environmentObject(authVM)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
     }
 }
@@ -179,7 +196,10 @@ struct LoginTwoFactorView: View {
                     border: PopupBrand.border,
                     accent: PopupBrand.textPrimary
                 )
-                .onChange(of: code) { _ in authVM.errorMessage = nil }
+                // Clearing the field after a wrong code must not wipe the error it just set.
+                .onChange(of: code) { value in
+                    if !value.isEmpty { authVM.errorMessage = nil }
+                }
 
                 AuthPrimaryButton {
                     Task { await submit() }

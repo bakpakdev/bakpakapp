@@ -72,4 +72,5 @@ PY
 exec "$STRIPE_BIN" listen \
   --api-key "$SK" \
   --forward-to http://127.0.0.1:5001/api/payments/webhook \
-  --events payment_intent.succeeded,payment_intent.payment_failed,transfer.reversed,charge.refunded,charge.dispute.created
+  --forward-connect-to http://127.0.0.1:5001/api/payments/webhook \
+  --events payment_intent.succeeded,payment_intent.payment_failed,transfer.reversed,charge.refunded,charge.dispute.created,account.updated

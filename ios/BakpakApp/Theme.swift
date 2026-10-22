@@ -101,6 +101,12 @@ struct CampusTheme: Equatable {
         isDark ? Color.white.opacity(0.62) : Color(hex: "#68706C")
     }
 
+    /// System tint (alert buttons, toggles, links). UO green is too dark to read on
+    /// the dark background, so dark mode lifts it; filled buttons keep `primary`.
+    var tint: Color {
+        isDark && shortName == "UO" ? Color(hex: "#5FBF8F") : primary
+    }
+
     /// Soft caption strip under listing thumbnails (home grid).
     var listingCaptionBackground: Color {
         if isDark {
@@ -226,7 +232,7 @@ private struct CampusScreenStyle: ViewModifier {
         content
             .foregroundStyle(campusTheme.textPrimary)
             .background(campusTheme.wash.ignoresSafeArea())
-            .tint(campusTheme.primary)
+            .tint(campusTheme.tint)
             .toolbarBackground(campusTheme.surface, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar(.visible, for: .navigationBar)
@@ -344,7 +350,7 @@ enum CampusAppearance {
         navigationBar.standardAppearance = navigation
         navigationBar.scrollEdgeAppearance = navigation
         navigationBar.compactAppearance = navigation
-        navigationBar.tintColor = UIColor(campusTheme.primary)
+        navigationBar.tintColor = UIColor(campusTheme.tint)
         navigationBar.shadowImage = UIImage()
         navigationBar.setBackgroundImage(UIImage(), for: .default)
         navigationBar.isTranslucent = true
@@ -363,7 +369,7 @@ enum CampusAppearance {
         tabBar.shadowImage = UIImage()
         tabBar.backgroundColor = .clear
         tabBar.barTintColor = .clear
-        tabBar.tintColor = UIColor(campusTheme.primary)
+        tabBar.tintColor = UIColor(campusTheme.tint)
         tabBar.unselectedItemTintColor = UIColor(campusTheme.textMuted)
 
         let tabFont = UIFont(name: "Syne", size: 10) ?? .systemFont(ofSize: 10, weight: .semibold)

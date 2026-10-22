@@ -764,7 +764,7 @@ struct MeetupComposeView: View {
 
             HStack(spacing: 8) {
                 Image(systemName: "mappin.circle.fill")
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(selectedSpot?.name ?? "Pick a meetup spot")
                         .font(Theme.syne(14, weight: .bold))
@@ -828,7 +828,7 @@ struct MeetupComposeView: View {
         HStack(spacing: 12) {
             Image(systemName: systemImage)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(campusTheme.primary)
+                .foregroundStyle(campusTheme.tint)
                 .frame(width: 36, height: 36)
                 .background(campusTheme.primary.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -846,7 +846,7 @@ struct MeetupComposeView: View {
 
             Image(systemName: "chevron.down")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(campusTheme.primary)
+                .foregroundStyle(campusTheme.tint)
                 .frame(width: 32, height: 32)
                 .background(campusTheme.primary.opacity(0.12))
                 .clipShape(Circle())
@@ -888,7 +888,7 @@ struct MeetupComposeView: View {
                 HStack(spacing: 12) {
                     Image(systemName: "mappin.and.ellipse")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                         .frame(width: 36, height: 36)
                         .background(campusTheme.primary.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -912,7 +912,7 @@ struct MeetupComposeView: View {
 
                     Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                         .frame(width: 32, height: 32)
                         .background(campusTheme.primary.opacity(0.12))
                         .clipShape(Circle())
@@ -1200,7 +1200,7 @@ struct MeetupInviteBubble: View {
                     Button(action: onOpenMaps) {
                         Label("Open in Maps", systemImage: "map")
                             .font(Theme.syne(13, weight: .semibold))
-                            .foregroundStyle(campusTheme.primary)
+                            .foregroundStyle(campusTheme.tint)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
                             .background(campusTheme.primary.opacity(0.1))
@@ -1240,7 +1240,7 @@ struct MeetupInviteBubble: View {
                         } label: {
                             Text("Reschedule")
                                 .font(Theme.syne(13, weight: .bold))
-                                .foregroundStyle(campusTheme.primary)
+                                .foregroundStyle(campusTheme.tint)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
                                 .background(campusTheme.primary.opacity(0.12))

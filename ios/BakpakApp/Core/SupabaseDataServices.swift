@@ -154,7 +154,14 @@ enum SupabaseSocialService {
 // MARK: - Messages
 
 enum SupabaseMessageService {
-    static func openOrCreateConversation(client: SupabaseClient, otherUserId: String, productId: String?) async throws -> String {
+    /// `honorPrivacy` = refuse a brand-new chat when the other person turned off
+    /// "Allow new messages". An accepted meetup passes false: both sides already agreed.
+    static func openOrCreateConversation(
+        client: SupabaseClient,
+        otherUserId: String,
+        productId: String?,
+        honorPrivacy: Bool = true
+    ) async throws -> String {
         let myId = try await client.auth.session.user.id.uuidString.lowercased()
         let otherId = otherUserId.lowercased()
         guard myId != otherId else { throw SupabaseDataError.notFound }
@@ -174,6 +181,12 @@ enum SupabaseMessageService {
                     .execute()
             }
             return existing
+        }
+
+        if honorPrivacy,
+           let privacy = try? await ProfilePrivacyService.fetch(client: client, userId: otherId),
+           !privacy.allowNewMessages {
+            throw ProfilePrivacyError.notAcceptingMessages
         }
 
         struct Params: Encodable {
@@ -983,6 +996,15 @@ enum SupabaseListingService {
 // MARK: - Profile update
 
 enum SupabaseProfileService {
+    /// Turns Postgres errors from a profile save into something a student can act on.
+    static func friendlySaveError(_ error: Error) -> String {
+        let text = String(describing: error).lowercased() + " " + error.localizedDescription.lowercased()
+        if text.contains("profiles_username_key") || (text.contains("duplicate key") && text.contains("username")) {
+            return "That username is taken. Try another one."
+        }
+        return error.localizedDescription
+    }
+
     struct ProfileUpdate: Encodable {
         var username: String?
         var first_name: String?

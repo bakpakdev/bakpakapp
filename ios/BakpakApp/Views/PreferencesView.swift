@@ -91,7 +91,7 @@ struct PreferencesView: View {
                                     Spacer(minLength: 8)
                                     Image(systemName: "bell.badge")
                                         .font(.system(size: 16, weight: .semibold))
-                                        .foregroundStyle(campusTheme.primary)
+                                        .foregroundStyle(campusTheme.tint)
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 14)

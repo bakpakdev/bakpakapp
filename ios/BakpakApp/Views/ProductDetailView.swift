@@ -380,7 +380,7 @@ struct ProductDetailView: View {
                     } else {
                         Text("$\(formattedPrice(product.price))")
                             .font(Theme.syne(22, weight: .bold))
-                            .foregroundStyle(campusTheme.primary)
+                            .foregroundStyle(campusTheme.tint)
                         if product.hasDiscount, let original = product.originalPrice {
                             Text("$\(formattedPrice(original))")
                                 .font(Theme.syne(14, weight: .semibold))
@@ -493,7 +493,7 @@ struct ProductDetailView: View {
                     if product.hasDiscount, let pct = product.discountPercent {
                         Text("\(pct)% off")
                             .font(Theme.syne(11, weight: .bold))
-                            .foregroundStyle(campusTheme.primary)
+                            .foregroundStyle(campusTheme.tint)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(campusTheme.primary.opacity(0.12))
@@ -814,7 +814,8 @@ struct ProductDetailView: View {
     private func sendOfferPopup(_ product: Product) -> some View {
         let listed = product.price
         let customAmount = Double(customOfferText.replacingOccurrences(of: ",", with: ""))
-        let percentAmount: Double? = selectedOfferPercent.map { listed * (1.0 - Double($0) / 100.0) }
+        // Quick offers are whole dollars so the chip, "Your offer", and the sent amount match.
+        let percentAmount: Double? = selectedOfferPercent.map { Self.quickOfferAmount(listed: listed, percent: $0) }
         let offerAmount = customAmount ?? percentAmount
         let canSend = (offerAmount ?? 0) > 0 && (offerAmount ?? 0) <= listed + 0.001
 
@@ -847,7 +848,7 @@ struct ProductDetailView: View {
                             .lineLimit(1)
                         Text("Listed at $\(Int(listed))")
                             .font(Theme.syne(14, weight: .bold))
-                            .foregroundStyle(campusTheme.primary)
+                            .foregroundStyle(campusTheme.tint)
                     }
                     Spacer(minLength: 0)
                     Button {
@@ -866,7 +867,7 @@ struct ProductDetailView: View {
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     ForEach(offerPercents, id: \.self) { percent in
-                        let amount = listed * (1.0 - Double(percent) / 100.0)
+                        let amount = Self.quickOfferAmount(listed: listed, percent: percent)
                         let selected = selectedOfferPercent == percent && customOfferText.isEmpty
                         Button {
                             Motion.haptic(.light)
@@ -901,7 +902,7 @@ struct ProductDetailView: View {
                 HStack(spacing: 8) {
                     Text("$")
                         .font(Theme.syne(22, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                     MoneyCentsField(text: $customOfferText, fontSize: 22, textColor: campusTheme.textPrimary, floorAtZero: true)
                         .frame(height: 28)
                         .onChange(of: customOfferText) { newValue in
@@ -931,11 +932,11 @@ struct ProductDetailView: View {
                             .font(Theme.syne(13, weight: .medium))
                             .foregroundStyle(campusTheme.textMuted)
                         Spacer()
-                        Text("$\(offerAmount, specifier: "%.2f")")
+                        Text("$\(formattedPrice(offerAmount))")
                             .font(Theme.syne(18, weight: .bold))
-                            .foregroundStyle(campusTheme.primary)
+                            .foregroundStyle(campusTheme.tint)
                         if savings > 0.5 {
-                            Text("· $\(savings, specifier: "%.0f") off")
+                            Text("· $\(formattedPrice(savings)) off")
                                 .font(Theme.syne(12, weight: .semibold))
                                 .foregroundStyle(campusTheme.textMuted)
                         }
@@ -1108,7 +1109,7 @@ struct ProductDetailView: View {
                         .frame(width: 120, height: 120)
                     Image(systemName: "hourglass")
                         .font(.system(size: 44, weight: .semibold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                 }
                 .padding(.top, 20)
 
@@ -1126,7 +1127,7 @@ struct ProductDetailView: View {
                 if let product {
                     Text("$\(formattedPrice(product.price))")
                         .font(Theme.syne(32, weight: .bold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                 }
                 if buyerServiceFeeCents != nil {
                     Text("You get the full price. The buyer pays popup’s service fee on top.")
@@ -1300,6 +1301,10 @@ struct ProductDetailView: View {
         if let brand = product.brand?.trimmingCharacters(in: .whitespacesAndNewlines), !brand.isEmpty {
             chips.append(brand)
         }
+        // Size is the first thing a thrift buyer checks; the grid shows it, so the detail page should too.
+        if let size = product.size?.trimmingCharacters(in: .whitespacesAndNewlines), !size.isEmpty {
+            chips.append("Size \(size)")
+        }
         if let condition = product.condition?.trimmingCharacters(in: .whitespacesAndNewlines), !condition.isEmpty {
             chips.append(condition.replacingOccurrences(of: "-", with: " ").capitalized)
         }
@@ -1307,6 +1312,10 @@ struct ProductDetailView: View {
             chips.append(category.capitalized)
         }
         return chips
+    }
+
+    private static func quickOfferAmount(listed: Double, percent: Int) -> Double {
+        max(1, (listed * (1.0 - Double(percent) / 100.0)).rounded())
     }
 
     private func formattedPrice(_ price: Double) -> String {

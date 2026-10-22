@@ -1,5 +1,5 @@
 const { getSupabaseAdmin } = require('./supabaseAdmin');
-const { creditSellerSale } = require('./sellerBalance');
+const { creditSellerSale, recordDirectSale } = require('./sellerBalance');
 
 const MEETUP_ADDRESS = 'Campus meetup';
 
@@ -14,10 +14,13 @@ async function fetchProduct(supabase, productId) {
 }
 
 /**
- * Marks a meetup payment paid, lists the item sold, and credits the seller's
- * popup balance with the full listing price. The buyer's service fee on top
- * stays with popup. The money sits in popup's Stripe balance until the seller cashes
- * out, which transfers it to their Stripe Express account.
+ * Marks a meetup payment paid, lists the item sold, and books the seller's full
+ * listing price. The buyer's service fee on top stays with popup.
+ *
+ * paidToAccountId is the seller's Express account when the charge was a
+ * destination charge: Stripe already moved the price there, so we only record it.
+ * Otherwise the charge sat on popup's account and we credit the seller's popup
+ * balance, which goes to Stripe once they onboard or cash out.
  *
  * Safe to call more than once for the same payment (the app's confirm call and
  * the Stripe webhook usually both arrive): only the first call claims the row.
@@ -30,6 +33,7 @@ async function fulfillMeetupPayment({
   paymentId,
   chargedCents = null,
   sessionId = null,
+  paidToAccountId = null,
 }) {
   const supabase = getSupabaseAdmin();
   if (!requestRow || requestRow.status === 'paid') return { alreadyPaid: true };
@@ -66,8 +70,12 @@ async function fulfillMeetupPayment({
   if (claimError) throw claimError;
   if (!claimed) return { alreadyPaid: true };
 
-  // Credit first: once the row is claimed nothing retries, and the seller's money matters most.
-  await creditSellerSale(supabase, sellerId, priceCents);
+  // Book the seller first: once the row is claimed nothing retries, and the seller's money matters most.
+  if (paidToAccountId) {
+    await recordDirectSale(supabase, sellerId, priceCents);
+  } else {
+    await creditSellerSale(supabase, sellerId, priceCents);
+  }
 
   if (resolvedBuyer) {
     const { data: order, error: orderError } = await supabase

@@ -50,6 +50,12 @@ enum MoneyAmount {
         return display(Int((clamped * 100).rounded()))
     }
 
+    /// "$12" for whole dollars, "$10.20" otherwise. Never drops cents the buyer will pay.
+    static func label(_ value: Double) -> String {
+        let cents = Int((value * 100).rounded())
+        return cents % 100 == 0 ? "$\(cents / 100)" : "$" + display(cents)
+    }
+
     static func parse(_ raw: String) -> Double? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let value = Double(trimmed) else { return nil }

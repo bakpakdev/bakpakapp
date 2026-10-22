@@ -15,6 +15,19 @@ private let searchCategoryTiles: [SearchCategoryTile] = [
     SearchCategoryTile(id: "accessories", name: "Accessories", icon: "tag"),
 ]
 
+private enum SearchSort: CaseIterable {
+    case relevant, newest, priceLow, priceHigh
+
+    var title: String {
+        switch self {
+        case .relevant: return "Best match"
+        case .newest: return "Newest"
+        case .priceLow: return "Price: low to high"
+        case .priceHigh: return "Price: high to low"
+        }
+    }
+}
+
 private let trendingSearchTerms = [
     "Denim jacket", "Nike Dunks", "Cardigan", "Cargo pants", "Vintage tee",
 ]
@@ -47,6 +60,7 @@ struct SearchView: View {
     @State private var liveSuggestions: [SearchSuggestion] = []
     @State private var suggestionsLoading = false
     @State private var notificationUnread = 0
+    @State private var sortOrder: SearchSort = .relevant
     @FocusState private var searchFieldFocused: Bool
 
     private var showResults: Bool {
@@ -57,12 +71,18 @@ struct SearchView: View {
         let _ = blockStore.revision
         let visible = blockStore.filterProducts(products)
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return visible }
-        return visible.filter { item in
+        let matches = q.isEmpty ? visible : visible.filter { item in
             item.title.lowercased().contains(q)
                 || (item.user?.username.lowercased().contains(q) ?? false)
                 || (item.description?.lowercased().contains(q) ?? false)
                 || (item.brand?.lowercased().contains(q) ?? false)
+        }
+        switch sortOrder {
+        case .relevant: return matches
+        // ISO-8601 timestamps sort correctly as strings.
+        case .newest: return matches.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
+        case .priceLow: return matches.sorted { $0.price < $1.price }
+        case .priceHigh: return matches.sorted { $0.price > $1.price }
         }
     }
 
@@ -362,13 +382,17 @@ struct SearchView: View {
 
             Spacer()
 
-            Button {
-                // Sort — hook later
+            Menu {
+                Picker("Sort", selection: $sortOrder) {
+                    ForEach(SearchSort.allCases, id: \.self) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 13, weight: .medium))
-                    Text("Sort")
+                    Text(sortOrder == .relevant ? "Sort" : sortOrder.title)
                         .font(Theme.syne(13, weight: .semibold))
                 }
                 .foregroundStyle(campusTheme.textPrimary)
@@ -515,7 +539,7 @@ struct SearchView: View {
                 .foregroundColor(campusTheme.textPrimary)
             + Text(String(prediction[range]))
                 .bold()
-                .foregroundColor(campusTheme.primary)
+                .foregroundColor(campusTheme.tint)
             + Text(String(prediction[range.upperBound...]))
                 .foregroundColor(campusTheme.textPrimary)
         } else {
@@ -715,7 +739,7 @@ struct SearchView: View {
                 sectionTitle(resultsTitle)
                     .lineLimit(1)
                 Spacer()
-                Text("\(filteredProducts.count) items")
+                Text(filteredProducts.count == 1 ? "1 item" : "\(filteredProducts.count) items")
                     .font(Theme.syne(12, weight: .semibold))
                     .foregroundStyle(campusTheme.textPrimary)
                     .padding(.horizontal, 12)
@@ -769,7 +793,7 @@ struct SearchView: View {
                 .padding(.horizontal, 32)
             Button("Clear search", action: clearAll)
                 .font(Theme.syne(14, weight: .bold))
-                .foregroundStyle(campusTheme.primary)
+                .foregroundStyle(campusTheme.tint)
                 .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)

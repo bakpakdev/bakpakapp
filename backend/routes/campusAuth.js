@@ -55,7 +55,7 @@ function confirmHtml(link) {
 </html>`;
 }
 
-async function sendViaResend(to, link) {
+async function sendViaResend(to, link, { subject = 'Confirm your popup campus email', html = confirmHtml(link) } = {}) {
   const key = (process.env.RESEND_API_KEY || '').trim();
   if (!key) return false;
   const from = (process.env.RESEND_FROM || 'popup <noreply@popup.app>').trim();
@@ -68,8 +68,8 @@ async function sendViaResend(to, link) {
     body: JSON.stringify({
       from,
       to,
-      subject: 'Confirm your popup campus email',
-      html: confirmHtml(link),
+      subject,
+      html,
     }),
   });
   if (!res.ok) {
@@ -329,6 +329,119 @@ router.post('/campus-verify', async (req, res) => {
   } catch (error) {
     console.error('campus-verify error:', error);
     res.status(500).json({ confirmed: false, message: 'Server error', error: error.message });
+  }
+});
+
+// --- Password reset -------------------------------------------------------
+// Same landing-page pattern as campus confirm: the email links to our page, which
+// hands a signed token to the app, so iOS Mail prefetch can't burn a Supabase link.
+
+const usedResetTokens = new Map();
+
+function signResetToken(userId, email) {
+  return jwt.sign(
+    { sub: userId, email, purpose: 'password-reset', jti: `${userId}.${Date.now()}` },
+    jwtSecret(),
+    { expiresIn: '30m' }
+  );
+}
+
+function readResetToken(token) {
+  const payload = jwt.verify(String(token || ''), jwtSecret());
+  if (payload.purpose !== 'password-reset' || !payload.sub || !payload.email || !payload.jti) {
+    throw new Error('Invalid reset token');
+  }
+  return payload;
+}
+
+function resetHtml(link) {
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0A0A0A;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#FAFAFA;">
+  <div style="max-width:440px;margin:0 auto;padding:40px 28px;">
+    <p style="font-size:32px;font-weight:900;letter-spacing:-0.5px;margin:0 0 36px;">popup</p>
+    <p style="font-size:22px;font-weight:700;margin:0 0 12px;">Reset your password</p>
+    <p style="font-size:15px;line-height:1.55;color:#A3A3A3;margin:0 0 28px;">
+      Open this on the phone with popup, then pick a new password. The link works for 30 minutes.
+    </p>
+    <p style="margin:0 0 16px;">
+      <a href="${link}" style="display:inline-block;background:#FAFAFA;color:#0A0A0A;text-decoration:none;font-weight:700;font-size:16px;padding:16px 28px;border-radius:999px;">
+        Reset password
+      </a>
+    </p>
+    <p style="font-size:13px;color:#737373;margin:28px 0 0;">If you didn’t ask to reset your password, ignore this email. Your password stays the same.</p>
+  </div>
+</body>
+</html>`;
+}
+
+// Mirrors AuthViewModel.passwordRules in the iOS app.
+function passwordMeetsRules(password) {
+  return password.length >= 6 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /[0-9]/.test(password);
+}
+
+router.post('/password-reset', async (req, res) => {
+  // Same answer whether or not the account exists, so this can't be used to probe emails.
+  const generic = { emailed: true, message: 'If that email has a popup account, a reset link is on its way.' };
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!email.includes('@')) {
+      return res.status(400).json({ message: 'Enter the email you signed up with.' });
+    }
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    if (rateLimited(`reset:${email}`, ip)) {
+      return res.status(429).json({ message: 'Too many reset requests. Wait a few minutes.' });
+    }
+
+    const admin = getSupabaseAdmin();
+    const user = await findUserByEmail(admin, email);
+    if (!user?.id || !isConfirmed(user)) return res.json(generic);
+
+    const token = signResetToken(user.id, email);
+    const link = `${publicOrigin()}/auth/reset-password.html?reset_token=${encodeURIComponent(token)}`;
+    const sent = await sendViaResend(email, link, { subject: 'Reset your popup password', html: resetHtml(link) })
+      .catch((err) => { console.error('password reset send error:', err); return false; });
+    if (!sent && process.env.NODE_ENV !== 'production') {
+      console.log(`[dev] password reset link for ${email}: ${link}`);
+    }
+    return res.json(generic);
+  } catch (error) {
+    console.error('password-reset error:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.post('/password-reset/complete', async (req, res) => {
+  try {
+    const token = String(req.body?.token || '').trim();
+    const password = String(req.body?.password || '');
+    let payload;
+    try {
+      payload = readResetToken(token);
+    } catch {
+      return res.status(400).json({ message: 'That reset link expired. Ask for a new one from the sign-in screen.' });
+    }
+    if (usedResetTokens.has(payload.jti)) {
+      return res.status(400).json({ message: 'That reset link was already used. Ask for a new one from the sign-in screen.' });
+    }
+    if (!passwordMeetsRules(password)) {
+      return res.status(400).json({ message: 'Use at least 6 characters with a lowercase letter, an uppercase letter, and a number.' });
+    }
+
+    const admin = getSupabaseAdmin();
+    const updated = await admin.auth.admin.updateUserById(payload.sub, { password });
+    if (updated.error) {
+      console.error('password-reset updateUser:', updated.error);
+      return res.status(400).json({ message: updated.error.message || 'Could not update the password.' });
+    }
+
+    const now = Date.now();
+    for (const [jti, at] of usedResetTokens) if (now - at > 60 * 60 * 1000) usedResetTokens.delete(jti);
+    usedResetTokens.set(payload.jti, now);
+    return res.json({ ok: true, email: String(payload.email).toLowerCase() });
+  } catch (error) {
+    console.error('password-reset/complete error:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 

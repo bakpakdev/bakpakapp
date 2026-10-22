@@ -43,6 +43,9 @@ struct MeetupPayFlowView: View {
     @State private var showSellerReceivedCard = false
     @State private var paymentConfirmed = false
     @State private var sessionChannel: RealtimeChannelV2?
+    @State private var presenceChannel: RealtimeChannelV2?
+    @State private var presentUserIds: Set<String> = []
+    @State private var presenceUnavailable = false
 
     @StateObject private var paymentPresenter = PaymentSheetPresenter()
 
@@ -80,6 +83,23 @@ struct MeetupPayFlowView: View {
             productTitle: meetupStore.listing(for: meetup)?.title
         )
     }
+
+    /// True while the other person has this meetup's Pay/Receive screen open.
+    private var otherIsPresent: Bool {
+        if let other = item.otherUserId?.lowercased(), !other.isEmpty {
+            return presentUserIds.contains(other)
+        }
+        let me = meetupStore.meId.lowercased()
+        return presentUserIds.contains { $0 != me }
+    }
+
+    /// Pay/Receive unlocks only once both people are on this screen. If presence
+    /// can't connect at all we don't block the sale on it.
+    private var bothPresent: Bool {
+        otherIsPresent || presenceUnavailable
+    }
+
+    private var otherRoleName: String { isCollecting ? "buyer" : "seller" }
 
     private var priceLabel: String? {
         guard let productPrice else { return nil }
@@ -135,7 +155,12 @@ struct MeetupPayFlowView: View {
                         )
 
                         stepIndicator
-                            .padding(.bottom, 24)
+                            .padding(.bottom, step == .done ? 24 : 12)
+
+                        if step != .done && !paymentConfirmed {
+                            presenceBanner
+                                .padding(.bottom, 20)
+                        }
 
                         Group {
                             switch step {
@@ -212,6 +237,7 @@ struct MeetupPayFlowView: View {
             }
             await loadPrice()
             await refreshSessionStatus()
+            await startPresence()
             await startSessionWatch()
         }
         .sheet(isPresented: $showBuyerPaymentSheet) { buyerPaySheet }
@@ -372,7 +398,8 @@ struct MeetupPayFlowView: View {
                         .clipShape(Capsule())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-                .disabled(isPaymentBusy || (item.productId ?? "").isEmpty)
+                .disabled(isPaymentBusy || (item.productId ?? "").isEmpty || !bothPresent)
+                .opacity(bothPresent ? 1 : 0.5)
             } else if let sessionId = activeSession?.id {
                 Button(role: .destructive) {
                     Task { await cancelSellerSession(sessionId: sessionId) }
@@ -386,8 +413,8 @@ struct MeetupPayFlowView: View {
             }
 
             Text(paymentConfirmed
-                 ? "Payment landed in your popup balance — tap Continue."
-                 : "Funds credit your popup balance when the buyer pays. Stay here until then.")
+                 ? "Payment received — tap Continue."
+                 : "You get paid the moment the buyer pays. Stay here until then.")
                 .font(Theme.syne(13, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, 4)
@@ -435,7 +462,8 @@ struct MeetupPayFlowView: View {
                     ) {
                         Task { await startBuyerPay() }
                     }
-                    .disabled(isPaymentBusy || (item.productId ?? "").isEmpty)
+                    .disabled(isPaymentBusy || (item.productId ?? "").isEmpty || !bothPresent)
+                    .opacity(bothPresent ? 1 : 0.5)
                 } else {
                     Button {
                         Task { await startBuyerPay() }
@@ -449,12 +477,13 @@ struct MeetupPayFlowView: View {
                             .clipShape(Capsule())
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-                    .disabled(isPaymentBusy || (item.productId ?? "").isEmpty)
+                    .disabled(isPaymentBusy || (item.productId ?? "").isEmpty || !bothPresent)
+                    .opacity(bothPresent ? 1 : 0.5)
                 }
             } else {
                 HStack(spacing: 10) {
                     Image(systemName: "person.wave.2")
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                     Text(sessionHint ?? "Ask the seller to open Receive first.")
                         .font(Theme.syne(14, weight: .medium))
                         .foregroundStyle(campusTheme.textPrimary)
@@ -494,8 +523,8 @@ struct MeetupPayFlowView: View {
                 .foregroundStyle(campusTheme.textPrimary)
 
             Text(isCollecting
-                 ? "Funds are in your popup balance. Finish to close out this meetup."
-                 : "Your Apple Pay charge went through. Finish to close out this meetup.")
+                 ? "Payment received. Finish to close out this meetup."
+                 : "Your payment went through. Finish to close out this meetup.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
                 .padding(.top, -8)
@@ -509,8 +538,9 @@ struct MeetupPayFlowView: View {
                 if let method = selectedMethod {
                     summaryRow(label: isCollecting ? "Received with" : "Paid with", value: method)
                 }
-                if let priceLabel {
-                    summaryRow(label: "Amount", value: priceLabel)
+                if activeSession != nil || priceLabel != nil {
+                    // The buyer was charged the price plus the service fee; the seller keeps the price.
+                    summaryRow(label: "Amount", value: isCollecting ? sessionAmountLabel : buyerTotalLabel)
                 }
             }
             .padding(20)
@@ -536,6 +566,56 @@ struct MeetupPayFlowView: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(CampusCardBackground())
+    }
+
+    private var presenceBanner: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                if otherIsPresent {
+                    Circle()
+                        .fill(Color.green.opacity(0.25))
+                        .frame(width: 22, height: 22)
+                }
+                Circle()
+                    .fill(otherIsPresent ? Color.green : campusTheme.textMuted.opacity(0.5))
+                    .frame(width: 10, height: 10)
+            }
+            .frame(width: 22, height: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(presenceTitle)
+                    .font(Theme.syne(14, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                Text(presenceSubtitle)
+                    .font(Theme.syne(12))
+                    .foregroundStyle(campusTheme.textMuted)
+            }
+            Spacer(minLength: 0)
+            if !otherIsPresent && !presenceUnavailable {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(campusTheme.elevatedSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var presenceTitle: String {
+        if otherIsPresent { return "\(item.otherPersonName) is here" }
+        if presenceUnavailable { return "Can’t see if \(item.otherPersonName) is here" }
+        return "Waiting for \(item.otherPersonName)"
+    }
+
+    private var presenceSubtitle: String {
+        if otherIsPresent {
+            return isCollecting ? "The buyer has this screen open too." : "The seller has this screen open too."
+        }
+        if presenceUnavailable { return "Check with them in person before you continue." }
+        return "Ask the \(otherRoleName) to open Pay / Receive on their phone."
     }
 
     private var safetyNote: some View {
@@ -690,9 +770,14 @@ struct MeetupPayFlowView: View {
                     .clipShape(Capsule())
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-            .disabled(step == .pay && (item.productId ?? "").isEmpty)
-            .opacity(step == .pay && (item.productId ?? "").isEmpty ? 0.5 : 1)
+            .disabled(primaryButtonBlocked)
+            .opacity(primaryButtonBlocked ? 0.5 : 1)
         }
+    }
+
+    private var primaryButtonBlocked: Bool {
+        guard step == .pay, !paymentConfirmed else { return false }
+        return (item.productId ?? "").isEmpty || !bothPresent
     }
 
     private var primaryButtonTitle: String {
@@ -762,6 +847,10 @@ struct MeetupPayFlowView: View {
             paymentError = blocker
             return
         }
+        guard bothPresent else {
+            paymentError = "Wait until the buyer opens this screen too."
+            return
+        }
         Motion.haptic(.medium)
         isPaymentBusy = true
         defer { isPaymentBusy = false }
@@ -799,6 +888,10 @@ struct MeetupPayFlowView: View {
         guard let productId = item.productId?.trimmingCharacters(in: .whitespacesAndNewlines),
               !productId.isEmpty else {
             paymentError = "This meetup isn’t linked to a listing."
+            return
+        }
+        guard bothPresent else {
+            paymentError = "Wait until the seller opens this screen too."
             return
         }
 
@@ -862,7 +955,8 @@ struct MeetupPayFlowView: View {
         guard !paymentConfirmed else { return }
         paymentConfirmed = true
         activeSession = session
-        selectedMethod = "Apple Pay"
+        // Stripe's sheet also offers card, Link, and bank; we don't know which was used, so hide the row.
+        selectedMethod = nil
         Motion.haptic(.medium)
         if isCollecting {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) {
@@ -927,6 +1021,30 @@ struct MeetupPayFlowView: View {
             await client.removeChannel(channel)
         }
         sessionChannel = nil
+        if let channel = presenceChannel {
+            await channel.untrack()
+            if let client = SupabaseManager.shared.client() {
+                await client.removeChannel(channel)
+            }
+        }
+        presenceChannel = nil
+    }
+
+    private func startPresence() async {
+        guard presenceChannel == nil, !meetupStore.meId.isEmpty else {
+            presenceUnavailable = meetupStore.meId.isEmpty
+            return
+        }
+        presenceChannel = await paymentService.joinPayPresence(
+            meetupId: meetupId,
+            meId: meetupStore.meId,
+            role: isCollecting ? "seller" : "buyer"
+        ) { ids in
+            let wasPresent = otherIsPresent
+            withAnimation(Motion.snappy) { presentUserIds = ids }
+            if !wasPresent && otherIsPresent { Motion.haptic(.light) }
+        }
+        presenceUnavailable = presenceChannel == nil
     }
 
     private func loadPrice() async {
@@ -1036,7 +1154,7 @@ private struct SellerReceivedOverlay: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     summaryLine(label: "From", value: fromName)
                     summaryLine(label: "For", value: itemName)
-                    Text("Added to your popup balance")
+                    Text("Added to your earnings")
                         .font(Theme.syne(14, weight: .medium))
                         .foregroundStyle(campusTheme.textMuted)
                         .padding(.top, 4)

@@ -267,7 +267,7 @@ struct OnboardingFlowView: View {
                 if let localError {
                     Text(localError)
                         .font(Theme.syne(12))
-                        .foregroundStyle(Color.white.opacity(0.9))
+                        .foregroundStyle(Color(hex: "#FF6B6B"))
                 }
             }
             .padding(.horizontal, 24)
@@ -327,7 +327,7 @@ struct OnboardingFlowView: View {
             authVM.user = updated
             advance(to: .photo)
         } catch {
-            localError = error.localizedDescription
+            localError = SupabaseProfileService.friendlySaveError(error)
         }
     }
 
@@ -552,6 +552,9 @@ private struct FlowChipGrid: View {
                 } label: {
                     Text(option)
                         .font(Theme.syne(13, weight: .semibold))
+                        // "Cottagecore" otherwise breaks mid-word in a three-column grid.
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                         .foregroundStyle(chipForeground(selected: selected))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)

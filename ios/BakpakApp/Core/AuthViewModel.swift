@@ -20,6 +20,8 @@ final class AuthViewModel: ObservableObject {
     @Published var needsOnboarding = false
     /// Password accepted; waiting on the authenticator code before entering the app.
     @Published var pendingLoginMFA = false
+    /// Set when a password-reset email link opens the app; shows the new-password screen.
+    @Published var pendingPasswordResetToken: String?
     /// Legacy Express API base URL (used only when Supabase is not configured).
     @Published var baseURL = SquareConfig.apiBaseURL
 
@@ -389,6 +391,13 @@ final class AuthViewModel: ObservableObject {
             errorMessage = nil
             return true
         } catch {
+            // The API refused the signup (bad email, taken username, server down), so no
+            // email went out. Leave the verify gate, or the next launch opens on a
+            // "We sent a link" screen for an account that was never created.
+            isAwaitingEmailVerification = false
+            pendingSignupEmail = nil
+            pendingTempPassword = nil
+            persistSignupGate()
             errorMessage = friendlyAuthError(error)
             return false
         }
@@ -509,6 +518,11 @@ final class AuthViewModel: ObservableObject {
         guard url.scheme == "popup" else { return }
 
         let params = Self.authCallbackParams(url)
+        if let resetToken = params["reset_token"], !resetToken.isEmpty {
+            errorMessage = nil
+            pendingPasswordResetToken = resetToken
+            return
+        }
         if let errorText = params["error_description"] ?? params["error"], !errorText.isEmpty {
             errorMessage = friendlyConfirmLinkError(message: errorText)
             persistSignupGate()
@@ -822,6 +836,67 @@ final class AuthViewModel: ObservableObject {
             isAuthenticated = false
             user = nil
         }
+    }
+
+    // MARK: Password reset
+
+    private struct PasswordResetResponse: Decodable {
+        let message: String?
+        let email: String?
+    }
+
+    /// Emails a reset link (our landing page → `popup://auth-callback?reset_token=…`).
+    /// Returns the message to show; the API answers the same whether or not the account exists.
+    func requestPasswordReset(email: String) async -> String? {
+        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard trimmed.contains("@") else {
+            errorMessage = "Enter the email you signed up with."
+            return nil
+        }
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        do {
+            let response: PasswordResetResponse = try await APIClient.shared.request(
+                path: "/auth/password-reset",
+                method: "POST",
+                body: JSONEncoder().encode(["email": trimmed])
+            )
+            return response.message ?? "Check your email for a reset link."
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// Sets the new password from a reset link, then signs in with it (2FA still applies).
+    func completePasswordReset(newPassword: String) async {
+        guard let token = pendingPasswordResetToken else { return }
+        guard Self.passwordMeetsRules(newPassword) else {
+            errorMessage = Self.passwordRulesMessage
+            return
+        }
+        isLoading = true
+        errorMessage = nil
+        let email: String
+        do {
+            struct Body: Encodable { let token: String; let password: String }
+            let response: PasswordResetResponse = try await APIClient.shared.request(
+                path: "/auth/password-reset/complete",
+                method: "POST",
+                body: JSONEncoder().encode(Body(token: token, password: newPassword))
+            )
+            email = response.email ?? ""
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+            return
+        }
+        isLoading = false
+        pendingPasswordResetToken = nil
+        guard !email.isEmpty else { return }
+        if isAuthenticated { await logoutAsync() }
+        await login(email: email, password: newPassword)
     }
 
     // MARK: Password rules

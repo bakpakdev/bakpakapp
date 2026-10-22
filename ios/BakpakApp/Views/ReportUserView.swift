@@ -146,7 +146,7 @@ struct ReportUserView: View {
                 if didSubmit {
                     Text("Report sent. Thanks for helping keep popup safe.")
                         .font(Theme.syne(14, weight: .semibold))
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                 }
 
                 Button {

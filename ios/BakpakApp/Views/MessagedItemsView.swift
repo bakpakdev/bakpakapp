@@ -85,9 +85,9 @@ struct MessagedItemsView: View {
                             .font(Theme.syne(15, weight: .bold))
                             .foregroundStyle(Color(hex: "#E11D48"))
                     } else {
-                        Text("$\(Int(item.price))")
+                        Text(MoneyAmount.label(item.price))
                             .font(Theme.syne(15, weight: .bold))
-                            .foregroundStyle(campusTheme.primary)
+                            .foregroundStyle(campusTheme.tint)
                     }
                 }
 

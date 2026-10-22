@@ -309,7 +309,7 @@ private struct PhotoUploadBox: View {
                             )
                             .shadow(color: .black.opacity(campusTheme.isDark ? 0.25 : 0.08), radius: 4, y: 2)
                         Image(systemName: "camera.fill")
-                            .foregroundStyle(campusTheme.primary)
+                            .foregroundStyle(campusTheme.tint)
                             .font(.system(size: 18, weight: .semibold))
                     }
                     Text("Add Photo")
@@ -508,7 +508,7 @@ struct CreateListingView: View {
                             Text("Scan")
                                 .font(Theme.syne(13, weight: .bold))
                         }
-                        .foregroundStyle(campusTheme.primary)
+                        .foregroundStyle(campusTheme.tint)
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                 }
@@ -646,7 +646,7 @@ struct CreateListingView: View {
                             } label: {
                                 Image(systemName: "plus")
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(campusTheme.primary)
+                                    .foregroundStyle(campusTheme.tint)
                                     .frame(width: 40, height: 40)
                                     .background(campusTheme.surface)
                                     .clipShape(Circle())
@@ -710,7 +710,7 @@ struct CreateListingView: View {
                             } label: {
                                 Image(systemName: "plus")
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(campusTheme.primary)
+                                    .foregroundStyle(campusTheme.tint)
                                     .frame(width: 40, height: 40)
                                     .background(campusTheme.surface)
                                     .clipShape(Circle())
@@ -894,7 +894,7 @@ struct CreateListingView: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "chart.line.uptrend.xyaxis")
                                         .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(campusTheme.primary)
+                                        .foregroundStyle(campusTheme.tint)
                                     Text("Usually sells for \(rangeLabel)")
                                         .font(Theme.syne(13, weight: .semibold))
                                         .foregroundStyle(campusTheme.textPrimary)
@@ -1129,7 +1129,7 @@ struct CreateListingView: View {
             HStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
                     .frame(width: 18)
                 Text(title)
                     .font(Theme.syne(13, weight: .semibold))
@@ -1158,7 +1158,7 @@ struct CreateListingView: View {
                     .frame(width: 36, height: 36)
                 Image(systemName: "sparkles")
                     .font(.system(size: 15))
-                    .foregroundStyle(campusTheme.primary)
+                    .foregroundStyle(campusTheme.tint)
             }
             VStack(alignment: .leading, spacing: 6) {
                 Text("Quick Tips")
@@ -1585,7 +1585,7 @@ private struct CategoryPieceListView: View {
                                selectedCategoryID == piece.id {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(campusTheme.primary)
+                                    .foregroundStyle(campusTheme.tint)
                             }
                         }
                         .padding(.horizontal, 20)
@@ -1680,7 +1680,7 @@ private struct BrandPickerSheet: View {
                                 if selectedBrand == brand {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(campusTheme.primary)
+                                        .foregroundStyle(campusTheme.tint)
                                 }
                             }
                             .padding(.horizontal, 20)

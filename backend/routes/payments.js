@@ -75,9 +75,7 @@ async function fetchWaitingSession(supabase, productId) {
   await expireStaleSessions(supabase);
   const { data, error } = await supabase
     .from('payment_sessions')
-    .select(
-      'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, service_fee_cents, total_cents, product_title, status, expires_at, created_at'
-    )
+    .select(SESSION_COLUMNS)
     .eq('product_id', productId)
     .eq('status', 'waiting')
     .gt('expires_at', new Date().toISOString())
@@ -86,6 +84,28 @@ async function fetchWaitingSession(supabase, productId) {
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+const SESSION_COLUMNS =
+  'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, service_fee_cents, total_cents, product_title, status, expires_at, created_at';
+
+/** Latest paid session for a listing, so a poll after payment sees "paid" instead of "no session". */
+async function fetchPaidSession(supabase, productId, userId) {
+  const { data, error } = await supabase
+    .from('payment_sessions')
+    .select(SESSION_COLUMNS)
+    .eq('product_id', productId)
+    .eq('status', 'paid')
+    .or(`seller_id.eq.${userId},buyer_id.eq.${userId}`)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+function isUniqueViolation(error) {
+  return error?.code === '23505';
 }
 
 function serializeSession(session) {
@@ -190,7 +210,15 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
       })
       .select('id, status, amount_cents, expires_at, created_at')
       .single();
-    if (insertError) throw insertError;
+    if (insertError) {
+      // Two Receive taps (or two of the seller's devices) at once: the other call
+      // already opened the session, so hand that one back instead of a 500.
+      if (isUniqueViolation(insertError)) {
+        const existing = await fetchWaitingSession(supabase, productId);
+        if (existing) return res.status(200).json(receivePayload(existing, product));
+      }
+      throw insertError;
+    }
 
     const { data: session, error: sessionError } = await supabase
       .from('payment_sessions')
@@ -211,25 +239,45 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
         'id, product_id, meetup_id, payment_request_id, seller_id, buyer_id, amount_cents, service_fee_cents, total_cents, product_title, status, expires_at, created_at'
       )
       .single();
-    if (sessionError) throw sessionError;
+    if (sessionError) {
+      await supabase
+        .from('payment_requests')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', requestRow.id);
+      if (isUniqueViolation(sessionError)) {
+        const existing = await fetchWaitingSession(supabase, productId);
+        if (existing) return res.status(200).json(receivePayload(existing, product));
+      }
+      throw sessionError;
+    }
 
-    res.status(201).json({
-      session: serializeSession(session),
-      paymentRequest: requestRow,
-      productTitle: product.title,
-      amount: product.price,
-      amountCents,
-      serviceFeeCents,
-      totalCents,
-      feeLabel: feeLabel(),
-      provider: 'stripe',
-      mode: 'receive_session',
-    });
+    res.status(201).json(receivePayload(session, product, requestRow));
   } catch (error) {
     console.error('Create receive session error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+function receivePayload(session, product, requestRow = null) {
+  return {
+    session: serializeSession(session),
+    paymentRequest: requestRow || {
+      id: session.payment_request_id,
+      status: 'awaiting_payment',
+      amount_cents: session.amount_cents,
+      expires_at: session.expires_at,
+      created_at: session.created_at,
+    },
+    productTitle: product.title,
+    amount: product.price,
+    amountCents: session.amount_cents,
+    serviceFeeCents: session.service_fee_cents,
+    totalCents: session.total_cents,
+    feeLabel: feeLabel(),
+    provider: 'stripe',
+    mode: 'receive_session',
+  };
+}
 
 /** Buyer/seller: is there an active waiting receive session for this listing? */
 router.get('/meetup/session/:productId', protectSupabase, async (req, res) => {
@@ -243,6 +291,20 @@ router.get('/meetup/session/:productId', protectSupabase, async (req, res) => {
 
     const session = await fetchWaitingSession(supabase, productId);
     if (!session) {
+      const paid = product.is_sold ? await fetchPaidSession(supabase, productId, req.user.id) : null;
+      if (paid) {
+        return res.json({
+          active: false,
+          canPay: false,
+          session: serializeSession(paid),
+          paymentRequestId: paid.payment_request_id,
+          status: 'paid',
+          amountCents: paid.amount_cents,
+          productTitle: paid.product_title,
+          role: req.user.id === paid.seller_id ? 'seller' : 'buyer',
+          message: null,
+        });
+      }
       return res.json({
         active: false,
         canPay: false,
@@ -538,23 +600,36 @@ router.get('/meetup/:requestId/checkout', protectSupabase, requireStripePayments
 /**
  * One PaymentIntent per payment request. If the buyer backs out of the sheet and
  * taps Pay again we reuse it, so a retry can never create a second charge.
+ *
+ * Sellers who finished Stripe onboarding get a destination charge: the price goes
+ * straight to their Express account and popup keeps only its service fee. Everyone
+ * else gets a plain charge on popup's account that credits their popup balance.
  */
 async function findOrCreatePaymentIntent({ requestRow, totalCents, priceCents, serviceFeeCents, buyerId, productTitle }) {
   const client = stripe.getStripe();
+  const supabase = getSupabaseAdmin();
+  const destination = await stripe.directPayoutAccountId(supabase, requestRow.seller_id);
   const existingId = String(requestRow.payment_intent_id || '');
   if (existingId.startsWith('pi_')) {
     const existing = await client.paymentIntents.retrieve(existingId);
-    if (REUSABLE_INTENT_STATUSES.includes(existing.status)) {
-      if (existing.amount === totalCents) return existing;
-      return client.paymentIntents.update(existing.id, {
-        amount: totalCents,
-        metadata: { popup_price_cents: String(priceCents), popup_service_fee_cents: String(serviceFeeCents) },
-      });
-    }
     if (existing.status === 'succeeded' || existing.status === 'processing') {
       const error = new Error('This item has already been paid for.');
       error.status = 409;
       throw error;
+    }
+    const existingDestination = existing.transfer_data?.destination || null;
+    if (REUSABLE_INTENT_STATUSES.includes(existing.status)) {
+      if (existingDestination === destination) {
+        if (existing.amount === totalCents) return existing;
+        return client.paymentIntents.update(existing.id, {
+          amount: totalCents,
+          ...(destination ? { application_fee_amount: serviceFeeCents } : {}),
+          metadata: { popup_price_cents: String(priceCents), popup_service_fee_cents: String(serviceFeeCents) },
+        });
+      }
+      // The seller finished (or lost) Stripe onboarding since this intent was made:
+      // swap it for one that routes the money the right way.
+      await client.paymentIntents.cancel(existing.id);
     }
   }
 
@@ -567,6 +642,9 @@ async function findOrCreatePaymentIntent({ requestRow, totalCents, priceCents, s
       description: `popup meetup: ${String(productTitle || 'item').slice(0, 200)}`,
       statement_descriptor_suffix: 'POPUP',
       transfer_group: `popup-request-${requestRow.id}`,
+      ...(destination
+        ? { transfer_data: { destination }, application_fee_amount: serviceFeeCents }
+        : {}),
       metadata: {
         popup_payment_request_id: requestRow.id,
         popup_product_id: requestRow.product_id,
@@ -574,12 +652,12 @@ async function findOrCreatePaymentIntent({ requestRow, totalCents, priceCents, s
         popup_buyer_id: buyerId,
         popup_price_cents: String(priceCents),
         popup_service_fee_cents: String(serviceFeeCents),
+        popup_settlement: destination ? 'destination' : 'popup_balance',
       },
     },
-    { idempotencyKey: `popup-pi-${requestRow.id}-${totalCents}` }
+    { idempotencyKey: `popup-pi-${requestRow.id}-${totalCents}-${destination || 'platform'}` }
   );
 
-  const supabase = getSupabaseAdmin();
   await supabase
     .from('payment_requests')
     .update({ payment_intent_id: intent.id, updated_at: new Date().toISOString() })
@@ -676,6 +754,7 @@ router.post('/meetup/:requestId/confirm', protectSupabase, requireStripePayments
       sellerId: requestRow.seller_id,
       buyerId: intent.metadata?.popup_buyer_id || requestRow.buyer_id,
       paymentId: intent.id,
+      paidToAccountId: intent.transfer_data?.destination || null,
     });
     res.json({ message: 'Payment confirmed', status: 'paid', provider: 'stripe' });
   } catch (error) {

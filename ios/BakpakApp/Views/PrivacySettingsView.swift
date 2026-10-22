@@ -6,11 +6,12 @@ struct PrivacySettingsView: View {
     @EnvironmentObject private var blockStore: BlockStore
     @Environment(\.campusTheme) private var campusTheme
 
-    @State private var allowDMs = AccountPrefsStore.allowDMs
-    @State private var campusOnly = AccountPrefsStore.campusOnlyProfile
-    @State private var showSold = AccountPrefsStore.showSoldItems
-    @State private var showSchool = AccountPrefsStore.showSchoolOnProfile
-    @State private var showFollowers = AccountPrefsStore.showFollowersPublicly
+    /// Saved on `profiles.privacy` so other students' apps honor it.
+    @State private var privacy = ProfilePrivacy()
+    /// False until the server copy loads; stays false if the database has no `privacy` column yet,
+    /// so we never show switches that wouldn't do anything.
+    @State private var privacyReady = false
+    @State private var privacySaveError: String?
     @State private var hideNameOnLeaderboard = SellerRankStore.hideNameOnLeaderboard
 
     private var blockedCount: Int { blockStore.blockedByMe.count }
@@ -29,45 +30,52 @@ struct PrivacySettingsView: View {
                             subtitle: "Control what other students see on your public closet."
                         )
                         VStack(spacing: 0) {
-                            SettingsToggleRow(
-                                title: "Campus only",
-                                subtitle: "Only people at \(campusTheme.shortName) can find your profile and listings.",
-                                isOn: $campusOnly
-                            )
-                            SettingsToggleRow(
-                                title: "Show school badge",
-                                subtitle: "Display \(campusTheme.shortName) on your profile.",
-                                isOn: $showSchool
-                            )
-                            SettingsToggleRow(
-                                title: "Show sold items",
-                                subtitle: "Keep sold pieces visible in your closet.",
-                                isOn: $showSold
-                            )
-                            SettingsToggleRow(
-                                title: "Show follower counts",
-                                subtitle: "Let others see how many people follow you.",
-                                isOn: $showFollowers,
-                                showDivider: false
+                            if privacyReady {
+                                SettingsToggleRow(
+                                    title: "Show school badge",
+                                    subtitle: "Display \(campusTheme.shortName) on your profile.",
+                                    isOn: $privacy.showSchoolBadge
+                                )
+                                SettingsToggleRow(
+                                    title: "Show sold items",
+                                    subtitle: "Keep sold pieces visible in your closet.",
+                                    isOn: $privacy.showSoldItems
+                                )
+                                SettingsToggleRow(
+                                    title: "Show follower counts",
+                                    subtitle: "Let others see how many people follow you.",
+                                    isOn: $privacy.showFollowerCounts
+                                )
+                            }
+                            privacyNote(
+                                "Your profile and listings are only shown to students at \(campusTheme.shortName)."
                             )
                         }
                         .background(CampusCardBackground())
                     }
 
-                    VStack(alignment: .leading, spacing: 0) {
-                        SettingsSectionTitle(
-                            title: "messages",
-                            subtitle: "Campus safety defaults. You can always message someone you’ve already chatted with."
-                        )
-                        VStack(spacing: 0) {
-                            SettingsToggleRow(
-                                title: "Allow new messages",
-                                subtitle: "People you haven’t talked to yet can start a chat about a listing.",
-                                isOn: $allowDMs,
-                                showDivider: false
+                    if privacyReady {
+                        VStack(alignment: .leading, spacing: 0) {
+                            SettingsSectionTitle(
+                                title: "messages",
+                                subtitle: "You can always message someone you’ve already chatted with."
                             )
+                            VStack(spacing: 0) {
+                                SettingsToggleRow(
+                                    title: "Allow new messages",
+                                    subtitle: "People you haven’t talked to yet can start a chat about a listing. Meetup requests still come through.",
+                                    isOn: $privacy.allowNewMessages,
+                                    showDivider: false
+                                )
+                            }
+                            .background(CampusCardBackground())
                         }
-                        .background(CampusCardBackground())
+                    }
+
+                    if let privacySaveError {
+                        Text(privacySaveError)
+                            .font(Theme.syne(13))
+                            .foregroundStyle(Color(hex: "#E11D48"))
                     }
 
                     VStack(alignment: .leading, spacing: 0) {
@@ -108,18 +116,54 @@ struct PrivacySettingsView: View {
             }
         }
         .campusPageStyle()
-        .onChange(of: allowDMs) { value in AccountPrefsStore.allowDMs = value }
-        .onChange(of: campusOnly) { value in AccountPrefsStore.campusOnlyProfile = value }
-        .onChange(of: showSold) { value in AccountPrefsStore.showSoldItems = value }
-        .onChange(of: showSchool) { value in AccountPrefsStore.showSchoolOnProfile = value }
-        .onChange(of: showFollowers) { value in AccountPrefsStore.showFollowersPublicly = value }
+        .onChange(of: privacy) { value in
+            guard privacyReady else { return }
+            Task { await savePrivacy(value) }
+        }
         .onChange(of: hideNameOnLeaderboard) { value in
             SellerRankStore.hideNameOnLeaderboard = value
             if let uid = authVM.user?.id {
                 _ = SellerRankStore.anonymousSellerId(userId: uid, schoolID: campusTheme.schoolID)
             }
         }
-        .task { await blockStore.refreshIfNeeded() }
+        .task {
+            await loadPrivacy()
+            await blockStore.refreshIfNeeded()
+        }
+    }
+
+    private func privacyNote(_ text: String) -> some View {
+        Text(text)
+            .font(Theme.syne(12))
+            .foregroundStyle(campusTheme.textMuted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+    }
+
+    private func loadPrivacy() async {
+        guard let uid = authVM.user?.id,
+              let client = await SupabaseManager.shared.clientWithValidSession() else { return }
+        do {
+            if let stored = try await ProfilePrivacyService.fetch(client: client, userId: uid) {
+                privacy = stored
+                privacyReady = true
+            }
+        } catch {
+            // No `privacy` column yet (supabase/migrate_profile_privacy.sql not run): keep the switches hidden.
+            privacyReady = false
+        }
+    }
+
+    private func savePrivacy(_ value: ProfilePrivacy) async {
+        guard let uid = authVM.user?.id,
+              let client = await SupabaseManager.shared.clientWithValidSession() else { return }
+        do {
+            try await ProfilePrivacyService.save(client: client, userId: uid, privacy: value)
+            privacySaveError = nil
+        } catch {
+            privacySaveError = "Couldn’t save that change. Check your connection and try again."
+        }
     }
 }
 

@@ -221,4 +221,56 @@ final class MeetupPaymentService {
         }
         return channel
     }
+
+    /// Realtime presence for one meetup's Pay/Receive screen. Each person tracks
+    /// themselves keyed by user id; `onChange` gets the user ids currently on the screen.
+    func joinPayPresence(
+        meetupId: String,
+        meId: String,
+        role: String,
+        onChange: @escaping @MainActor (Set<String>) -> Void
+    ) async -> RealtimeChannelV2? {
+        guard let client = await SupabaseManager.shared.clientWithValidSession() else { return nil }
+        let myKey = meId.lowercased()
+        let channel = client.channel("meetup_pay:\(meetupId.lowercased())") {
+            $0.presence.key = myKey
+        }
+        let changes = channel.presenceChange()
+
+        do {
+            try await channel.subscribeWithError()
+            try await channel.track(PayPresenceState(userId: myKey, role: role))
+        } catch {
+            await client.removeChannel(channel)
+            return nil
+        }
+
+        Task {
+            // One person can be on the screen from more than one device, so keep each
+            // key's refs and drop the key only when its last ref leaves.
+            var refsByKey: [String: Set<String>] = [:]
+            for await action in changes {
+                for (key, presence) in action.joins {
+                    refsByKey[key.lowercased(), default: []].insert(presence.ref)
+                }
+                for (key, presence) in action.leaves {
+                    let k = key.lowercased()
+                    refsByKey[k]?.remove(presence.ref)
+                    if refsByKey[k]?.isEmpty == true { refsByKey[k] = nil }
+                }
+                await onChange(Set(refsByKey.keys))
+            }
+        }
+        return channel
+    }
+}
+
+private struct PayPresenceState: Codable {
+    let userId: String
+    let role: String
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case role
+    }
 }
