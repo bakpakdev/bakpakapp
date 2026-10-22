@@ -5,6 +5,12 @@
 > Square where popup can't pay it out. Before turning Tap to Pay on, rebuild it on Stripe
 > Terminal's Tap to Pay on iPhone (StripeTerminal SDK) so it charges popup's Stripe account
 > like the buyer checkout does. The steps below describe the old Square version.
+>
+> **Removed from the TestFlight build (Oct 2026):** the Square SDK isn't linked
+> (`POPUP_INCLUDE_SQUARE=1 python3 generate_xcode_project.py` links it again), and `Info.plist`
+> no longer asks for Bluetooth, NFC or location or declares the `bluetooth-central` background
+> mode. Add back whatever the Tap to Pay SDK you ship needs (Stripe Terminal needs location and
+> Bluetooth usage strings), plus the matching `PrivacyInfo.xcprivacy` entry.
 
 **Status:** Paused until Popup has an **LLC / Organization** Apple Developer team.  
 In-person pay ships today as **seller Receive session + buyer Apple Pay** (no Tap to Pay).  

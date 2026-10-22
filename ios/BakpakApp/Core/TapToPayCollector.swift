@@ -94,20 +94,19 @@ final class TapToPayCollector: NSObject, ObservableObject {
         }
 
         Self.configureIfNeeded()
-        guard let token = response.accessToken, let locationId = response.locationId else {
-            phase = .failed("Tap to Pay isn’t available right now.")
-            statusMessage = "Try again in a moment"
-            return
-        }
         guard let amount = response.amountCents, amount >= 50 else {
             phase = .failed("Invalid listing price.")
             statusMessage = "Invalid listing price"
             return
         }
 
-        squareAccessToken = token
-        squareLocationId = locationId
+        // Square reader tokens were dropped when checkout moved to Stripe.
+        phase = .failed("Tap to Pay isn’t available on this build.")
+        statusMessage = "Use Pay / Receive with Apple Pay."
+        squareAccessToken = nil
+        squareLocationId = nil
         squareAmountCents = amount
+        return
         squarePaymentRequestId = response.paymentRequest.id
         squareNote = response.productTitle
         phase = .preparing

@@ -23,7 +23,7 @@ final class AuthViewModel: ObservableObject {
     /// Set when a password-reset email link opens the app; shows the new-password screen.
     @Published var pendingPasswordResetToken: String?
     /// Legacy Express API base URL (used only when Supabase is not configured).
-    @Published var baseURL = SquareConfig.apiBaseURL
+    @Published var baseURL = PaymentsConfig.apiBaseURL
 
     private let legacyAuth = AuthService()
     private static let baseURLDefaultsKey = "popup.apiBaseURL"

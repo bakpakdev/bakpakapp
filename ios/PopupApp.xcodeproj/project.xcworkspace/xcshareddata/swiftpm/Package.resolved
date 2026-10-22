@@ -1,15 +1,6 @@
 {
-  "originHash" : "82836a1d10c57ec29e157a6242ab8c65664cf99f5fd127028acf557268ca71d1",
+  "originHash" : "0c2249e31c3e4a2ea2300a9f2d98e42726c6c2552bab49686d3ee8ae47a2e93c",
   "pins" : [
-    {
-      "identity" : "mobile-payments-sdk-ios",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/square/mobile-payments-sdk-ios",
-      "state" : {
-        "revision" : "134f9c16951958dcea190aea1d7b890fa9c5b8f1",
-        "version" : "2.6.0"
-      }
-    },
     {
       "identity" : "stripe-ios-spm",
       "kind" : "remoteSourceControl",

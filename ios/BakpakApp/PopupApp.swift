@@ -12,8 +12,11 @@ struct PopupApp: App {
     @StateObject private var blockStore = BlockStore.shared
 
     init() {
+        #if canImport(SquareMobilePaymentsSDK)
+        // Only when the paused Tap to Pay build links Square (POPUP_INCLUDE_SQUARE=1).
         SquareConfig.initializeSDKIfNeeded()
         TapToPayCollector.configureIfNeeded()
+        #endif
         APIClient.shared.setBaseURL(PaymentsConfig.apiBaseURL)
     }
 

@@ -48,21 +48,13 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NFCReaderUsageDescription</key>
-	<string>popup uses NFC so buyers can tap a card or phone on your iPhone to pay.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>popup uses Bluetooth to connect to supported card readers.</string>
-	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>popup uses Bluetooth to connect to supported card readers.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>popup needs camera access so you can take photos for your listings.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>popup uses your location to accept Tap to Pay meetup payments securely.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>popup needs photo access to add images to your listings.</string>
 	<key>SQUARE_APPLICATION_ID</key>
@@ -84,10 +76,6 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>bluetooth-central</string>
-	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

@@ -119,8 +119,6 @@
 		2805BE21C152A448694F4FA5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3284D144C80F0189F808793F /* Assets.xcassets */; };
 		C731F8663F3A02BE46FFED80 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BE1D4ADB8984DFCE52F63580 /* PrivacyInfo.xcprivacy */; };
 		40EE98DC765EB129F328B9A3 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 292965126FD5E2A9E949BD61 /* Supabase */; };
-		28686CCEAA6EA1D1180531B1 /* SquareMobilePaymentsSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 3A5F17E19D1C77C05476FF41 /* SquareMobilePaymentsSDK */; };
-		FB383C195BEC1F24E3D00D93 /* MockReaderUI in Frameworks */ = {isa = PBXBuildFile; productRef = B490B8D12C5657E3728DAB15 /* MockReaderUI */; };
 		949200B0B48E6527317F6A1E /* StripePaymentSheet in Frameworks */ = {isa = PBXBuildFile; productRef = F22AF2F4963258DA1280308A /* StripePaymentSheet */; };
 /* End PBXBuildFile section */
 
@@ -251,8 +249,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				40EE98DC765EB129F328B9A3 /* Supabase in Frameworks */,
-				28686CCEAA6EA1D1180531B1 /* SquareMobilePaymentsSDK in Frameworks */,
-				FB383C195BEC1F24E3D00D93 /* MockReaderUI in Frameworks */,
 				949200B0B48E6527317F6A1E /* StripePaymentSheet in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -474,7 +470,6 @@
 				D93B3B4B100D17B2EA542107 /* Sources */,
 				925B1DEA3065FCAEB58EA1A3 /* Resources */,
 				FC54A62FB41DD24DDA676A71 /* Frameworks */,
-				A46CD8AB000FFBB4421984B6 /* Square SDK setup */,
 			);
 			buildRules = (
 			);
@@ -482,8 +477,6 @@
 			);
 			packageProductDependencies = (
 				292965126FD5E2A9E949BD61 /* Supabase */,
-				3A5F17E19D1C77C05476FF41 /* SquareMobilePaymentsSDK */,
-				B490B8D12C5657E3728DAB15 /* MockReaderUI */,
 				F22AF2F4963258DA1280308A /* StripePaymentSheet */,
 			);
 			name = PopupApp;
@@ -517,7 +510,6 @@
 			mainGroup = 2641B36E94DC246F4FB03F65;
 			packageReferences = (
 				14E39AE986549EB5C559BE14 /* XCRemoteSwiftPackageReference "supabase-swift" */,
-				0A65B962E58BAE7EB5630565 /* XCRemoteSwiftPackageReference "mobile-payments-sdk-ios" */,
 				3CC1E711354C5794B95292AC /* XCRemoteSwiftPackageReference "stripe-ios-spm" */,
 			);
 			productRefGroup = 4DDDE9607ED7D5C92B96C109 /* Products */;
@@ -660,27 +652,6 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		A46CD8AB000FFBB4421984B6 /* Square SDK setup */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Square SDK setup";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "set -e\n# Square's setup re-signs nested frameworks with EXPANDED_CODE_SIGN_IDENTITY.\n# Skip when there is no identity (simulator / CODE_SIGNING_ALLOWED=NO). Archive always has one.\nif [ \"${PLATFORM_NAME}\" != \"iphoneos\" ]; then\n  exit 0\nfi\nif [ -z \"${EXPANDED_CODE_SIGN_IDENTITY}\" ] || [ \"${EXPANDED_CODE_SIGN_IDENTITY}\" = \"-\" ]; then\n  echo \"warning: Square SDK setup skipped (no signing identity)\"\n  exit 0\nfi\nFRAMEWORKS=\"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nfor SDK in SquareMobilePaymentsSDK; do\n  SETUP=\"${FRAMEWORKS}/${SDK}.framework/setup\"\n  if [ -f \"$SETUP\" ]; then\n    echo \"Running $SETUP\"\n    \"$SETUP\"\n  fi\ndone\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		14E39AE986549EB5C559BE14 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
@@ -689,14 +660,6 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.0.0;
-			};
-		};
-		0A65B962E58BAE7EB5630565 /* XCRemoteSwiftPackageReference "mobile-payments-sdk-ios" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/square/mobile-payments-sdk-ios";
-			requirement = {
-				kind = upToNextMinorVersion;
-				minimumVersion = 2.6.0;
 			};
 		};
 		3CC1E711354C5794B95292AC /* XCRemoteSwiftPackageReference "stripe-ios-spm" */ = {
@@ -714,16 +677,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 14E39AE986549EB5C559BE14 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
-		};
-		3A5F17E19D1C77C05476FF41 /* SquareMobilePaymentsSDK */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 0A65B962E58BAE7EB5630565 /* XCRemoteSwiftPackageReference "mobile-payments-sdk-ios" */;
-			productName = SquareMobilePaymentsSDK;
-		};
-		B490B8D12C5657E3728DAB15 /* MockReaderUI */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 0A65B962E58BAE7EB5630565 /* XCRemoteSwiftPackageReference "mobile-payments-sdk-ios" */;
-			productName = MockReaderUI;
 		};
 		F22AF2F4963258DA1280308A /* StripePaymentSheet */ = {
 			isa = XCSwiftPackageProductDependency;
