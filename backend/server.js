@@ -73,6 +73,9 @@ try {
   }));
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  // Terms and Privacy live on the website (web/ in this repo); keep old API links working.
+  app.get(['/legal/terms', '/legal/terms.html'], (_req, res) => res.redirect(301, 'https://usepopupapp.com/terms.html'));
+  app.get(['/legal/privacy', '/legal/privacy.html'], (_req, res) => res.redirect(301, 'https://usepopupapp.com/privacy.html'));
   app.use(express.static(path.join(__dirname, 'public'))); // landing pages (email confirm)
   const confirmEmailPage = path.join(__dirname, 'public/auth/confirm-email.html');
   app.get(['/auth/confirm-email', '/auth/confirm-email.html'], (_req, res) => {
