@@ -20,13 +20,24 @@ Tap to Pay prototype and is not linked into the app (see `POST_LAUNCH_TAP_TO_PAY
 - `PrivacyInfo.xcprivacy` bundled: email, name, user ID, photos, user content and purchase
   history, all linked to the user, none used for tracking.
 - Terms of Service and Privacy Policy are on the website (`web/terms.html`, `web/privacy.html` →
-  `https://usepopupapp.com/terms.html` and `/privacy.html`), linked from the site's nav and footer
+  `https://www.usepopupapp.com/terms.html` and `/privacy.html`), linked from the site's nav and footer
   and from sign-in, signup and Help in the app. The API's old `/legal/*` URLs redirect there.
 - Password reset and campus email confirm both email a landing page on the API host, so iOS Mail
   prefetch can't burn the link.
 - The debug demo signup (`demo@popupdev.test`) is compiled out of Release, and the API refuses it
   when `NODE_ENV=production`.
 - Backend deploys from `backend/Dockerfile` with `backend/render.yaml` (auto-deploy on push).
+
+## 0. Website (Vercel, `www.usepopupapp.com`)
+
+`web/` is the site: landing page, `privacy.html`, `terms.html`. In Vercel → the site's project →
+Settings → Git, connect `bakpakdev/bakpakapp` with **Root Directory `web`** (framework "Other",
+no build command) so every merge to `main` redeploys it. The app links to
+`https://www.usepopupapp.com/privacy.html` and `/terms.html`.
+
+The bare domain `usepopupapp.com` currently points at GoDaddy forwarding, not Vercel. To serve
+it from Vercel too, add it under Vercel → Domains and follow the A-record instructions Vercel shows
+in GoDaddy DNS.
 
 ## 1. Hosted API (Render, `popup-api-hwbg`)
 
@@ -79,7 +90,7 @@ Fees: buyers pay the listed price + `PLATFORM_FEE_PERCENT` (8%) + `PLATFORM_FEE_
    that merchant selected.
 2. App Store Connect → My Apps → `popup` (bundle `com.popup.app`, SKU `popup-ios`). Xcode won't
    create the app record for you.
-3. App Information → **Privacy Policy URL**: `https://usepopupapp.com/privacy.html`.
+3. App Information → **Privacy Policy URL**: `https://www.usepopupapp.com/privacy.html`.
 4. App Privacy questionnaire: match `PrivacyInfo.xcprivacy` (no tracking, no location).
 5. Accept the latest Program License Agreement if prompted (stale agreements block uploads).
 
