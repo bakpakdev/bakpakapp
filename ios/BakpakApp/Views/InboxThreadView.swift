@@ -17,7 +17,8 @@ struct InboxThreadView: View {
 
     @State private var threadId = ""
     @State private var headerChat: Chat?
-    @State private var inputValue = ""
+    /// Lives outside this view's state so typing only redraws the composer, not every bubble.
+    @State private var draft = ChatComposerDraft()
     @State private var showMeetupPicker = false
     @State private var meetupDraft: MeetupComposeDraft = .suggest
     @State private var showCancelMeetupConfirm = false
@@ -296,7 +297,8 @@ struct InboxThreadView: View {
     }
 
     private var messageList: some View {
-        ScrollViewReader { proxy in
+        let uiMessages = self.uiMessages
+        return ScrollViewReader { proxy in
             GeometryReader { geo in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
@@ -354,7 +356,7 @@ struct InboxThreadView: View {
                     }
                     ForEach(quickActions, id: \.self) { action in
                         Button {
-                            inputValue = action
+                            draft.text = action
                         } label: {
                             Text(action)
                                 .font(Theme.syne(12, weight: .semibold))
@@ -371,34 +373,7 @@ struct InboxThreadView: View {
                 .padding(.horizontal, 16)
             }
 
-            HStack(alignment: .bottom, spacing: 10) {
-                TextField("Message", text: $inputValue, axis: .vertical)
-                    .font(Theme.syne(15, weight: .regular))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .tint(campusTheme.primary)
-                    .lineLimit(1 ... 5)
-                    .padding(.leading, 4)
-                    .padding(.vertical, 8)
-
-                Button(action: handleSendMessage) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(
-                            inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                ? campusTheme.textMuted
-                                : Color.white
-                        )
-                        .frame(width: 36, height: 36)
-                        .background(
-                            inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                ? campusTheme.elevatedSurface
-                                : campusTheme.primary
-                        )
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .disabled(inputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
+            ChatComposerField(draft: draft, onSend: handleSendMessage)
             .padding(.leading, 16)
             .padding(.trailing, 6)
             .padding(.vertical, 4)
@@ -605,11 +580,13 @@ struct InboxThreadView: View {
     }
 
     private func handleSendMessage() {
-        let text = inputValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = draft.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !threadId.isEmpty else { return }
-        inputValue = ""
+        draft.text = ""
         Task {
-            await vm.send(conversationId: threadId, content: text, senderId: authVM.user?.id)
+            let sent = await vm.send(conversationId: threadId, content: text, senderId: authVM.user?.id)
+            // Don't lose what they typed if it didn't go through.
+            if !sent, draft.text.isEmpty { draft.text = text }
         }
     }
 
@@ -1078,5 +1055,45 @@ struct InboxThreadView: View {
         }
         .padding(24)
         .background(campusTheme.background.ignoresSafeArea())
+    }
+}
+
+
+/// The chat's draft text. A reference type held in `@State`, so the thread view
+/// doesn't re-render on each keystroke; only `ChatComposerField` observes it.
+final class ChatComposerDraft: ObservableObject {
+    @Published var text = ""
+}
+
+private struct ChatComposerField: View {
+    @ObservedObject var draft: ChatComposerDraft
+    let onSend: () -> Void
+    @Environment(\.campusTheme) private var campusTheme
+
+    private var isEmpty: Bool {
+        draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 10) {
+            TextField("Message", text: $draft.text, axis: .vertical)
+                .font(Theme.syne(15, weight: .regular))
+                .foregroundStyle(campusTheme.textPrimary)
+                .tint(campusTheme.primary)
+                .lineLimit(1 ... 5)
+                .padding(.leading, 4)
+                .padding(.vertical, 8)
+
+            Button(action: onSend) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(isEmpty ? campusTheme.textMuted : Color.white)
+                    .frame(width: 36, height: 36)
+                    .background(isEmpty ? campusTheme.elevatedSurface : campusTheme.primary)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isEmpty)
+        }
     }
 }

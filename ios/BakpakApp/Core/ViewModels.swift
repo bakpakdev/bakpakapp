@@ -122,9 +122,11 @@ final class MessagesViewModel: ObservableObject {
     }
 
     /// Call after clearing the text field. Appends a bubble immediately, then syncs to Supabase.
-    func send(conversationId: String, content: String, senderId: String?) async {
+    /// Shows the message right away; false if the send failed (it's removed again).
+    @discardableResult
+    func send(conversationId: String, content: String, senderId: String?) async -> Bool {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !conversationId.isEmpty else { return }
+        guard !trimmed.isEmpty, !conversationId.isEmpty else { return false }
 
         let tempId = "local-\(UUID().uuidString)"
         let now = ISO8601DateFormatter().string(from: Date())
@@ -141,6 +143,7 @@ final class MessagesViewModel: ObservableObject {
         isSending = true
         errorMessage = nil
 
+        defer { isSending = false }
         do {
             let sent = try await service.send(conversationId: conversationId, content: trimmed)
             if let idx = messages.firstIndex(where: { $0.id == tempId }) {
@@ -151,8 +154,9 @@ final class MessagesViewModel: ObservableObject {
         } catch {
             messages.removeAll { $0.id == tempId }
             errorMessage = error.localizedDescription
+            return false
         }
-        isSending = false
+        return true
     }
 
     func startLiveUpdates(conversationId: String) {
@@ -254,12 +258,15 @@ final class MessagesViewModel: ObservableObject {
                         && ($0.senderId ?? "").lowercased() == (local.senderId ?? "").lowercased()
                 }
         }
-        messages = (fetched + locals).sorted { ($0.createdAt ?? "") < ($1.createdAt ?? "") }
+        let merged = (fetched + locals).sorted { ($0.createdAt ?? "") < ($1.createdAt ?? "") }
+        // The 2-second poll usually finds nothing new; republishing an identical list
+        // re-renders the whole thread and makes typing stutter on slower phones.
+        if merged != messages { messages = merged }
     }
 
     private func upsertMessage(_ message: Message) {
         if let idx = messages.firstIndex(where: { $0.id == message.id }) {
-            messages[idx] = message
+            if messages[idx] != message { messages[idx] = message }
             return
         }
         if let idx = messages.firstIndex(where: {
