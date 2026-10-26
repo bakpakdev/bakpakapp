@@ -117,7 +117,7 @@ cd ios && python3 generate_xcode_project.py && open PopupApp.xcodeproj
 3. Buyer pays with Apple Pay (Stripe test mode accepts real cards without charging them) and
    sees price + service fee.
 4. Seller sees "added to your earnings"; the listing moves to Sold.
-5. Seller turns on 2FA, then Settings → Cash out setup → finishes Stripe onboarding; the balance
+5. Seller opens Settings → Getting paid (or taps the profile balance card), turns on 2FA, then finishes Stripe onboarding; the balance
    moves to their Stripe account.
 6. Sign out → **Forgot password?** → open the email on the phone → set a new password.
 

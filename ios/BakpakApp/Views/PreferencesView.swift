@@ -5,11 +5,7 @@ struct PreferencesView: View {
     @EnvironmentObject private var meetupStore: MeetupStore
     @Environment(\.campusTheme) private var campusTheme
 
-    @State private var notifyMessages = AccountPrefsStore.notifyMessages
     @State private var notifyMeetups = AccountPrefsStore.notifyMeetups
-    @State private var notifyOffers = AccountPrefsStore.notifyOffers
-    @State private var notifySales = AccountPrefsStore.notifySales
-    @State private var notifyFollows = AccountPrefsStore.notifyFollows
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -53,25 +49,16 @@ struct PreferencesView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         SettingsSectionTitle(
                             title: "notifications",
-                            subtitle: "Choose what pops up on this phone. You can change this anytime."
+                            subtitle: "Reminders on this phone before your meetups."
                         )
                         VStack(spacing: 0) {
-                            SettingsToggleRow(
-                                title: "Messages",
-                                subtitle: "New chats and replies in inbox.",
-                                isOn: $notifyMessages
-                            )
+                            // Only meetup reminders exist today; message/offer/sale/follow switches
+                            // had nothing behind them, so they're gone until push notifications ship.
                             SettingsToggleRow(
                                 title: "Meetup reminders",
                                 subtitle: "Time and place for accepted meetups.",
                                 isOn: $notifyMeetups,
-                                showDivider: {
-                                    #if DEBUG
-                                    return false
-                                    #else
-                                    return true
-                                    #endif
-                                }()
+                                showDivider: false
                             )
                             #if DEBUG
                             Button {
@@ -97,27 +84,7 @@ struct PreferencesView: View {
                                 .padding(.vertical, 14)
                             }
                             .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-                            Rectangle()
-                                .fill(campusTheme.border)
-                                .frame(height: 1)
-                                .padding(.horizontal, 16)
                             #endif
-                            SettingsToggleRow(
-                                title: "Offers",
-                                subtitle: "When someone offers on one of your listings.",
-                                isOn: $notifyOffers
-                            )
-                            SettingsToggleRow(
-                                title: "Sales",
-                                subtitle: "When a meetup payment goes through.",
-                                isOn: $notifySales
-                            )
-                            SettingsToggleRow(
-                                title: "Follows",
-                                subtitle: "When someone follows your closet.",
-                                isOn: $notifyFollows,
-                                showDivider: false
-                            )
                         }
                         .background(CampusCardBackground())
                     }
@@ -127,7 +94,6 @@ struct PreferencesView: View {
             }
         }
         .campusPageStyle()
-        .onChange(of: notifyMessages) { value in AccountPrefsStore.notifyMessages = value }
         .onChange(of: notifyMeetups) { value in
             AccountPrefsStore.notifyMeetups = value
             Task {
@@ -139,9 +105,6 @@ struct PreferencesView: View {
                 }
             }
         }
-        .onChange(of: notifyOffers) { value in AccountPrefsStore.notifyOffers = value }
-        .onChange(of: notifySales) { value in AccountPrefsStore.notifySales = value }
-        .onChange(of: notifyFollows) { value in AccountPrefsStore.notifyFollows = value }
     }
 
     #if DEBUG

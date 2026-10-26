@@ -86,11 +86,9 @@ struct AccountSettingsView: View {
             settingsGroup(
                 title: "Payments",
                 rows: [
-                    .init(icon: "creditcard", title: paymentSettingsTitle, subtitle: paymentSettingsSubtitle) {
+                    // One place for the money story; bank changes live on that screen too.
+                    .init(icon: "creditcard", title: "Getting paid", subtitle: paymentSettingsSubtitle) {
                         openCashOutSetupOrManage()
-                    },
-                    .init(icon: "building.columns", title: "Payout bank", subtitle: payoutMethodsSubtitle) {
-                        Task { await payoutBankTapped() }
                     },
                 ]
             )
@@ -207,10 +205,6 @@ struct AccountSettingsView: View {
         return "Meetup sales paid in the app land here"
     }
 
-    private var paymentSettingsTitle: String {
-        payoutStatus?.onboardingComplete == true ? "Cash out" : "Cash out setup"
-    }
-
     private var paymentSettingsSubtitle: String {
         guard let payoutStatus else {
             return "Only needed when you’re ready to cash out"
@@ -222,14 +216,6 @@ struct AccountSettingsView: View {
             return "Stripe needs a bit more info"
         }
         return "A few minutes with Stripe, once"
-    }
-
-    private var payoutMethodsSubtitle: String {
-        guard let payoutStatus else { return "Add once when you’re ready to cash out" }
-        if payoutStatus.onboardingComplete == true {
-            return "Change your bank or debit card on Stripe"
-        }
-        return "Added during payout setup"
     }
 
     private var cashOutButtonTitle: String {
@@ -314,20 +300,6 @@ struct AccountSettingsView: View {
 
     private func openCashOutSetupOrManage() {
         appState.path.append(.sellerCashOutSetup)
-    }
-
-    private func payoutBankTapped() async {
-        guard payoutStatus?.onboardingComplete == true else {
-            appState.path.append(.sellerCashOutSetup)
-            return
-        }
-        do {
-            try await stripeConnect.openDashboard()
-        } catch PayoutMFAError.cancelled {
-            return
-        } catch {
-            comingSoonMessage = error.localizedDescription
-        }
     }
 
     private func cashOutTapped() async {

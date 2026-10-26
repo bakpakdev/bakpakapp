@@ -141,8 +141,15 @@ struct ProfileView: View {
                             .padding(.horizontal, horizontalPad)
                             .padding(.bottom, 12)
 
-                        balanceBar
-                            .padding(.horizontal, horizontalPad)
+                        Button {
+                            Motion.haptic(.light)
+                            appState.path.append(.sellerCashOutSetup)
+                        } label: {
+                            balanceBar
+                        }
+                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+                        .accessibilityHint("How you get paid")
+                        .padding(.horizontal, horizontalPad)
                             .padding(.bottom, 26)
 
                         sectionTitle("ranking")

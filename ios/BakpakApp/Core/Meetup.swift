@@ -253,24 +253,17 @@ struct Meetup: Codable, Identifiable, Hashable {
         if status.isTerminal { return absoluteTimeLabel(now: now) }
         let interval = scheduledAt.timeIntervalSince(now)
         if abs(interval) < 90 { return "now" }
-        if interval > 0 && interval < 24 * 60 * 60 {
-            let total = Int(interval)
-            let h = total / 3600
-            let m = (total % 3600) / 60
-            if h > 0 { return "in \(h)h \(m)m" }
-            return "in \(max(m, 1))m"
+        // A countdown only helps inside the next hour; past that people want the time.
+        if interval > 0 && interval < 60 * 60 {
+            return "in \(max(Int(interval) / 60, 1))m"
         }
-        if interval < 0 && interval > -24 * 60 * 60 {
-            let total = Int(-interval)
-            let h = total / 3600
-            let m = (total % 3600) / 60
-            if h > 0 { return "\(h)h \(m)m ago" }
-            return "\(max(m, 1))m ago"
+        if interval < 0 && interval > -60 * 60 {
+            return "\(max(Int(-interval) / 60, 1))m ago"
         }
         return absoluteTimeLabel(now: now)
     }
 
-    /// "today 4:30pm", "tomorrow 4:30pm", "oct 22 4:30pm".
+    /// "today 4:30pm", "tomorrow 4:30pm", "thu 4:30pm" this week, "oct 22 4:30pm" otherwise.
     func absoluteTimeLabel(now: Date = Date()) -> String {
         let cal = Calendar.current
         let time = Self.clockString(from: scheduledAt)
@@ -278,12 +271,14 @@ struct Meetup: Codable, Identifiable, Hashable {
         if cal.isDateInTomorrow(scheduledAt) { return "tomorrow \(time)" }
         if cal.isDateInYesterday(scheduledAt) { return "yesterday \(time)" }
         let day = DateFormatter()
-        day.dateFormat = "MMM d"
+        let daysAway = abs(scheduledAt.timeIntervalSince(now)) / 86_400
+        day.dateFormat = daysAway < 6 ? "EEE" : "MMM d"
         return "\(day.string(from: scheduledAt).lowercased()) \(time)"
     }
 
+    /// Re-render every 30s only while a countdown can show (within about an hour).
     var ticksRelativeTime: Bool {
-        abs(scheduledAt.timeIntervalSinceNow) < 24 * 60 * 60 || isLive
+        abs(scheduledAt.timeIntervalSinceNow) < 2 * 60 * 60 || isLive
     }
 
     private static func clockString(from date: Date) -> String {

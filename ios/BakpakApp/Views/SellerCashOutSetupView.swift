@@ -28,7 +28,7 @@ struct SellerCashOutSetupView: View {
             VStack(spacing: 0) {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
-                        Text(isReady ? "You're set" : "Get paid for your sales")
+                        Text(isReady ? "You're set" : "How you get paid")
                             .font(Theme.syne(26, weight: .bold))
                             .foregroundStyle(campusTheme.textPrimary)
                         Text(subtitle)
@@ -37,6 +37,7 @@ struct SellerCashOutSetupView: View {
                             .fixedSize(horizontal: false, vertical: true)
 
                         balanceCard
+                        howItWorksCard
                         if isReady {
                             readyCard
                         } else {
@@ -57,7 +58,7 @@ struct SellerCashOutSetupView: View {
                 ProgressView().tint(campusTheme.primary)
             }
         }
-        .navigationTitle("Cash out")
+        .navigationTitle("Getting paid")
         .navigationBarTitleDisplayMode(.inline)
         .campusScreenStyle()
         .alert("Cash out", isPresented: Binding(
@@ -109,15 +110,46 @@ struct SellerCashOutSetupView: View {
         .background(cardBackground)
     }
 
+    /// The whole money story in one place: what the buyer pays, what you keep, when it lands.
+    private var howItWorksCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("how it works")
+                .font(Theme.syne(13, weight: .semibold))
+                .foregroundStyle(campusTheme.textMuted)
+            factRow(icon: "tag", text: "You keep the full listing price. Buyers pay popup’s small service fee on top.")
+            factRow(icon: "iphone", text: "The buyer pays in the app at your meetup with Apple Pay or a card. Never take cash, Venmo or Zelle.")
+            factRow(icon: "building.columns", text: "After a one-time Stripe signup, each sale lands in your bank or debit card in about 2 business days.")
+            factRow(icon: "hourglass", text: "Sales before signup wait in your popup balance and move over once you finish.")
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardBackground)
+    }
+
+    private func factRow(icon: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(campusTheme.tint)
+                .frame(width: 20)
+            Text(text)
+                .font(Theme.syne(13))
+                .foregroundStyle(campusTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private var stepsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            let offset = twoFactorOn ? 0 : 1
-            if !twoFactorOn {
-                stepRow(icon: "1.circle.fill", title: "Turn on two-factor", body: "Payouts are locked behind a 6-digit code from Passwords or your authenticator app. It takes a minute.")
-            }
-            stepRow(icon: "\(1 + offset).circle.fill", title: "Verify it's you", body: "Legal name, date of birth, address, and the last 4 of your SSN. Stripe fills in what popup already has.")
-            stepRow(icon: "\(2 + offset).circle.fill", title: "Add where money goes", body: "A bank account or debit card. Stripe keeps these, popup never sees them.")
-            stepRow(icon: "\(3 + offset).circle.fill", title: "Get paid automatically", body: "Every sale after that goes straight to you. Anything in your popup balance moves over too.")
+            stepRow(
+                icon: twoFactorOn ? "checkmark.circle.fill" : "1.circle.fill",
+                title: twoFactorOn ? "Two-factor is on" : "Turn on two-factor",
+                body: twoFactorOn
+                    ? "You’ll enter a code from Passwords before payout changes."
+                    : "Payouts are locked behind a 6-digit code from Passwords or your authenticator app. It takes a minute."
+            )
+            stepRow(icon: "2.circle.fill", title: "Sign up with Stripe", body: "Legal name, date of birth, address, the last 4 of your SSN, and a bank account or debit card. Stripe keeps these; popup never sees them.")
+            stepRow(icon: "3.circle.fill", title: "Get paid automatically", body: "Every sale after that goes straight to you. Anything in your popup balance moves over too.")
             if let due = status?.requirementsDue, !due.isEmpty, status?.connected == true {
                 statusPill(ok: false, text: "Stripe still needs \(due.count) item\(due.count == 1 ? "" : "s")")
             }

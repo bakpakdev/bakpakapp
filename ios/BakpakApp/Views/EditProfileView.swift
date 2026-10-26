@@ -381,14 +381,6 @@ struct EditProfileView: View {
                         .padding(16)
                     }
 
-                    EditProfileSectionHeader(title: "Preferences", subtitle: "Control what appears on your profile")
-                    EditProfileCard {
-                        // School badge visibility lives in Settings → Privacy, where it's saved for other students.
-                        EditProfileRow(label: "Open to Trades", showDivider: false) {
-                            EditProfileIOSSwitch(isOn: $isTradesOpen)
-                        }
-                    }
-
                     EditProfileSectionHeader(title: "Social Links", subtitle: "Connect accounts to show on your profile")
                     EditProfileCard {
                         VStack(spacing: 14) {
