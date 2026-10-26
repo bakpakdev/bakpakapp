@@ -84,6 +84,23 @@ Fees: buyers pay the listed price + `PLATFORM_FEE_PERCENT` (8%) + `PLATFORM_FEE_
    - **Redirect URLs** → keep `popup://auth-callback`, add
      `https://popup-api-hwbg.onrender.com/auth/verified.html`
 
+## 3b. Push notifications
+
+Alerts for messages, offers, meetup requests/changes, sales and follows. The app registers each
+phone in `push_devices`; database triggers tell the API, and the API sends through Apple.
+
+1. developer.apple.com → Keys → **+** → enable **Apple Push Notifications service (APNs)** →
+   download the `.p8` (you can only download it once) and note its **Key ID**.
+2. Render → Environment: `APNS_KEY` = the whole `.p8` text, `APNS_KEY_ID`, `APNS_TEAM_ID=38BTDK54M3`,
+   `APNS_BUNDLE_ID=com.popup.app`, `PUSH_WEBHOOK_SECRET` = a long random string.
+3. Supabase SQL Editor: run `supabase/migrate_push_notifications.sql`, then the `insert into
+   private.push_config ...` line at its top with the same secret.
+4. Check `https://popup-api-hwbg.onrender.com/api/push/health` → `apnsConfigured: true`,
+   `webhookSecretSet: true`.
+5. The app's entitlements already include `aps-environment`; automatic signing turns on Push
+   Notifications for `com.popup.app` on the next build. TestFlight builds use Apple's production
+   push service, Xcode runs use sandbox; the app records which one per phone.
+
 ## 4. Apple Developer / App Store Connect (team 38BTDK54M3)
 
 1. Identifiers → Merchant IDs → `merchant.com.popup.app`; App ID `com.popup.app` → Apple Pay on,

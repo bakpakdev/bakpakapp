@@ -1342,6 +1342,8 @@ struct CreateListingView: View {
                 tags: tags,
                 imageDataList: imagePayloads
             )
+            // Sellers want to hear about offers and buyers on their first listing.
+            MeetupNotificationScheduler.shared.noteUserWantsAlerts()
             title = ""
             description = ""
             price = ""

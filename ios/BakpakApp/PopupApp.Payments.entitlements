@@ -2,9 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- POST-LAUNCH ONLY — see ios/POST_LAUNCH_TAP_TO_PAY.md
-	     Apple Pay + Tap to Pay on iPhone. Requires Organization team + Apple's
-	     Tap to Pay entitlement approval before Archive, or signing fails. -->
+	<key>aps-environment</key>
+	<string>development</string>
 	<key>com.apple.developer.in-app-payments</key>
 	<array>
 		<string>merchant.com.popup.app</string>

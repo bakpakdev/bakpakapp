@@ -1,11 +1,18 @@
 import SwiftUI
+import UserNotifications
 
 struct PreferencesView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var meetupStore: MeetupStore
+    @EnvironmentObject private var authVM: AuthViewModel
     @Environment(\.campusTheme) private var campusTheme
 
     @State private var notifyMeetups = AccountPrefsStore.notifyMeetups
+    /// Saved on `profiles.notification_prefs`; the API checks it before each push.
+    @State private var pushPrefs = NotificationPrefs()
+    /// Stays false if the database doesn't have the column yet, so no dead switches show.
+    @State private var pushPrefsReady = false
+    @State private var pushDenied = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -49,11 +56,38 @@ struct PreferencesView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         SettingsSectionTitle(
                             title: "notifications",
-                            subtitle: "Reminders on this phone before your meetups."
+                            subtitle: pushDenied
+                                ? "Alerts are off for popup in iOS Settings → Notifications."
+                                : "Choose what popup alerts you about."
                         )
                         VStack(spacing: 0) {
-                            // Only meetup reminders exist today; message/offer/sale/follow switches
-                            // had nothing behind them, so they're gone until push notifications ship.
+                            if pushPrefsReady {
+                                SettingsToggleRow(
+                                    title: "Messages",
+                                    subtitle: "New chats and replies.",
+                                    isOn: $pushPrefs.messages
+                                )
+                                SettingsToggleRow(
+                                    title: "Offers",
+                                    subtitle: "Offers on your listings, and answers to yours.",
+                                    isOn: $pushPrefs.offers
+                                )
+                                SettingsToggleRow(
+                                    title: "Meetup updates",
+                                    subtitle: "Requests, accepts, changes and cancellations.",
+                                    isOn: $pushPrefs.meetups
+                                )
+                                SettingsToggleRow(
+                                    title: "Sales",
+                                    subtitle: "When a buyer pays you.",
+                                    isOn: $pushPrefs.sales
+                                )
+                                SettingsToggleRow(
+                                    title: "Follows",
+                                    subtitle: "When someone follows your closet.",
+                                    isOn: $pushPrefs.follows
+                                )
+                            }
                             SettingsToggleRow(
                                 title: "Meetup reminders",
                                 subtitle: "Time and place for accepted meetups.",
@@ -94,6 +128,11 @@ struct PreferencesView: View {
             }
         }
         .campusPageStyle()
+        .task { await loadPushPrefs() }
+        .onChange(of: pushPrefs) { value in
+            guard pushPrefsReady else { return }
+            Task { await savePushPrefs(value) }
+        }
         .onChange(of: notifyMeetups) { value in
             AccountPrefsStore.notifyMeetups = value
             Task {
@@ -105,6 +144,22 @@ struct PreferencesView: View {
                 }
             }
         }
+    }
+
+    private func loadPushPrefs() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        pushDenied = settings.authorizationStatus == .denied
+        guard let uid = authVM.user?.id,
+              let client = await SupabaseManager.shared.clientWithValidSession(),
+              let stored = try? await NotificationPrefsService.fetch(client: client, userId: uid) else { return }
+        pushPrefs = stored
+        pushPrefsReady = true
+    }
+
+    private func savePushPrefs(_ prefs: NotificationPrefs) async {
+        guard let uid = authVM.user?.id,
+              let client = await SupabaseManager.shared.clientWithValidSession() else { return }
+        try? await NotificationPrefsService.save(client: client, userId: uid, prefs: prefs)
     }
 
     #if DEBUG

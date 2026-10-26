@@ -2,9 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Apple Pay for buyer meetup checkout. Merchant ID must exist in the developer
-	     portal and be enabled on App ID com.popup.app. Square dashboard must have the
-	     Apple Pay payment processing certificate for this merchant. -->
+	<key>aps-environment</key>
+	<string>development</string>
 	<key>com.apple.developer.in-app-payments</key>
 	<array>
 		<string>merchant.com.popup.app</string>

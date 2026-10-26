@@ -1097,6 +1097,8 @@ final class AuthViewModel: ObservableObject {
 
     /// Local UI clears immediately; remote `signOut` is bounded so TestFlight can't hang.
     func logoutAsync() async {
+        // While the session still works: stop this phone getting the old account's alerts.
+        await PushNotificationManager.shared.unregisterForSignOut()
         KeychainManager.shared.clearToken()
         clearSignupVerificationState()
 

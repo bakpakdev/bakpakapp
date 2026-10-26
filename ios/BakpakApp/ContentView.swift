@@ -36,9 +36,9 @@ struct ContentView: View {
         .overlay {
             if meetupNotifications.showPrePrompt {
                 ConfirmActionCard(
-                    title: "Meetup reminders",
-                    message: "Popup can remind you before a meetup so you don’t miss it. We’ll ask iOS for permission next.",
-                    confirmTitle: "Allow reminders",
+                    title: "Turn on alerts",
+                    message: "Get a heads-up for new messages, offers, meetup requests and sales, plus a reminder before each meetup. We’ll ask iOS for permission next.",
+                    confirmTitle: "Allow alerts",
                     confirmIcon: "bell",
                     tone: .primary,
                     onConfirm: {
@@ -68,6 +68,7 @@ struct ContentView: View {
             if isAuth {
                 appState.resetAccountSessionCaches()
                 appState.resetToHome(reload: true)
+                Task { await PushNotificationManager.shared.registerIfAuthorized() }
                 if !authVM.needsOnboarding {
                     DispatchQueue.main.async { appState.consumePendingShareProfile() }
                 }

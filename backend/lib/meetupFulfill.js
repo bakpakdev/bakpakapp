@@ -1,3 +1,4 @@
+const { notifySale } = require('./push');
 const { getSupabaseAdmin } = require('./supabaseAdmin');
 const { creditSellerSale, recordDirectSale } = require('./sellerBalance');
 
@@ -128,6 +129,10 @@ async function fulfillMeetupPayment({
   if (meetupError) {
     console.error('Meetup complete error:', meetupError);
   }
+
+  // Best effort: a failed alert must never undo a booked sale.
+  notifySale({ sellerId, buyerId: resolvedBuyer, priceCents, productTitle: product.title })
+    .catch((err) => console.error('sale push error:', err));
 
   return { paid: true };
 }

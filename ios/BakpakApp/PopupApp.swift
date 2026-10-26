@@ -58,4 +58,12 @@ final class PopupAppDelegate: NSObject, UIApplicationDelegate {
         MeetupNotificationScheduler.shared.install()
         return true
     }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Task { @MainActor in PushNotificationManager.shared.didRegister(deviceToken: deviceToken) }
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        // Simulator without push support, or the push capability is missing: alerts just stay off.
+    }
 }

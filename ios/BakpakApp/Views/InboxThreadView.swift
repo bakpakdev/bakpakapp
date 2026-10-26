@@ -583,6 +583,7 @@ struct InboxThreadView: View {
         let text = draft.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !threadId.isEmpty else { return }
         draft.text = ""
+        MeetupNotificationScheduler.shared.noteUserWantsAlerts()
         Task {
             let sent = await vm.send(conversationId: threadId, content: text, senderId: authVM.user?.id)
             // Don't lose what they typed if it didn't go through.

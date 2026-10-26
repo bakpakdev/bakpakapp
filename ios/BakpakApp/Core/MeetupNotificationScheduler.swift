@@ -20,6 +20,8 @@ final class MeetupNotificationScheduler: NSObject, ObservableObject, UNUserNotif
     private weak var meetupStore: MeetupStore?
     private var rescheduleTask: Task<Void, Never>?
     private var pendingOpenMeetupId: String?
+    /// A push tapped before the app finished launching.
+    private var pendingServerPush: [AnyHashable: Any]?
     private let safetyLine = "Meet in public and pay in the app."
 
     private static let promptedKey = "popup.notify.meetups.prePrompted"
@@ -43,12 +45,21 @@ final class MeetupNotificationScheduler: NSObject, ObservableObject, UNUserNotif
             self.pendingOpenMeetupId = nil
             appState.openMeetupDetail(pendingOpenMeetupId)
         }
+        if let pendingServerPush {
+            self.pendingServerPush = nil
+            PushNotificationManager.shared.open(pendingServerPush, appState: appState)
+        }
     }
 
     /// First propose or accept: in-app explanation, then the system permission dialog. Not called at launch.
     nonisolated func noteUserCommittedToMeetup() {
+        noteUserWantsAlerts()
+    }
+
+    /// First message, listing, offer or meetup: the moment alerts are obviously useful,
+    /// so that's when we explain them and ask iOS (once).
+    nonisolated func noteUserWantsAlerts() {
         Task { @MainActor in
-            guard AccountPrefsStore.notifyMeetups else { return }
             if UserDefaults.standard.bool(forKey: Self.promptedStorageKey) { return }
             await self.maybeShowPrePrompt()
         }
@@ -58,6 +69,7 @@ final class MeetupNotificationScheduler: NSObject, ObservableObject, UNUserNotif
         showPrePrompt = false
         markPrompted()
         await requestAuthorizationIfNeeded()
+        await PushNotificationManager.shared.registerIfAuthorized()
         scheduleFromBoundStore()
     }
 
@@ -279,7 +291,18 @@ final class MeetupNotificationScheduler: NSObject, ObservableObject, UNUserNotif
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound, .list])
+        let userInfo = notification.request.content.userInfo
+        Task { @MainActor in
+            // Don't banner a message for the chat that's already on screen.
+            if let id = PushNotificationManager.conversationId(in: userInfo),
+               let route = self.appState?.path.last,
+               case .conversation(let openId, _, _) = route,
+               openId.lowercased() == id.lowercased() {
+                completionHandler([])
+                return
+            }
+            completionHandler([.banner, .sound, .list])
+        }
     }
 
     nonisolated func userNotificationCenter(
@@ -481,6 +504,15 @@ final class MeetupNotificationScheduler: NSObject, ObservableObject, UNUserNotif
     }
 
     private func handle(_ response: UNNotificationResponse) async {
+        let userInfo = response.notification.request.content.userInfo
+        if PushNotificationManager.isServerPush(userInfo) {
+            if let appState {
+                PushNotificationManager.shared.open(userInfo, appState: appState)
+            } else {
+                pendingServerPush = userInfo
+            }
+            return
+        }
         let identifier = response.notification.request.identifier
         if identifier.hasPrefix("\(Self.identifierPrefix)morning.") {
             openMeetupsHub()
