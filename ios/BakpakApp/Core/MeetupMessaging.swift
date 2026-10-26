@@ -1133,6 +1133,9 @@ private final class DatePickerHitView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        // Draw the near-invisible picker in the opposite appearance (dark text on a dark page,
+        // light on light) so its scaled-up label doesn't show through as a ghost.
+        picker.overrideUserInterfaceStyle = traitCollection.userInterfaceStyle == .dark ? .light : .dark
         picker.transform = .identity
         picker.sizeToFit()
         let pw = max(picker.bounds.width, 1)

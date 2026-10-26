@@ -17,7 +17,7 @@ struct HelpSupportView: View {
                         SettingsSectionTitle(title: "campus safety")
                         VStack(alignment: .leading, spacing: 12) {
                             safetyLine(icon: "building.2", text: "Meet in public campus spots — unions, libraries, dining halls.")
-                            safetyLine(icon: "creditcard", text: "Pay in-app with Apple Pay. Don’t send Venmo, Cash App, or Zelle.")
+                            safetyLine(icon: "creditcard", text: "Pay in the app with Apple Pay or a card. Don’t send Venmo, Cash App, or Zelle.")
                             safetyLine(icon: "person.2", text: "If a chat feels off, leave and block them from their profile.")
                             safetyLine(icon: "exclamationmark.bubble", text: "popup never asks for your password or bank login in a message.")
                         }
@@ -31,7 +31,7 @@ struct HelpSupportView: View {
                             faqRow(
                                 id: "pay",
                                 question: "How do I pay for a meetup?",
-                                answer: "Open the meetup from Inbox or Meetups, then tap Pay (buyer) or Receive (seller). Use Apple Pay. Don’t pay outside the app."
+                                answer: "Open the meetup from Inbox or Meetups, then tap Pay (buyer) or Receive (seller). Use Apple Pay or a card. Don’t pay outside the app."
                             )
                             faqRow(
                                 id: "cashout",
@@ -46,7 +46,7 @@ struct HelpSupportView: View {
                             faqRow(
                                 id: "sold",
                                 question: "When is an item marked sold?",
-                                answer: "After Apple Pay goes through for that listing, the item is marked sold and leaves the shop grid."
+                                answer: "After the in-app payment goes through for that listing, the item is marked sold and leaves the shop grid."
                             )
                             faqRow(
                                 id: "report",

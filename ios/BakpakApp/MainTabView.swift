@@ -213,6 +213,8 @@ struct MainTabView: View {
                         .offset(x: -12, y: 12)
                 }
             }
+            // Inactive tabs have a clear circle; without this only the glyph and ring take taps.
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)

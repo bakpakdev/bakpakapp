@@ -1302,8 +1302,8 @@ struct ProductDetailView: View {
             chips.append(brand)
         }
         // Size is the first thing a thrift buyer checks; the grid shows it, so the detail page should too.
-        if let size = product.size?.trimmingCharacters(in: .whitespacesAndNewlines), !size.isEmpty {
-            chips.append("Size \(size)")
+        if let size = product.sizeLabel {
+            chips.append(size)
         }
         if let condition = product.condition?.trimmingCharacters(in: .whitespacesAndNewlines), !condition.isEmpty {
             chips.append(condition.replacingOccurrences(of: "-", with: " ").capitalized)

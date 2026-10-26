@@ -48,7 +48,13 @@ enum SupabaseProductService {
             q = q.eq("category", value: cat)
         }
         if hasQ {
-            q = q.or("title.ilike.%\(trimmed)%,brand.ilike.%\(trimmed)%")
+            // Also match sellers by username ("devdemo" finds that seller's closet).
+            let sellerIds = (try? await sellerIds(client: client, matching: trimmed)) ?? []
+            var clauses = ["title.ilike.%\(trimmed)%", "brand.ilike.%\(trimmed)%"]
+            if !sellerIds.isEmpty {
+                clauses.append("user_id.in.(\(sellerIds.joined(separator: ",")))")
+            }
+            q = q.or(clauses.joined(separator: ","))
         }
         let rows: [SupabaseProductRow] = try await q
             .order("created_at", ascending: false)
@@ -93,6 +99,20 @@ enum SupabaseProductService {
             .execute()
             .value
         return rows.map(\.asProduct)
+    }
+
+    private static func sellerIds(client: SupabaseClient, matching query: String) async throws -> [String] {
+        struct Row: Decodable { let id: String }
+        let handle = query.replacingOccurrences(of: "@", with: "")
+        guard handle.count >= 3 else { return [] }
+        let rows: [Row] = try await client
+            .from("profiles")
+            .select("id")
+            .ilike("username", pattern: "%\(handle)%")
+            .limit(20)
+            .execute()
+            .value
+        return rows.map(\.id)
     }
 
     static func fetchPublicProfile(client: SupabaseClient, userId: String) async throws -> User {

@@ -203,11 +203,53 @@ struct CampusEmptyCard: View {
     }
 }
 
+/// Fades scrolled content out under the status bar (and the transparent nav bar on pushed
+/// pages) so headings never sit on top of the clock.
+private struct TopEdgeScrim: ViewModifier {
+    @Environment(\.campusTheme) private var campusTheme
+    let height: CGFloat
+
+    private static var statusBarHeight: CGFloat {
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first
+        return window?.safeAreaInsets.top ?? 0
+    }
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .top) {
+            // Solid behind the clock, then a short fade. Screens that already ignore the top
+            // safe area report 0 here, so size it from the window.
+            let solid = Self.statusBarHeight
+            let total = solid + height
+            LinearGradient(
+                stops: [
+                    .init(color: campusTheme.background, location: 0),
+                    .init(color: campusTheme.background, location: total > 0 ? solid / total : 0),
+                    .init(color: campusTheme.background.opacity(0), location: 1),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: total)
+            .ignoresSafeArea(edges: .top)
+            .allowsHitTesting(false)
+        }
+    }
+}
+
+extension View {
+    func topEdgeScrim(height: CGFloat = 14) -> some View {
+        modifier(TopEdgeScrim(height: height))
+    }
+}
+
 private struct CampusPageStyle: ViewModifier {
     @Environment(\.campusTheme) private var campusTheme
 
     func body(content: Content) -> some View {
         content
+            .topEdgeScrim(height: 52)
             .navigationBarTitleDisplayMode(.inline)
             .foregroundStyle(campusTheme.textPrimary)
             .tint(campusTheme.primary)

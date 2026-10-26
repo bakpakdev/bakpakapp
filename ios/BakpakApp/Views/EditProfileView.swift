@@ -241,6 +241,9 @@ struct EditProfileView: View {
 
     @State private var name = ""
     @State private var username = ""
+    @FocusState private var focusedField: BasicInfoField?
+
+    private enum BasicInfoField { case name, username }
     @State private var bio = ""
     @State private var selectedSizes: Set<String> = []
     @State private var selectedStyles: Set<String> = []
@@ -290,18 +293,29 @@ struct EditProfileView: View {
 
                     EditProfileSectionHeader(title: "Basic Info")
                     EditProfileCard {
+                        // Tapping anywhere on a row edits that field, not just the text on the right.
                         EditProfileRow(label: "Name") {
                             TextField("Your name", text: $name)
                                 .modifier(EditProfileFieldStyle())
                                 .frame(maxWidth: 180)
+                                .textContentType(.name)
+                                .autocorrectionDisabled()
+                                .focused($focusedField, equals: .name)
                         }
+                        .contentShape(Rectangle())
+                        .onTapGesture { focusedField = .name }
                         EditProfileRow(label: "Username", showDivider: false) {
                             TextField("username", text: $username)
                                 .modifier(EditProfileFieldStyle())
                                 .frame(maxWidth: 180)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
+                                .keyboardType(.asciiCapable)
+                                .textContentType(.username)
+                                .focused($focusedField, equals: .username)
                         }
+                        .contentShape(Rectangle())
+                        .onTapGesture { focusedField = .username }
                     }
 
                     EditProfileSectionHeader(title: "Bio")

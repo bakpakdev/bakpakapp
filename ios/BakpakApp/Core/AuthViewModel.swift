@@ -832,7 +832,14 @@ final class AuthViewModel: ObservableObject {
             clearSignupVerificationState()
             KeychainManager.shared.clearToken()
         } catch {
-            errorMessage = Self.isPasswordRuleError(error) ? Self.passwordRulesMessage : error.localizedDescription
+            if Self.isPasswordRuleError(error) {
+                errorMessage = Self.passwordRulesMessage
+            } else if error.localizedDescription.lowercased().contains("aal2") {
+                // Supabase won't change the password of an account with 2FA from a signup session.
+                errorMessage = "This email already has an account with two-factor on. Sign in instead, or use Forgot password."
+            } else {
+                errorMessage = error.localizedDescription
+            }
             isAuthenticated = false
             user = nil
         }

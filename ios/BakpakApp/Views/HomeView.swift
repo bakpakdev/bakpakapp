@@ -45,14 +45,21 @@ private func homeCategoryIcon(for displayName: String) -> String {
 }
 
 extension Product {
+    /// "Size M", or nil when there's no size or the seller picked "Other"
+    /// (their real size is in the description).
+    var sizeLabel: String? {
+        let size = size?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !size.isEmpty, size.lowercased() != "other" else { return nil }
+        return "Size \(size.uppercased())"
+    }
+
     var homeSubtitle: String {
         let brand = brand?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let size = size?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        switch (brand.isEmpty, size.isEmpty) {
-        case (false, false): return "\(brand) · Size \(size.uppercased())"
-        case (false, true): return brand
-        case (true, false): return "Size \(size.uppercased())"
-        case (true, true): return "Campus find"
+        switch (brand.isEmpty, sizeLabel) {
+        case (false, let size?): return "\(brand) · \(size)"
+        case (false, nil): return brand
+        case (true, let size?): return size
+        case (true, nil): return "Campus find"
         }
     }
 
@@ -263,6 +270,7 @@ struct HomeView: View {
         .navigationBarHidden(true)
         .hidesSystemNavigationBar(true)
         .ignoresSafeArea(edges: .top)
+        .topEdgeScrim()
         .task {
             await blockStore.refreshIfNeeded()
             await reloadProducts()

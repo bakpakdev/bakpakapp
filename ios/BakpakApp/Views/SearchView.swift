@@ -148,6 +148,7 @@ struct SearchView: View {
         .background(campusTheme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .ignoresSafeArea(edges: .top)
+        .topEdgeScrim()
         .onAppear {
             loadRecentSearches()
             Task {

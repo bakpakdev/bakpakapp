@@ -17,7 +17,13 @@ struct MeetupDetailView: View {
     @State private var errorMessage: String?
     @State private var didCenterMap = false
 
-    private let cancelReasons = ["something came up", "item sold", "can't make it", "other"]
+    /// Only the seller can say the item sold; buyers get their own reasons.
+    private var cancelReasons: [String] {
+        if meetup?.amISeller(meId: meId) == true {
+            return ["something came up", "item sold", "can't make it", "other"]
+        }
+        return ["something came up", "found something else", "can't make it", "other"]
+    }
 
     private var meetup: Meetup? { meetupStore.meetup(id: meetupId) }
     private var meId: String { meetupStore.meId }
@@ -467,9 +473,24 @@ struct MeetupDetailView: View {
 
     private var cancelSheet: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("cancel meetup")
-                .font(Theme.syne(22, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
+            HStack {
+                Text("cancel meetup")
+                    .font(Theme.syne(22, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                Spacer()
+                Button {
+                    showCancelSheet = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .frame(width: 36, height: 36)
+                        .background(campusTheme.elevatedSurface)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Keep meetup")
+            }
             Text("They’ll see it in chat.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
@@ -494,6 +515,7 @@ struct MeetupDetailView: View {
         .padding(20)
         .background(campusTheme.background.ignoresSafeArea())
         .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
     }
 
     private var lateSheet: some View {

@@ -201,6 +201,7 @@ struct ProfileView: View {
             .preferredColorScheme(campusTheme.isDark ? .dark : .light)
             .toolbar(.hidden, for: .navigationBar)
             .ignoresSafeArea(edges: .top)
+            .topEdgeScrim()
         }
         .task {
             await authVM.refreshMe()
@@ -294,53 +295,64 @@ struct ProfileView: View {
     // MARK: Identity
 
     private var identityCard: some View {
-        HStack(alignment: .center, spacing: 14) {
-            AvatarView(
-                urlString: user?.avatar,
-                size: 76,
-                cornerRadius: 22,
-                initials: displayName
-            )
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 14) {
+                AvatarView(
+                    urlString: user?.avatar,
+                    size: 76,
+                    cornerRadius: 22,
+                    initials: displayName
+                )
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(displayName)
-                    .font(Theme.syne(20, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(displayName)
+                        .font(Theme.syne(20, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .lineLimit(1)
 
-                HStack(spacing: 8) {
-                    HStack(spacing: 5) {
-                        Circle()
-                            .fill(campusTheme.secondary)
-                            .frame(width: 6, height: 6)
-                        Text(campusTheme.shortName)
-                            .font(Theme.syne(10, weight: .black))
-                            .tracking(0.5)
+                    HStack(spacing: 8) {
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(campusTheme.secondary)
+                                .frame(width: 6, height: 6)
+                            Text(campusTheme.shortName)
+                                .font(Theme.syne(10, weight: .black))
+                                .tracking(0.5)
+                        }
+                        .foregroundStyle(campusTheme.tint)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(campusTheme.elevatedSurface)
+                        .clipShape(Capsule())
+
+                        if user?.isVerified == true {
+                            Text("Verified")
+                                .font(Theme.syne(11, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(campusTheme.primary)
+                                .clipShape(Capsule())
+                        }
                     }
-                    .foregroundStyle(campusTheme.tint)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(campusTheme.elevatedSurface)
-                    .clipShape(Capsule())
 
-                    if user?.isVerified == true {
-                        Text("Verified")
-                            .font(Theme.syne(11, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 4)
-                            .background(campusTheme.primary)
-                            .clipShape(Capsule())
-                    }
+                    Text(universityLabel)
+                        .font(Theme.syne(13, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .lineLimit(1)
                 }
 
-                Text(universityLabel)
-                    .font(Theme.syne(13, weight: .medium))
-                    .foregroundStyle(campusTheme.textMuted)
-                    .lineLimit(1)
+                Spacer(minLength: 0)
             }
 
-            Spacer(minLength: 0)
+            // Same bio other students see on the public profile.
+            if let bio = user?.bio?.trimmingCharacters(in: .whitespacesAndNewlines), !bio.isEmpty {
+                Text(bio)
+                    .font(Theme.syne(14))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .lineSpacing(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(12)
         .background(cardBackground())
@@ -368,7 +380,7 @@ struct ProfileView: View {
 
     private var statsRow: some View {
         HStack(spacing: 0) {
-            profileStat(value: "\(stats.products)", label: "Listings")
+            profileStat(value: "\(activeShopItems.count)", label: activeShopItems.count == 1 ? "Listing" : "Listings")
             Rectangle().fill(campusTheme.border).frame(width: 1, height: 36)
             profileStat(value: "\(soldCount)", label: "Sold")
             Rectangle().fill(campusTheme.border).frame(width: 1, height: 36)
@@ -529,7 +541,7 @@ struct ProfileView: View {
                 value: "$\(formattedMoney(potentialProfit))",
                 label: "potential profit",
                 caption: activeShopItems.isEmpty
-                    ? "no listings yet"
+                    ? (soldCount > 0 ? "no active listings" : "no listings yet")
                     : (activeShopItems.count == 1 ? "1 listing" : "\(activeShopItems.count) listings")
             )
         }

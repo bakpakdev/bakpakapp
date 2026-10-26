@@ -33,7 +33,6 @@ struct MeetupPayFlowView: View {
     @State private var isCollecting = false
     @State private var isPaymentBusy = false
     @State private var paymentError: String?
-    @State private var showBuyerPaymentSheet = false
     @State private var activeSession: PaymentSessionDTO?
     @State private var sellerCanReceive = false
     @State private var buyerCanPay = false
@@ -240,14 +239,11 @@ struct MeetupPayFlowView: View {
             await startPresence()
             await startSessionWatch()
         }
-        .sheet(isPresented: $showBuyerPaymentSheet) { buyerPaySheet }
         .background(PaymentSheetHost(presenter: paymentPresenter))
         .onChange(of: paymentPresenter.didComplete) { completed in
             guard completed else { return }
             paymentPresenter.didComplete = false
             paymentConfirmed = true
-            selectedMethod = canUseApplePayUI ? "Apple Pay" : "Card"
-            showBuyerPaymentSheet = false
             Motion.haptic(.medium)
             withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
                 showBuyerSentAnimation = true
@@ -255,7 +251,6 @@ struct MeetupPayFlowView: View {
         }
         .onChange(of: paymentPresenter.errorMessage) { message in
             guard message != nil, paymentOutcome == nil else { return }
-            showBuyerPaymentSheet = false
             presentPaymentOutcome(.failure)
         }
         .alert("Payment", isPresented: Binding(
@@ -350,7 +345,7 @@ struct MeetupPayFlowView: View {
                 .foregroundStyle(campusTheme.textPrimary)
 
             Text(activeSession?.status == "waiting"
-                 ? "Stay on this screen. The buyer can pay with Apple Pay once you’re waiting."
+                 ? "Stay on this screen. The buyer can pay once you’re waiting."
                  : "Tap Receive to start a session. The buyer’s Pay button unlocks while you’re waiting.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
@@ -428,7 +423,7 @@ struct MeetupPayFlowView: View {
                 .foregroundStyle(campusTheme.textPrimary)
 
             Text(buyerCanPay
-                 ? "Seller is ready. Pay with Apple Pay on your phone."
+                 ? "Seller is ready. Pay with Apple Pay or a card."
                  : "Ask the seller to open Receive first.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
@@ -651,90 +646,6 @@ struct MeetupPayFlowView: View {
         }
     }
 
-    // MARK: - Buyer checkout sheet
-
-    private var buyerPaySheet: some View {
-        NavigationStack {
-            VStack(spacing: 22) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 38, style: .continuous)
-                        .fill(campusTheme.elevatedSurface)
-                        .frame(width: 120, height: 120)
-                    Image(systemName: canUseApplePayUI ? "applelogo" : "creditcard.fill")
-                        .font(.system(size: 44, weight: .semibold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                }
-                .padding(.top, 20)
-
-                Text(canUseApplePayUI ? "Pay with Apple Pay" : "Pay with card")
-                    .font(Theme.syne(24, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .multilineTextAlignment(.center)
-
-                Text(
-                    canUseApplePayUI
-                        ? "Pay securely on your phone. The seller gets paid in popup."
-                        : "Enter a card to pay. The seller gets paid in popup."
-                )
-                    .font(Theme.syne(15))
-                    .foregroundStyle(campusTheme.textMuted)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 8)
-
-                Text(buyerTotalLabel)
-                    .font(Theme.syne(36, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                if let buyerFeeLine {
-                    Text(buyerFeeLine)
-                        .font(Theme.syne(13, weight: .semibold))
-                        .foregroundStyle(campusTheme.textMuted)
-                }
-
-                Spacer()
-
-                if canUseApplePayUI {
-                    ApplePayButton(
-                        title: "Pay with Apple Pay",
-                        isLoading: isPaymentBusy
-                    ) {
-                        Task { await presentBuyerCheckout() }
-                    }
-                    .disabled(isPaymentBusy)
-                } else {
-                    Button {
-                        Task { await presentBuyerCheckout() }
-                    } label: {
-                        Text(isPaymentBusy ? "Opening…" : "Enter card")
-                            .font(Theme.syne(16, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(campusTheme.primary)
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-                    .disabled(isPaymentBusy)
-                }
-
-                Button("Cancel") {
-                    showBuyerPaymentSheet = false
-                }
-                .font(Theme.syne(15, weight: .semibold))
-                .foregroundStyle(campusTheme.textMuted)
-            }
-            .padding(24)
-            .navigationTitle("Checkout")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { showBuyerPaymentSheet = false }
-                }
-            }
-            .campusScreenStyle()
-        }
-        .presentationDetents([.large])
-    }
-
     // MARK: - Bottom bar
 
     private var bottomBar: some View {
@@ -757,21 +668,25 @@ struct MeetupPayFlowView: View {
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
             }
 
-            Button {
-                Motion.haptic(.medium)
-                advance()
-            } label: {
-                Text(primaryButtonTitle)
-                    .font(Theme.syne(15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(campusTheme.primary)
-                    .clipShape(Capsule())
+            // On the pay step the Receive / Apple Pay button in the card is the action;
+            // a second primary button here did the same thing.
+            if step != .pay || paymentConfirmed {
+                Button {
+                    Motion.haptic(.medium)
+                    advance()
+                } label: {
+                    Text(primaryButtonTitle)
+                        .font(Theme.syne(15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(campusTheme.primary)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                .disabled(primaryButtonBlocked)
+                .opacity(primaryButtonBlocked ? 0.5 : 1)
             }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-            .disabled(primaryButtonBlocked)
-            .opacity(primaryButtonBlocked ? 0.5 : 1)
         }
     }
 
@@ -863,7 +778,7 @@ struct MeetupPayFlowView: View {
             activeSession = response.session
             sellerCanReceive = true
             buyerCanPay = false
-            selectedMethod = "Apple Pay"
+            selectedMethod = nil
             sessionHint = nil
         } catch {
             paymentError = error.localizedDescription
@@ -906,35 +821,7 @@ struct MeetupPayFlowView: View {
                 return
             }
             Motion.haptic(.medium)
-            selectedMethod = canUseApplePayUI ? "Apple Pay" : "Card"
-            showBuyerPaymentSheet = true
-            _ = requestId
-        } catch {
-            paymentError = error.localizedDescription
-        }
-    }
-
-    private func presentBuyerCheckout() async {
-        if let blocker = PaymentsConfig.userFacingBlocker {
-            paymentError = blocker
-            return
-        }
-        guard let productId = item.productId?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !productId.isEmpty else {
-            paymentError = "This meetup isn’t linked to a listing."
-            return
-        }
-        isPaymentBusy = true
-        defer { isPaymentBusy = false }
-        do {
-            let status = try await paymentService.fetchSession(productId: productId)
-            applySessionStatus(status)
-            guard status.canPay == true,
-                  let requestId = status.paymentRequestId ?? status.session?.paymentRequestId else {
-                showBuyerPaymentSheet = false
-                paymentError = status.message ?? "Ask the seller to open Receive first."
-                return
-            }
+            // Straight to Stripe's sheet; it already shows Apple Pay first.
             let checkout = try await paymentService.fetchCheckout(requestId: requestId)
             paymentPresenter.prepareAndPresent(checkout: checkout)
         } catch {

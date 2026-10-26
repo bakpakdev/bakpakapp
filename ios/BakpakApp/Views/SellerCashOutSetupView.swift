@@ -13,6 +13,8 @@ struct SellerCashOutSetupView: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var infoMessage: String?
+    /// Payout changes need two-factor; shown as step 1 until it's on.
+    @State private var twoFactorOn = true
 
     private let stripeConnect = StripeConnectService.shared
 
@@ -70,6 +72,10 @@ struct SellerCashOutSetupView: View {
             Text(errorMessage ?? infoMessage ?? "")
         }
         .task { await loadStatus() }
+        .onAppear {
+            // Coming back from the two-factor screen.
+            Task { twoFactorOn = await PayoutMFA.isEnrolled() }
+        }
     }
 
     private var subtitle: String {
@@ -105,9 +111,13 @@ struct SellerCashOutSetupView: View {
 
     private var stepsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            stepRow(icon: "1.circle.fill", title: "Verify it's you", body: "Legal name, date of birth, address, and the last 4 of your SSN. Stripe fills in what popup already has.")
-            stepRow(icon: "2.circle.fill", title: "Add where money goes", body: "A bank account or debit card. Stripe keeps these, popup never sees them.")
-            stepRow(icon: "3.circle.fill", title: "Get paid automatically", body: "Every sale after that goes straight to you. Anything in your popup balance moves over too.")
+            let offset = twoFactorOn ? 0 : 1
+            if !twoFactorOn {
+                stepRow(icon: "1.circle.fill", title: "Turn on two-factor", body: "Payouts are locked behind a 6-digit code from Passwords or your authenticator app. It takes a minute.")
+            }
+            stepRow(icon: "\(1 + offset).circle.fill", title: "Verify it's you", body: "Legal name, date of birth, address, and the last 4 of your SSN. Stripe fills in what popup already has.")
+            stepRow(icon: "\(2 + offset).circle.fill", title: "Add where money goes", body: "A bank account or debit card. Stripe keeps these, popup never sees them.")
+            stepRow(icon: "\(3 + offset).circle.fill", title: "Get paid automatically", body: "Every sale after that goes straight to you. Anything in your popup balance moves over too.")
             if let due = status?.requirementsDue, !due.isEmpty, status?.connected == true {
                 statusPill(ok: false, text: "Stripe still needs \(due.count) item\(due.count == 1 ? "" : "s")")
             }
@@ -220,6 +230,7 @@ struct SellerCashOutSetupView: View {
         if isReady {
             return availableCents >= 100 ? "Cash out \(formattedMoney(cents: availableCents))" : "Sales go straight to your bank"
         }
+        if !twoFactorOn { return "Turn on two-factor" }
         return status?.needsMoreInfo == true ? "Continue with Stripe" : "Set up payouts with Stripe"
     }
 
@@ -231,6 +242,7 @@ struct SellerCashOutSetupView: View {
 
     private func loadStatus() async {
         defer { isLoading = false }
+        twoFactorOn = await PayoutMFA.isEnrolled()
         do {
             status = try await stripeConnect.fetchStatus()
         } catch {
@@ -244,7 +256,7 @@ struct SellerCashOutSetupView: View {
             return
         }
         guard await PayoutMFA.isEnrolled() else {
-            infoMessage = "Turn on two-factor with an authenticator app first. It keeps your payouts safe."
+            // The steps already say why; go straight there instead of an alert.
             appState.path.append(.twoFactorAuth)
             return
         }
