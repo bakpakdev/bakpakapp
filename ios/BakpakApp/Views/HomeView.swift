@@ -219,7 +219,7 @@ struct HomeView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     headerBlock
-                        .padding(.top, 60)
+                        .padding(.top, 76)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 22)
                         .zIndex(showCampusPeople ? 20 : 0)
