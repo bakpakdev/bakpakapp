@@ -374,8 +374,9 @@ final class AuthViewModel: ObservableObject {
                     )
                 )
             )
-            if isDemo, response.confirmed == true {
-                // API created the account already confirmed; sign in and skip the email step.
+            if response.confirmed == true {
+                // API created the account already confirmed (debug demo address or the App
+                // Store review address); sign in and skip the email step.
                 guard let client = SupabaseManager.shared.client() else { return false }
                 _ = try await signInWithPasswordRetry(client: client, email: trimmedEmail, password: tempPassword)
                 emailConfirmationLinkOpened = true

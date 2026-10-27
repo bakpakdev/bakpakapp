@@ -125,6 +125,14 @@ function isDemoBypass(email) {
   return Boolean(email) && email === demoBypassEmail();
 }
 
+// App Store review account: one fixed address (APP_REVIEW_EMAIL) that signs up without the
+// confirmation email so Apple's reviewers can walk the whole signup flow. Unlike the demo
+// bypass this also works in production, but only for that exact address; unset it to turn off.
+function isAppReviewBypass(email) {
+  const reviewEmail = String(process.env.APP_REVIEW_EMAIL || '').trim().toLowerCase();
+  return Boolean(reviewEmail) && email === reviewEmail;
+}
+
 function confirmLinkFor(userId, email) {
   const token = signCampusToken(userId, email);
   return `${emailPublicOrigin()}/auth/confirm-email.html?campus_token=${encodeURIComponent(token)}`;
@@ -186,7 +194,7 @@ router.post('/campus-register', async (req, res) => {
     const firstName = String(req.body?.first_name || '').trim();
     const lastName = String(req.body?.last_name || '').trim();
     const school = String(req.body?.school || '').trim();
-    const demo = isDemoBypass(email);
+    const demo = isDemoBypass(email) || isAppReviewBypass(email);
 
     if (!demo && !isEduEmail(email)) {
       return res.status(400).json({ message: 'Use a college .edu email.' });
