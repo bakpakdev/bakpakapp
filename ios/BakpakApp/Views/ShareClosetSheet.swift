@@ -16,7 +16,7 @@ struct ClosetSharePalette: Identifiable, Equatable {
             ClosetSharePalette(
                 id: "campus",
                 top: campus.primary.opacity(0.92),
-                bottom: Color(hex: campus.shortName == "OSU" ? "#3A1406" : "#0A241C"),
+                bottom: campus.isDev ? PopupBrand.background : Color(hex: campus.shortName == "OSU" ? "#3A1406" : "#0A241C"),
                 text: .white,
                 muted: .white.opacity(0.72),
                 swatch: campus.primary

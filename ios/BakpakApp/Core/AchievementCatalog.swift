@@ -49,10 +49,29 @@ struct BadgeCampusTheme: Hashable {
     )
 
     static func from(schoolName: String?) -> BadgeCampusTheme {
+        let theme = schoolTheme(schoolName: schoolName)
+        return CampusTheme.devThemeEnabled ? theme.dev() : theme
+    }
+
+    private static func schoolTheme(schoolName: String?) -> BadgeCampusTheme {
         let school = (schoolName ?? "").lowercased()
         if school.contains("georgetown") || school.contains("hoya") { return .georgetown }
         if school.contains("oregon state") || school.contains("osu") || school.contains("beaver") { return .osu }
         return .uo
+    }
+
+    /// Same school, monochrome colors (see `CampusTheme.devThemeEnabled`).
+    private func dev() -> BadgeCampusTheme {
+        BadgeCampusTheme(
+            id: id,
+            shortName: shortName,
+            schoolName: schoolName,
+            mascotName: mascotName,
+            tagline: tagline,
+            primary: Color(hex: "#111111"),
+            secondary: Color(hex: "#A3A3A3"),
+            motifSystemName: motifSystemName
+        )
     }
 }
 

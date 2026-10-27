@@ -57,8 +57,26 @@ struct CampusTheme: Equatable {
     let primary: Color
     let secondary: Color
     let isDark: Bool
+    /// Neutral black/white/grey "dev" skin — colors only; the school (data, copy,
+    /// meetup spots) stays whatever the user picked. Debug simulator builds only.
+    var isDev = false
+
+    /// On by default in Debug simulator builds; opt out with launch arg `-popupDevTheme NO`.
+    /// Always false in device / TestFlight / App Store builds.
+    static var devThemeEnabled: Bool {
+        #if DEBUG && targetEnvironment(simulator)
+        return UserDefaults.standard.object(forKey: "popupDevTheme") as? Bool ?? true
+        #else
+        return false
+        #endif
+    }
 
     static func from(schoolName: String?, appearance: PopupAppearance = .light) -> CampusTheme {
+        let theme = schoolTheme(schoolName: schoolName, appearance: appearance)
+        return devThemeEnabled ? theme.dev() : theme
+    }
+
+    private static func schoolTheme(schoolName: String?, appearance: PopupAppearance) -> CampusTheme {
         let school = (schoolName ?? "").lowercased()
         let isDark = appearance == .dark
         if school.contains("oregon state") || school.contains("osu") || school.contains("beaver") {
@@ -77,16 +95,31 @@ struct CampusTheme: Equatable {
         )
     }
 
+    /// Same school, monochrome palette matching the logo + login screen.
+    private func dev() -> CampusTheme {
+        CampusTheme(
+            shortName: shortName,
+            // Filled buttons put white text on `primary`, so it stays dark in both modes.
+            primary: isDark ? Color(hex: "#3A3A3A") : Color(hex: "#111111"),
+            secondary: isDark ? Color(hex: "#A3A3A3") : Color(hex: "#737373"),
+            isDark: isDark,
+            isDev: true
+        )
+    }
+
     var background: Color {
-        isDark ? Color(hex: "#0C100E") : Color(hex: "#F7F8F7")
+        if isDev { return isDark ? PopupBrand.background : Color(hex: "#F7F7F7") }
+        return isDark ? Color(hex: "#0C100E") : Color(hex: "#F7F8F7")
     }
 
     var surface: Color {
-        isDark ? Color(hex: "#161B18") : Color.white
+        if isDev { return isDark ? PopupBrand.surface : Color.white }
+        return isDark ? Color(hex: "#161B18") : Color.white
     }
 
     var elevatedSurface: Color {
-        isDark ? Color(hex: "#222925") : Color(hex: "#EEF1EF")
+        if isDev { return isDark ? PopupBrand.field : Color(hex: "#EEEEEE") }
+        return isDark ? Color(hex: "#222925") : Color(hex: "#EEF1EF")
     }
 
     var border: Color {
@@ -94,21 +127,25 @@ struct CampusTheme: Equatable {
     }
 
     var textPrimary: Color {
-        isDark ? Color.white : Color(hex: "#151817")
+        if isDev { return isDark ? PopupBrand.textPrimary : PopupBrand.background }
+        return isDark ? Color.white : Color(hex: "#151817")
     }
 
     var textMuted: Color {
-        isDark ? Color.white.opacity(0.62) : Color(hex: "#68706C")
+        if isDev { return isDark ? Color.white.opacity(0.62) : Color(hex: "#6B6B6B") }
+        return isDark ? Color.white.opacity(0.62) : Color(hex: "#68706C")
     }
 
     /// System tint (alert buttons, toggles, links). UO green is too dark to read on
     /// the dark background, so dark mode lifts it; filled buttons keep `primary`.
     var tint: Color {
-        isDark && shortName == "UO" ? Color(hex: "#5FBF8F") : primary
+        if isDev { return isDark ? PopupBrand.textPrimary : Color(hex: "#111111") }
+        return isDark && shortName == "UO" ? Color(hex: "#5FBF8F") : primary
     }
 
     /// Soft caption strip under listing thumbnails (home grid).
     var listingCaptionBackground: Color {
+        if isDev { return isDark ? Color(hex: "#1C1C1C") : Color(hex: "#ECECEC") }
         if isDark {
             return shortName == "OSU" ? Color(hex: "#2C1C14") : Color(hex: "#1A2A22")
         }
@@ -116,6 +153,7 @@ struct CampusTheme: Equatable {
     }
 
     var listingCaptionForeground: Color {
+        if isDev { return isDark ? Color(hex: "#D4D4D4") : Color(hex: "#111111") }
         if isDark {
             return shortName == "OSU" ? Color(hex: "#E8D4C6") : Color(hex: "#C8D9CF")
         }
@@ -123,7 +161,8 @@ struct CampusTheme: Equatable {
     }
 
     var bannerEnd: Color {
-        shortName == "OSU" ? Color(hex: "#55200B") : Color(hex: "#0F3528")
+        if isDev { return PopupBrand.background }
+        return shortName == "OSU" ? Color(hex: "#55200B") : Color(hex: "#0F3528")
     }
 
     var welcomeTitle: String {
