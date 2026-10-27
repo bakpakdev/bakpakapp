@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The campus Grid: real sellers ranked by completed sales. Every sale paid through popup
-/// moves you up; ties share a rank.
+/// moves you up; on a tie the most recent seller is ahead.
 struct LeaderboardView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
@@ -268,7 +268,7 @@ struct LeaderboardView: View {
     }
 
     private var howItWorks: some View {
-        Text("Ranked by sales paid through popup \(range == .all ? "all time" : range.title.lowercased()). Every sale moves you up; ties share a spot. You can hide your name in Settings → Privacy.")
+        Text("Ranked by sales paid through popup \(range == .all ? "all time" : range.title.lowercased()). Every sale moves you up; on a tie, whoever sold most recently is ahead. You can hide your name in Settings → Privacy.")
             .font(Theme.syne(12))
             .foregroundStyle(campusTheme.textMuted)
             .padding(.top, 6)

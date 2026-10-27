@@ -43,11 +43,9 @@ function rankSellers(rows) {
     bySeller.set(id, cur);
   }
   const list = [...bySeller.values()].sort((a, b) => (b.sales - a.sales) || (b.lastSaleAt > a.lastSaleAt ? 1 : -1));
-  // Same number of sales = same rank (1, 2, 2, 4).
-  let rank = 0;
+  // Every seller gets their own spot; on equal sales the more recent seller is ahead.
   list.forEach((entry, i) => {
-    if (i === 0 || entry.sales !== list[i - 1].sales) rank = i + 1;
-    entry.rank = rank;
+    entry.rank = i + 1;
   });
   return list;
 }
