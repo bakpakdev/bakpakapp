@@ -109,7 +109,7 @@ struct SearchView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if !searchFieldFocused {
                     headerBlock
-                        .padding(.top, 60)
+                        .padding(.top, 76)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 22)
                         .transition(.opacity.combined(with: .move(edge: .top)))

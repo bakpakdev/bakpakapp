@@ -121,7 +121,7 @@ struct ProfileView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
                         headerSection
-                            .padding(.top, 60)
+                            .padding(.top, 76)
                             .padding(.horizontal, horizontalPad)
                             .padding(.bottom, 22)
 

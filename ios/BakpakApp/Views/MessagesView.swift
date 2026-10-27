@@ -524,7 +524,7 @@ struct MessagesView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
-                .padding(.top, 60)
+                .padding(.top, 76)
                 .padding(.bottom, 22)
 
                 HStack(spacing: 10) {

@@ -16,6 +16,8 @@ struct ProductDetailView: View {
     @State private var imageIndex = 0
     @State private var showDeleteConfirm = false
     @State private var showMarkSoldConfirm = false
+    @State private var showCancelRequestConfirm = false
+    @State private var isCancellingRequest = false
     @State private var showCopyConfirm = false
     @State private var isBusy = false
     @State private var actionError: String?
@@ -77,7 +79,7 @@ struct ProductDetailView: View {
     }
 
     private var isShowingConfirm: Bool {
-        showDeleteConfirm || showMarkSoldConfirm || showCopyConfirm
+        showDeleteConfirm || showMarkSoldConfirm || showCopyConfirm || showCancelRequestConfirm
     }
 
     var body: some View {
@@ -180,6 +182,20 @@ struct ProductDetailView: View {
                     Task { await deleteListing() }
                 },
                 onCancel: { showDeleteConfirm = false }
+            )
+            .ignoresSafeArea()
+            .zIndex(10)
+        } else if showCancelRequestConfirm {
+            ConfirmActionCard(
+                title: "cancel meetup request?",
+                message: "The seller won’t see it anymore. You can send a new request any time.",
+                confirmTitle: "Cancel request",
+                confirmIcon: "xmark",
+                onConfirm: {
+                    showCancelRequestConfirm = false
+                    Task { await cancelMeetupRequest() }
+                },
+                onCancel: { showCancelRequestConfirm = false }
             )
             .ignoresSafeArea()
             .zIndex(10)
@@ -728,7 +744,11 @@ struct ProductDetailView: View {
                     }
                     // Sold listings can't start new meetup / chat threads.
                     guard product.isSold != true else { return }
-                    guard product.user?.id != nil, !hasPendingMeetupRequest else { return }
+                    if hasPendingMeetupRequest {
+                        showCancelRequestConfirm = true
+                        return
+                    }
+                    guard product.user?.id != nil else { return }
                     showMeetupRequestSheet = true
                 } label: {
                     Text(meetupRequestButtonTitle)
@@ -761,7 +781,7 @@ struct ProductDetailView: View {
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
                 .disabled(
                     (sold && confirmedMeetupForListing == nil)
-                        || hasPendingMeetupRequest
+                        || isCancellingRequest
                         || product.user?.id == nil
                 )
                 .opacity(
@@ -980,8 +1000,21 @@ struct ProductDetailView: View {
     private var meetupRequestButtonTitle: String {
         if confirmedMeetupForListing != nil { return "Open chat" }
         if product?.isSold == true { return "Sold" }
-        if hasPendingMeetupRequest { return "Meetup requested" }
+        if isCancellingRequest { return "Cancelling…" }
+        if hasPendingMeetupRequest { return "Requested · tap to cancel" }
         return "Meetup request"
+    }
+
+    private func cancelMeetupRequest() async {
+        guard let request = pendingMeetupRequest, !isCancellingRequest else { return }
+        isCancellingRequest = true
+        defer { isCancellingRequest = false }
+        do {
+            meetupStore.apply(try await MeetupService.cancel(id: request.id, reason: nil))
+            Motion.haptic(.light)
+        } catch {
+            actionError = "Couldn’t cancel the request. Try again."
+        }
     }
 
     private func sendMeetupRequest(

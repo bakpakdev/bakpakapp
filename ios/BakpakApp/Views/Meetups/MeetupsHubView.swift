@@ -27,9 +27,10 @@ struct MeetupsHubView: View {
                             message: "Request a meetup from a listing, or propose one in chat. Invites you send or get will land here."
                         )
                     } else {
-                        section(title: "needs your answer", meetups: meetupStore.needsResponse)
+                        // Confirmed plans soonest first; open requests after them.
                         section(title: "today", meetups: meetupStore.today)
                         section(title: "upcoming", meetups: meetupStore.upcoming)
+                        section(title: "needs your answer", meetups: meetupStore.needsResponse)
                         section(title: "past", meetups: meetupStore.past, showsActions: false)
                     }
                 }

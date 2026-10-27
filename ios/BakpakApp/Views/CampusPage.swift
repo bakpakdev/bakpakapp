@@ -121,7 +121,7 @@ struct CampusPageHeader<Trailing: View>: View {
             trailing
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 4)
+        .padding(.top, 18)
         .padding(.bottom, 22)
     }
 }

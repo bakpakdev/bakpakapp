@@ -38,21 +38,22 @@ final class MeetupStore: ObservableObject {
             .sorted { $0.scheduledAt > $1.scheduledAt }
     }
 
-    /// Open meetups (pending or confirmed), sooner first — for the inbox carousel.
+    /// Open meetups for the inbox carousel: live first, then confirmed meetups soonest first,
+    /// then requests still waiting on an answer (also soonest first).
     var heroMeetups: [Meetup] {
         meetups
             .filter { $0.status.isOpen && !isPast($0) }
             .filter { !BlockStore.shared.isHidden($0.otherUserId(meId: meId)) }
             .sorted { lhs, rhs in
                 if lhs.isLive != rhs.isLive { return lhs.isLive }
-                let lNeed = lhs.needsMyResponse(meId: meId)
-                let rNeed = rhs.needsMyResponse(meId: meId)
-                if lNeed != rNeed { return lNeed }
+                let lConfirmed = lhs.status == .confirmed
+                let rConfirmed = rhs.status == .confirmed
+                if lConfirmed != rConfirmed { return lConfirmed }
                 return lhs.scheduledAt < rhs.scheduledAt
             }
     }
 
-    /// Soonest open meetup (pending or confirmed), preferring live then needs-response.
+    /// Soonest open meetup, preferring live then confirmed.
     var heroMeetup: Meetup? { heroMeetups.first }
 
     private func isPast(_ meetup: Meetup) -> Bool {
