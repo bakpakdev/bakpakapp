@@ -48,9 +48,9 @@ struct ProductService {
         return try await api.request(path: "/products/\(id)")
     }
 
-    func userProducts(userId: String) async throws -> [Product] {
+    func userProducts(userId: String, school: String? = nil) async throws -> [Product] {
         if SupabaseConfig.isConfigured, let c = SupabaseManager.shared.client() {
-            return try await SupabaseProductService.fetchBySeller(client: c, userId: userId)
+            return try await SupabaseProductService.fetchBySeller(client: c, userId: userId, school: school)
         }
         return try await api.request(path: "/users/\(userId)/products")
     }

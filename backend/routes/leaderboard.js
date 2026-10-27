@@ -22,8 +22,8 @@ async function paidSales(supabase, school, sinceIso) {
       .eq('status', 'paid')
       .order('updated_at', { ascending: false })
       .range(from, from + pageSize - 1);
-    // Older listings have no school saved; count them for the seller's campus too.
-    if (school) q = q.or(`school.eq.${school},school.is.null`, { foreignTable: 'products' });
+    // Each campus is its own community: only sales of listings on this campus count.
+    q = q.eq('products.school', school);
     if (sinceIso) q = q.gte('updated_at', sinceIso);
     const { data, error } = await q;
     if (error) throw error;
@@ -54,6 +54,8 @@ router.get('/', protectSupabase, async (req, res) => {
   try {
     const supabase = getSupabaseAdmin();
     const school = String(req.query.school || '').trim().toLowerCase() || null;
+    // No campus, no board — never mix campuses together.
+    if (!school) return res.json({ range: 'all', school: null, totalSellers: 0, entries: [], me: { rank: null, sales: 0, isMe: true, hidden: false, userId: req.user.id, name: 'You', avatarUrl: null, weeklyChange: null } });
     const range = Object.prototype.hasOwnProperty.call(RANGE_DAYS, req.query.range) ? req.query.range : 'all';
     const days = RANGE_DAYS[range];
     const now = Date.now();

@@ -110,11 +110,19 @@ enum SupabaseProductService {
         return rows.map(\.asProduct)
     }
 
-    static func fetchBySeller(client: SupabaseClient, userId: String) async throws -> [Product] {
-        let rows: [SupabaseProductRow] = try await client
+    /// A seller's listings on one campus. Legacy rows with no school count for the
+    /// seller's own campus, but never for DEV.
+    static func fetchBySeller(client: SupabaseClient, userId: String, school: String? = nil) async throws -> [Product] {
+        var q = client
             .from("products")
             .select(productSelect)
             .eq("user_id", value: userId)
+        if let school, !school.isEmpty {
+            q = school == "dev"
+                ? q.eq("school", value: school)
+                : q.or("school.eq.\(school),school.is.null")
+        }
+        let rows: [SupabaseProductRow] = try await q
             .order("created_at", ascending: false)
             .execute()
             .value

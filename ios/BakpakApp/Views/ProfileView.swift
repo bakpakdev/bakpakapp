@@ -882,7 +882,7 @@ struct ProfileView: View {
         }
         await MainActor.run { loadingListings = true }
         do {
-            let fetched = try await ProductService().userProducts(userId: uid)
+            let fetched = try await ProductService().userProducts(userId: uid, school: campusTheme.schoolID)
             await MainActor.run {
                 products = fetched
                 loadingListings = false

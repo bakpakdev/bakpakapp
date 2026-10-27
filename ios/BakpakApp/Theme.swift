@@ -57,14 +57,13 @@ struct CampusTheme: Equatable {
     let primary: Color
     let secondary: Color
     let isDark: Bool
-    /// Neutral black/white/grey "DEV" campus — same UI, monochrome colors, not tied to a
-    /// school. Debug simulator builds only (see `devThemeEnabled`).
+    /// Neutral black/white/grey "DEV" campus — same UI, monochrome colors, and its own
+    /// community (`schoolID` "dev"). Debug simulator builds only (see `devThemeEnabled`).
     var isDev = false
-    /// The account's real school under the DEV campus, so listings, meetup spots and
-    /// rankings still load from real data. Nil outside dev.
+    /// The account's real school while on the DEV campus. Nil outside dev.
     var dataShortName: String? = nil
 
-    /// School that backs data queries (`schoolID`, `fullName`, meetup spots).
+    /// The account's real school (meetup spots, which campus a profile belongs to).
     private var dataSchool: String { dataShortName ?? shortName }
 
     static let devThemeDefaultsKey = "popupDevTheme"
@@ -179,11 +178,17 @@ struct CampusTheme: Equatable {
     }
 
     var fullName: String {
-        dataSchool == "OSU" ? "Oregon State University" : "University of Oregon"
+        if isDev { return "popup dev" }
+        return dataSchool == "OSU" ? "Oregon State University" : "University of Oregon"
     }
 
     /// Stable campus key for listing isolation (`products.school`).
-    var schoolID: String { dataSchool == "OSU" ? "osu" : "uo" }
+    /// Every listing, search, ranking and people count is scoped to this, so campuses
+    /// never share anything. DEV is its own empty community.
+    var schoolID: String { isDev ? "dev" : homeSchoolID }
+
+    /// The account's real school — used to keep other-campus profiles out (DEV included).
+    var homeSchoolID: String { dataSchool == "OSU" ? "osu" : "uo" }
 
     var meetupSectionTitle: String {
         dataSchool == "OSU" ? "Campus meetup" : "Dorm / meetup"

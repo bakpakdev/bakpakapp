@@ -583,10 +583,17 @@ struct UserProfileView: View {
         async let reviewsTask: Void = loadReviews()
         do {
             async let profileTask = service.publicProfile(userId: userId)
-            async let productsTask = service.userProducts(userId: userId)
+            async let productsTask = service.userProducts(userId: userId, school: campusTheme.schoolID)
             let (profile, listings) = try await (profileTask, productsTask)
             user = profile
-            products = listings
+            // Students only see their own campus; someone from another school is off-limits.
+            let theirSchool = CampusTheme.from(schoolName: profile.country).homeSchoolID
+            if !isOwnProfile && theirSchool != campusTheme.homeSchoolID {
+                isUnavailable = true
+                products = []
+            } else {
+                products = listings
+            }
         } catch {
             if user == nil {
                 errorMessage = error.localizedDescription

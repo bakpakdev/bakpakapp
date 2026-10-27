@@ -47,13 +47,16 @@ enum SupabaseSearchSuggestService {
         recentSearches.forEach { add($0, type: "recent", base: 18) }
 
         // Catalog candidates
+        let campus = school?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let rows: [CatalogRow]
         do {
             if q.isEmpty {
-                rows = try await client
+                var catalog = client
                     .from("products")
                     .select("title, brand, category")
                     .eq("is_sold", value: false)
+                if !campus.isEmpty { catalog = catalog.eq("school", value: campus) }
+                rows = try await catalog
                     .order("created_at", ascending: false)
                     .limit(40)
                     .execute()
@@ -65,10 +68,12 @@ enum SupabaseSearchSuggestService {
                 let clauses = (words.isEmpty ? [q] : words)
                     .map { $0.replacingOccurrences(of: ",", with: " ") }
                     .flatMap { ["title.ilike.%\($0)%", "brand.ilike.%\($0)%", "category.ilike.%\($0)%"] }
-                rows = try await client
+                var catalog = client
                     .from("products")
                     .select("title, brand, category")
                     .eq("is_sold", value: false)
+                if !campus.isEmpty { catalog = catalog.eq("school", value: campus) }
+                rows = try await catalog
                     .or(clauses.joined(separator: ","))
                     .order("created_at", ascending: false)
                     .limit(60)
@@ -90,11 +95,13 @@ enum SupabaseSearchSuggestService {
             }
         }
 
-        // Popular clicks from search_events (last clicks if table exists)
-        if let popular: [PopularRow] = try? await client
+        // Popular clicks from search_events (last clicks if table exists), this campus only.
+        var events = client
             .from("search_events")
             .select("suggestion_text")
             .eq("event_type", value: "click")
+        if !campus.isEmpty { events = events.eq("school", value: campus) }
+        if let popular: [PopularRow] = try? await events
             .order("created_at", ascending: false)
             .limit(120)
             .execute()
@@ -108,8 +115,6 @@ enum SupabaseSearchSuggestService {
                 add(t, type: "popular", base: 9 + Double(min(20, counts[t.lowercased(), default: 1] * 2)))
             }
         }
-
-        _ = school // reserved for campus-weighted ranking in Phase 2
 
         return scored.values
             .sorted { $0.score > $1.score }

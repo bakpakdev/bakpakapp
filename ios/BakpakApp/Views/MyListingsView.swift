@@ -149,7 +149,7 @@ struct MyListingsView: View {
         errorMessage = nil
         defer { isLoading = false }
         do {
-            products = try await service.userProducts(userId: userId)
+            products = try await service.userProducts(userId: userId, school: campusTheme.schoolID)
         } catch {
             errorMessage = error.localizedDescription
         }
