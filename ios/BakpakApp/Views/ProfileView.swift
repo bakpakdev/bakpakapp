@@ -480,12 +480,7 @@ struct ProfileView: View {
         defer { loadingRank = false }
         rankSnapshot = await SellerRankService.shared.snapshot(
             schoolID: campusTheme.schoolID,
-            schoolName: authVM.user?.country,
-            shortName: campusTheme.shortName,
-            currentUserId: authVM.user?.id,
-            currentUsername: authVM.user?.username,
-            currentAvatar: authVM.user?.avatar,
-            currentSoldHint: soldCount
+            shortName: campusTheme.shortName
         )
     }
 
@@ -534,11 +529,11 @@ struct ProfileView: View {
     private var balanceBar: some View {
         HStack(spacing: 0) {
             balanceStat(
-                value: "$\(formattedMoney(payoutStatus?.availableDollars ?? 0))",
+                value: "$\(formattedMoney(payoutStatus?.totalDollars ?? 0))",
                 label: "balance",
-                caption: (payoutStatus?.availableCents ?? 0) > 0
-                    ? "ready to cash out"
-                    : "from meetup sales",
+                caption: (payoutStatus?.clearingCents ?? 0) > 0
+                    ? "$\(formattedMoney(Double(payoutStatus?.clearingCents ?? 0) / 100)) clearing"
+                    : ((payoutStatus?.availableCents ?? 0) > 0 ? "ready to cash out" : "from meetup sales"),
                 isLoading: loadingBalance
             )
             Rectangle()

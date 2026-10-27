@@ -98,6 +98,7 @@ try {
   app.use('/api/payments/stripe', require('./routes/stripeConnect'));
   app.use('/api/identify-clothing', require('./routes/identify'));
   app.use('/api/push', require('./routes/push'));
+  app.use('/api/leaderboard', require('./routes/leaderboard'));
 
   app.get('/u/:username', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'share.html'));

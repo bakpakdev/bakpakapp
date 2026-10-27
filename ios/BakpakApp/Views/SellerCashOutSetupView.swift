@@ -20,6 +20,7 @@ struct SellerCashOutSetupView: View {
 
     private var isReady: Bool { status?.onboardingComplete == true }
     private var availableCents: Int { status?.availableCents ?? 0 }
+    private var clearingCents: Int { status?.clearingCents ?? 0 }
 
     var body: some View {
         ZStack {
@@ -81,7 +82,7 @@ struct SellerCashOutSetupView: View {
 
     private var subtitle: String {
         if isReady {
-            return "Each sale goes straight to your Stripe account and on to the bank or debit card you added, usually in about 2 business days."
+            return "Your sales collect here. Cash out to the bank or debit card you added whenever you like; it arrives in 1–2 business days."
         }
         if status?.needsMoreInfo == true {
             return "Stripe needs a little more info before sales can go to your bank. Pick up where you left off."
@@ -96,11 +97,16 @@ struct SellerCashOutSetupView: View {
             Text("popup balance")
                 .font(Theme.syne(13, weight: .semibold))
                 .foregroundStyle(campusTheme.textMuted)
-            Text(formattedMoney(cents: availableCents))
+            Text(formattedMoney(cents: availableCents + clearingCents))
                 .font(Theme.syne(32, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
-            if let paidOut = status?.lifetimePaidOutCents, paidOut > 0 {
-                Text("\(formattedMoney(cents: paidOut)) sent to Stripe so far")
+            if clearingCents > 0 {
+                Text("\(formattedMoney(cents: availableCents)) ready to cash out · \(formattedMoney(cents: clearingCents)) clearing (about 2 business days)")
+                    .font(Theme.syne(12))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if availableCents > 0 {
+                Text("Ready to cash out")
                     .font(Theme.syne(12))
                     .foregroundStyle(campusTheme.textMuted)
             }
@@ -118,8 +124,8 @@ struct SellerCashOutSetupView: View {
                 .foregroundStyle(campusTheme.textMuted)
             factRow(icon: "tag", text: "You keep the full listing price. Buyers pay popup’s small service fee on top.")
             factRow(icon: "iphone", text: "The buyer pays in the app at your meetup with Apple Pay or a card. Never take cash, Venmo or Zelle.")
-            factRow(icon: "building.columns", text: "After a one-time Stripe signup, each sale lands in your bank or debit card in about 2 business days.")
-            factRow(icon: "hourglass", text: "Sales before signup wait in your popup balance and move over once you finish.")
+            factRow(icon: "hourglass", text: "Each sale shows up in your popup balance right away and takes about 2 business days to clear.")
+            factRow(icon: "building.columns", text: "After a one-time Stripe signup, tap Cash out to send cleared money to your bank or debit card. It arrives in 1–2 business days.")
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -149,7 +155,7 @@ struct SellerCashOutSetupView: View {
                     : "Payouts are locked behind a 6-digit code from Passwords or your authenticator app. It takes a minute."
             )
             stepRow(icon: "2.circle.fill", title: "Sign up with Stripe", body: "Legal name, date of birth, address, the last 4 of your SSN, and a bank account or debit card. Stripe keeps these; popup never sees them.")
-            stepRow(icon: "3.circle.fill", title: "Get paid automatically", body: "Every sale after that goes straight to you. Anything in your popup balance moves over too.")
+            stepRow(icon: "3.circle.fill", title: "Cash out anytime", body: "Your balance stays here until you tap Cash out, then it goes to your bank in 1–2 business days.")
             if let due = status?.requirementsDue, !due.isEmpty, status?.connected == true {
                 statusPill(ok: false, text: "Stripe still needs \(due.count) item\(due.count == 1 ? "" : "s")")
             }
@@ -260,7 +266,8 @@ struct SellerCashOutSetupView: View {
 
     private var primaryTitle: String {
         if isReady {
-            return availableCents >= 100 ? "Cash out \(formattedMoney(cents: availableCents))" : "Sales go straight to your bank"
+            if availableCents >= 100 { return "Cash out \(formattedMoney(cents: availableCents))" }
+            return clearingCents > 0 ? "Clearing \(formattedMoney(cents: clearingCents))" : "Nothing to cash out yet"
         }
         if !twoFactorOn { return "Turn on two-factor" }
         return status?.needsMoreInfo == true ? "Continue with Stripe" : "Set up payouts with Stripe"
@@ -310,7 +317,7 @@ struct SellerCashOutSetupView: View {
                 await loadStatus()
                 if isReady {
                     Motion.haptic(.medium)
-                    infoMessage = "Payouts are ready. From now on each sale goes straight to your Stripe account."
+                    infoMessage = "Payouts are ready. Tap Cash out whenever you want your balance in your bank."
                 }
             }
         } catch PayoutMFAError.cancelled {

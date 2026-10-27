@@ -24,6 +24,11 @@ struct PayoutAccountStatus: Decodable {
         Double(availableCents ?? 0) / 100.0
     }
 
+    /// Everything you've earned that hasn't gone to your bank yet: ready + still clearing.
+    var totalCents: Int { (availableCents ?? 0) + (pendingCents ?? 0) }
+    var totalDollars: Double { Double(totalCents) / 100.0 }
+    var clearingCents: Int { pendingCents ?? 0 }
+
     /// Started Stripe signup but Stripe still needs something (ID, SSN last 4, bank).
     var needsMoreInfo: Bool {
         connected == true && onboardingComplete != true

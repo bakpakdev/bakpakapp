@@ -46,6 +46,9 @@ struct MainTabView: View {
                 customTabBar
             }
         }
+        // The tab bar stays put when the keyboard opens (e.g. Home search); it no longer
+        // rides up on top of the keyboard.
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .animation(nil, value: appState.hidesTabBar)
         .toolbar(.hidden, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)

@@ -8,12 +8,14 @@ struct ProfilePrivacy: Codable, Equatable {
     var showSoldItems: Bool = true
     var showFollowerCounts: Bool = true
     var allowNewMessages: Bool = true
+    var hideOnLeaderboard: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case showSchoolBadge = "show_school_badge"
         case showSoldItems = "show_sold_items"
         case showFollowerCounts = "show_follower_counts"
         case allowNewMessages = "allow_new_messages"
+        case hideOnLeaderboard = "hide_on_leaderboard"
     }
 
     init() {}
@@ -24,6 +26,7 @@ struct ProfilePrivacy: Codable, Equatable {
         showSoldItems = try c.decodeIfPresent(Bool.self, forKey: .showSoldItems) ?? true
         showFollowerCounts = try c.decodeIfPresent(Bool.self, forKey: .showFollowerCounts) ?? true
         allowNewMessages = try c.decodeIfPresent(Bool.self, forKey: .allowNewMessages) ?? true
+        hideOnLeaderboard = try c.decodeIfPresent(Bool.self, forKey: .hideOnLeaderboard) ?? false
     }
 }
 

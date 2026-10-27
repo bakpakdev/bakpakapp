@@ -186,6 +186,8 @@ struct HomeView: View {
         }
         switch homeSort {
         case .newest:
+            // While searching, the default order is best match (SearchEngine), not date.
+            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return filtered }
             return filtered.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
         case .priceLow:
             return filtered.sorted { $0.price < $1.price }

@@ -59,13 +59,19 @@ enum SupabaseSearchSuggestService {
                     .execute()
                     .value
             } else {
+                // Match any word (and its synonyms), not just the whole phrase, so
+                // "nike shi" still finds Nike shirts to suggest.
+                let words = SearchEngine.candidateWords(for: q)
+                let clauses = (words.isEmpty ? [q] : words)
+                    .map { $0.replacingOccurrences(of: ",", with: " ") }
+                    .flatMap { ["title.ilike.%\($0)%", "brand.ilike.%\($0)%", "category.ilike.%\($0)%"] }
                 rows = try await client
                     .from("products")
                     .select("title, brand, category")
                     .eq("is_sold", value: false)
-                    .or("title.ilike.%\(q)%,brand.ilike.%\(q)%,category.ilike.%\(q)%")
+                    .or(clauses.joined(separator: ","))
                     .order("created_at", ascending: false)
-                    .limit(40)
+                    .limit(60)
                     .execute()
                     .value
             }
@@ -77,6 +83,11 @@ enum SupabaseSearchSuggestService {
             add(row.title, type: "listing", base: 8)
             add(row.brand, type: "brand", base: 14)
             add(row.category, type: "category", base: 7)
+            // Predict the "brand + kind" search people usually mean, e.g. "Nike tops".
+            if let brand = row.brand?.trimmingCharacters(in: .whitespacesAndNewlines), !brand.isEmpty,
+               let category = row.category?.trimmingCharacters(in: .whitespacesAndNewlines), !category.isEmpty {
+                add("\(brand) \(category.lowercased())", type: "combo", base: 16)
+            }
         }
 
         // Popular clicks from search_events (last clicks if table exists)
@@ -144,7 +155,10 @@ enum SupabaseSearchSuggestService {
         } else if t.contains(q) {
             score += 22
         } else {
-            return 0
+            // Word-by-word: every typed word (or a synonym / near-typo) appears somewhere.
+            let ranked = SearchEngine.rank([Product.suggestionProbe(title: text)], query: query)
+            guard ranked.exact, !ranked.products.isEmpty else { return 0 }
+            score += 18
         }
         if type == "brand" { score += 8 }
         if type == "recent" { score += 10 }

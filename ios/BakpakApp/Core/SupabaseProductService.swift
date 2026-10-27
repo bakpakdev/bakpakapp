@@ -47,21 +47,41 @@ enum SupabaseProductService {
         if hasCat {
             q = q.eq("category", value: cat)
         }
-        if hasQ {
-            // Also match sellers by username ("devdemo" finds that seller's closet).
-            let sellerIds = (try? await sellerIds(client: client, matching: trimmed)) ?? []
-            var clauses = ["title.ilike.%\(trimmed)%", "brand.ilike.%\(trimmed)%"]
-            if !sellerIds.isEmpty {
-                clauses.append("user_id.in.(\(sellerIds.joined(separator: ",")))")
-            }
-            q = q.or(clauses.joined(separator: ","))
+        guard hasQ else {
+            let rows: [SupabaseProductRow] = try await q
+                .order("created_at", ascending: false)
+                .limit(100)
+                .execute()
+                .value
+            return rows.map(\.asProduct)
         }
-        let rows: [SupabaseProductRow] = try await q
+
+        // Candidates: any listing that mentions any word (or synonym) of the query, plus the
+        // seller's username, plus recent listings so typos still find something. SearchEngine
+        // then ranks them: every-word matches first, closest matches after.
+        let words = SearchEngine.candidateWords(for: trimmed)
+            .map { $0.replacingOccurrences(of: ",", with: " ").replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: "") }
+        var clauses = words.flatMap { w in
+            ["title.ilike.%\(w)%", "brand.ilike.%\(w)%", "description.ilike.%\(w)%", "category.ilike.%\(w)%"]
+        }
+        let sellerIds = (try? await sellerIds(client: client, matching: trimmed)) ?? []
+        if !sellerIds.isEmpty {
+            clauses.append("user_id.in.(\(sellerIds.joined(separator: ",")))")
+        }
+        async let matchedRows: [SupabaseProductRow] = clauses.isEmpty ? [] : q
+            .or(clauses.joined(separator: ","))
             .order("created_at", ascending: false)
-            .limit(100)
+            .limit(200)
             .execute()
             .value
-        return rows.map(\.asProduct)
+        async let recent = fetchDiscover(client: client, school: school)
+        let matched = (try? await matchedRows)?.map(\.asProduct) ?? []
+        var pool = matched
+        var seen = Set(matched.map(\.id))
+        for p in (try? await recent) ?? [] where seen.insert(p.id).inserted {
+            if !hasCat || p.category == cat { pool.append(p) }
+        }
+        return SearchEngine.rank(pool, query: trimmed).products
     }
 
     static func fetchProduct(client: SupabaseClient, id: String) async throws -> Product {

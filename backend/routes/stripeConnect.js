@@ -143,13 +143,33 @@ async function sweepBalanceToStripe(supabase, sellerId, account) {
   }
 }
 
-function statusPayload(account, balance) {
+/**
+ * Once a seller is onboarded their sales sit in their Stripe balance, so that's what
+ * the app shows as their popup balance: available (can cash out now) plus anything
+ * left in the popup ledger, and pending (still clearing, usually ~2 business days).
+ */
+function statusPayload(account, balance, stripeBalance = null) {
+  const base = serializeBalance(balance);
+  if (stripeBalance) {
+    base.availableCents += stripeBalance.availableCents;
+    base.pendingCents += stripeBalance.pendingCents;
+  }
   return {
     configured: stripe.isStripeConfigured(),
     environment: stripe.stripeEnvironment(),
     ...stripe.summarizeAccount(account),
-    ...serializeBalance(balance),
+    ...base,
   };
+}
+
+async function stripeBalanceIfOnboarded(account) {
+  if (!stripe.summarizeAccount(account).onboardingComplete) return null;
+  try {
+    return await stripe.connectedBalance(account.id);
+  } catch (err) {
+    console.warn('Connected balance unavailable:', account.id, err.message);
+    return null;
+  }
 }
 
 router.get('/status', protectSupabase, async (req, res) => {
@@ -160,11 +180,11 @@ router.get('/status', protectSupabase, async (req, res) => {
       return res.json(statusPayload(null, balance));
     }
     const profile = await loadSellerProfile(supabase, req.user.id);
-    const account = await retrieveAccount(profile?.stripe_account_id);
+    const account = await stripe.ensureManualPayouts(await retrieveAccount(profile?.stripe_account_id));
     // The app checks status right after Stripe onboarding, so that's when sales
     // made before onboarding move out of popup's account.
     const swept = await sweepBalanceToStripe(supabase, req.user.id, account);
-    res.json(statusPayload(account, swept || balance));
+    res.json(statusPayload(account, swept || balance, await stripeBalanceIfOnboarded(account)));
   } catch (error) {
     console.error('Stripe status error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -231,27 +251,57 @@ router.post('/cashout', protectSupabase, requirePayoutMfa, requireStripe, async 
       });
     }
 
-    const available = balance.available_cents || 0;
+    // Anything still in the popup ledger (sales before onboarding) moves to Stripe first,
+    // then the whole Stripe balance can go to the bank in one payout.
+    const ready = await stripe.ensureManualPayouts(account);
+    const swept = await sweepBalanceToStripe(supabase, req.user.id, ready);
+    const ledger = swept || await getOrCreateSellerBalance(supabase, req.user.id);
+    const inStripe = await stripe.connectedBalance(ready.id);
+
     const requested = Number(req.body?.amountCents);
     const amountCents = Number.isFinite(requested) && requested > 0
-      ? Math.min(Math.round(requested), available)
-      : available;
+      ? Math.min(Math.round(requested), inStripe.availableCents)
+      : inStripe.availableCents;
     if (amountCents < MIN_CASHOUT_CENTS) {
-      return res.status(400).json({ message: 'You need at least $1.00 to cash out.' });
+      const clearing = inStripe.pendingCents + (ledger.available_cents || 0);
+      return res.status(400).json({
+        code: clearing > 0 ? 'FUNDS_CLEARING' : 'NOTHING_TO_CASH_OUT',
+        message: clearing > 0
+          ? `$${(clearing / 100).toFixed(2)} is still clearing from your recent sales. It’s usually ready to cash out in about 2 business days.`
+          : 'You need at least $1.00 to cash out.',
+        status: statusPayload(ready, ledger, inStripe),
+      });
     }
 
-    const sent = await sendBalanceToStripe(supabase, balance, account.id, amountCents, 'popup cash out');
-    if (!sent) {
-      return res.status(409).json({ message: 'Your balance just changed. Pull to refresh and try again.' });
-    }
-    const { transfer, balance: reserved } = sent;
+    const { data: payoutRow, error: insertError } = await supabase
+      .from('seller_payouts')
+      .insert({ seller_id: req.user.id, amount_cents: amountCents, status: 'pending' })
+      .select('id')
+      .single();
+    if (insertError) throw insertError;
 
+    let payout;
+    try {
+      payout = await stripe.createSellerPayout(ready.id, amountCents, `popup-bank-payout-${payoutRow.id}`);
+    } catch (err) {
+      await supabase
+        .from('seller_payouts')
+        .update({ status: 'failed', failure_reason: String(err.message || 'Payout failed').slice(0, 500), updated_at: new Date().toISOString() })
+        .eq('id', payoutRow.id);
+      throw err;
+    }
+    await supabase
+      .from('seller_payouts')
+      .update({ status: 'paid', stripe_transfer_id: payout.id, updated_at: new Date().toISOString() })
+      .eq('id', payoutRow.id);
+
+    const after = await stripe.connectedBalance(ready.id).catch(() => null);
     res.json({
       requiresOnboarding: false,
       amountCents,
-      transferId: transfer.id,
-      message: `$${(amountCents / 100).toFixed(2)} is on its way. It usually reaches your bank in 1–2 business days.`,
-      status: statusPayload(account, reserved),
+      transferId: payout.id,
+      message: `$${(amountCents / 100).toFixed(2)} is on its way to your bank. It usually arrives in 1–2 business days.`,
+      status: statusPayload(ready, ledger, after),
     });
   } catch (error) {
     console.error('Stripe cashout error:', error);

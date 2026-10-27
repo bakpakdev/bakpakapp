@@ -12,7 +12,6 @@ struct PrivacySettingsView: View {
     /// so we never show switches that wouldn't do anything.
     @State private var privacyReady = false
     @State private var privacySaveError: String?
-    @State private var hideNameOnLeaderboard = SellerRankStore.hideNameOnLeaderboard
 
     private var blockedCount: Int { blockStore.blockedByMe.count }
 
@@ -78,6 +77,7 @@ struct PrivacySettingsView: View {
                             .foregroundStyle(Color(hex: "#E11D48"))
                     }
 
+                    if privacyReady {
                     VStack(alignment: .leading, spacing: 0) {
                         SettingsSectionTitle(
                             title: "leaderboard",
@@ -87,11 +87,13 @@ struct PrivacySettingsView: View {
                             SettingsToggleRow(
                                 title: "Hide my name",
                                 subtitle: "Show as Anonymous Seller on the \(campusTheme.shortName) Grid.",
-                                isOn: $hideNameOnLeaderboard,
+                                // Saved with your other privacy choices so everyone's board honors it.
+                                isOn: $privacy.hideOnLeaderboard,
                                 showDivider: false
                             )
                         }
                         .background(CampusCardBackground())
+                    }
                     }
 
                     VStack(alignment: .leading, spacing: 0) {
@@ -119,12 +121,6 @@ struct PrivacySettingsView: View {
         .onChange(of: privacy) { value in
             guard privacyReady else { return }
             Task { await savePrivacy(value) }
-        }
-        .onChange(of: hideNameOnLeaderboard) { value in
-            SellerRankStore.hideNameOnLeaderboard = value
-            if let uid = authVM.user?.id {
-                _ = SellerRankStore.anonymousSellerId(userId: uid, schoolID: campusTheme.schoolID)
-            }
         }
         .task {
             await loadPrivacy()

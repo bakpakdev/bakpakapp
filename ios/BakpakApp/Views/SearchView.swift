@@ -71,12 +71,9 @@ struct SearchView: View {
         let _ = blockStore.revision
         let visible = blockStore.filterProducts(products)
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let matches = q.isEmpty ? visible : visible.filter { item in
-            item.title.lowercased().contains(q)
-                || (item.user?.username.lowercased().contains(q) ?? false)
-                || (item.description?.lowercased().contains(q) ?? false)
-                || (item.brand?.lowercased().contains(q) ?? false)
-        }
+        // Already matched and ranked by SearchEngine (multi-word, synonyms, typos).
+        let matches = visible
+        _ = q
         switch sortOrder {
         case .relevant: return matches
         // ISO-8601 timestamps sort correctly as strings.

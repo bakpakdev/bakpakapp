@@ -191,11 +191,15 @@ struct AccountSettingsView: View {
     // MARK: - Groups
 
     private var displayBalance: Double {
-        Double(payoutStatus?.availableCents ?? 0) / 100.0
+        payoutStatus?.totalDollars ?? 0
     }
 
     private var balanceSubtitle: String {
         let available = payoutStatus?.availableCents ?? 0
+        let clearing = payoutStatus?.clearingCents ?? 0
+        if clearing > 0 {
+            return String(format: "$%.2f still clearing · ready to cash out in about 2 business days", Double(clearing) / 100)
+        }
         if available > 0 {
             if payoutStatus?.onboardingComplete == true {
                 return "From your meetup sales · cash out to your bank anytime"
@@ -210,7 +214,7 @@ struct AccountSettingsView: View {
             return "Only needed when you’re ready to cash out"
         }
         if payoutStatus.onboardingComplete == true {
-            return "Payouts ready · sales go straight to you"
+            return "Payouts ready · cash out to your bank anytime"
         }
         if payoutStatus.needsMoreInfo {
             return "Stripe needs a bit more info"

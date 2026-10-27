@@ -104,6 +104,9 @@ async function createExpressAccount({ email, firstName, lastName, userId }) {
     // Destination charges and transfers only: the charge is on popup's account, so
     // sellers never need the card_payments capability.
     capabilities: { transfers: { requested: true } },
+    // Sales collect in the seller's balance (shown as their popup balance) until they
+    // tap Cash out, instead of Stripe sweeping them to the bank on its own schedule.
+    settings: { payouts: { schedule: { interval: 'manual' } } },
     business_profile: {
       // 5931 = used merchandise and secondhand stores.
       mcc: '5931',
@@ -111,6 +114,34 @@ async function createExpressAccount({ email, firstName, lastName, userId }) {
     },
     metadata: { popup_user_id: userId },
   });
+}
+
+/** USD available (cash-out-able) and pending (still clearing) in a connected account. */
+async function connectedBalance(accountId) {
+  const balance = await getStripe().balance.retrieve({}, { stripeAccount: accountId });
+  const usd = (list) => (list || []).filter((b) => b.currency === 'usd').reduce((sum, b) => sum + b.amount, 0);
+  return { availableCents: usd(balance.available), pendingCents: usd(balance.pending) };
+}
+
+/** Accounts made before manual payouts existed: switch them so money waits for Cash out. */
+async function ensureManualPayouts(account) {
+  if (!account || account.settings?.payouts?.schedule?.interval === 'manual') return account;
+  try {
+    return await getStripe().accounts.update(account.id, {
+      settings: { payouts: { schedule: { interval: 'manual' } } },
+    });
+  } catch (err) {
+    console.warn('Could not switch payouts to manual:', account.id, err.message);
+    return account;
+  }
+}
+
+/** Sends `amountCents` from the seller's Stripe balance to their bank or debit card. */
+async function createSellerPayout(accountId, amountCents, idempotencyKey) {
+  return getStripe().payouts.create(
+    { amount: amountCents, currency: 'usd', description: 'popup cash out' },
+    { stripeAccount: accountId, idempotencyKey }
+  );
 }
 
 async function createOnboardingLink(accountId) {
@@ -175,6 +206,9 @@ function constructWebhookEvent(rawBody, signature) {
 }
 
 module.exports = {
+  connectedBalance,
+  ensureManualPayouts,
+  createSellerPayout,
   getStripe,
   isStripeConfigured,
   publishableKey,
