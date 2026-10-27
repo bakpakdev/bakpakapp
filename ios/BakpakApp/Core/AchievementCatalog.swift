@@ -59,7 +59,7 @@ struct BadgeCampusTheme: Hashable {
     /// Dev accounts only (see `CampusTheme.isDevSchool`).
     static let dev = BadgeCampusTheme(
         id: "dev",
-        shortName: "DEV",
+        shortName: "PU",
         schoolName: CampusTheme.devSchoolName,
         mascotName: "Devs",
         tagline: "Built here, tested here",
