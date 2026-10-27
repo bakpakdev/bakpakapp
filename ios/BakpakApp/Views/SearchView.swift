@@ -822,7 +822,7 @@ struct SearchView: View {
                 suggestionType: suggestion.type,
                 resultProductId: nil,
                 eventType: "click",
-                school: authVM.user?.country,
+                school: campusTheme.schoolID,
                 userId: authVM.user?.id
             )
             await performSearch()
@@ -873,7 +873,7 @@ struct SearchView: View {
     private func refreshSuggestions() async {
         await MainActor.run { suggestionsLoading = liveSuggestions.isEmpty }
         let q = query
-        let school = authVM.user?.country
+        let school = campusTheme.schoolID
         let recent = recentSearches
         let suggestions = await SearchSuggestService().suggest(
             query: q,
@@ -918,7 +918,7 @@ struct SearchView: View {
                 suggestionType: "submit",
                 resultProductId: nil,
                 eventType: "submit",
-                school: authVM.user?.country,
+                school: campusTheme.schoolID,
                 userId: authVM.user?.id
             )
         } catch {
