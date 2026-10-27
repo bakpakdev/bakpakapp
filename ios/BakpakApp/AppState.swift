@@ -23,13 +23,6 @@ final class AppState: ObservableObject {
             UserDefaults.standard.set(appearance.rawValue, forKey: Self.appearanceKey)
         }
     }
-    /// DEV campus colors on/off (simulator-only switch in Preferences). Published so the
-    /// theme re-renders the moment it's flipped.
-    @Published var devTheme: Bool = CampusTheme.devThemeEnabled {
-        didSet {
-            UserDefaults.standard.set(devTheme, forKey: CampusTheme.devThemeDefaultsKey)
-        }
-    }
     /// Unread inbound messages in buying vs selling inbox tabs.
     @Published var inboxUnreadBuying: Int = 0
     @Published var inboxUnreadSelling: Int = 0

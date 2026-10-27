@@ -2,12 +2,13 @@
 -- The app already filters listings, search, suggestions and rankings by campus;
 -- this makes the database refuse cross-campus listing reads too.
 --
--- NOT APPLIED YET. Review before running: signed-out (anon) reads keep working so
--- closet share links on the web don't break.
+-- Signed-out (anon) reads keep working so closet share links on the web don't break.
+-- Campuses: 'uo', 'osu', and 'dev' (the simulator-only "popup dev" school). Safe to re-run.
 
 -- 1) Backfill any listing still missing a campus from its seller's school.
 UPDATE public.products p
 SET school = CASE
+  WHEN lower(coalesce(pr.country, '')) LIKE '%popup dev%' THEN 'dev'
   WHEN lower(coalesce(pr.country, '')) LIKE '%oregon state%'
     OR lower(coalesce(pr.country, '')) LIKE '%osu%'
     OR lower(coalesce(pr.country, '')) LIKE '%beaver%'
@@ -28,6 +29,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT CASE
+    WHEN lower(coalesce(country, '')) LIKE '%popup dev%' THEN 'dev'
     WHEN lower(coalesce(country, '')) LIKE '%oregon state%'
       OR lower(coalesce(country, '')) LIKE '%osu%'
       OR lower(coalesce(country, '')) LIKE '%beaver%'
@@ -39,8 +41,7 @@ AS $$
   WHERE id = auth.uid()
 $$;
 
--- 3) Signed-in students read their own listings, their campus's listings, and the
---    DEV sandbox (only reachable from Debug simulator builds).
+-- 3) Signed-in students read their own listings and their campus's listings, nothing else.
 DROP POLICY IF EXISTS "products_select" ON public.products;
 CREATE POLICY "products_select"
   ON public.products FOR SELECT TO anon
@@ -52,14 +53,13 @@ CREATE POLICY "products_select_campus"
   USING (
     user_id = auth.uid()
     OR school = public.my_campus()
-    OR school = 'dev'
   );
 
--- 4) New listings can only be posted to your own campus (or the DEV sandbox).
+-- 4) New listings can only be posted to your own campus.
 DROP POLICY IF EXISTS "products_insert_own" ON public.products;
 CREATE POLICY "products_insert_own"
   ON public.products FOR INSERT TO authenticated
   WITH CHECK (
     user_id = auth.uid()
-    AND (school = public.my_campus() OR school = 'dev')
+    AND school = public.my_campus()
   );

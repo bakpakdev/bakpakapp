@@ -49,30 +49,24 @@ struct BadgeCampusTheme: Hashable {
     )
 
     static func from(schoolName: String?) -> BadgeCampusTheme {
-        let theme = schoolTheme(schoolName: schoolName)
-        return CampusTheme.devThemeEnabled ? theme.dev() : theme
-    }
-
-    private static func schoolTheme(schoolName: String?) -> BadgeCampusTheme {
+        if CampusTheme.isDevSchool(schoolName) { return .dev }
         let school = (schoolName ?? "").lowercased()
         if school.contains("georgetown") || school.contains("hoya") { return .georgetown }
         if school.contains("oregon state") || school.contains("osu") || school.contains("beaver") { return .osu }
         return .uo
     }
 
-    /// The DEV campus skin, monochrome (see `CampusTheme.devThemeEnabled`).
-    private func dev() -> BadgeCampusTheme {
-        BadgeCampusTheme(
-            id: id,
-            shortName: "DEV",
-            schoolName: "popup dev",
-            mascotName: "Devs",
-            tagline: "Built here, tested here",
-            primary: Color(hex: "#111111"),
-            secondary: Color(hex: "#A3A3A3"),
-            motifSystemName: "hammer.fill"
-        )
-    }
+    /// Dev accounts only (see `CampusTheme.isDevSchool`).
+    static let dev = BadgeCampusTheme(
+        id: "dev",
+        shortName: "DEV",
+        schoolName: CampusTheme.devSchoolName,
+        mascotName: "Devs",
+        tagline: "Built here, tested here",
+        primary: Color(hex: "#111111"),
+        secondary: Color(hex: "#A3A3A3"),
+        motifSystemName: "hammer.fill"
+    )
 }
 
 // MARK: - Seller rank ladder (sales-based)

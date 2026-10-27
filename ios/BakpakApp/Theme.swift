@@ -57,35 +57,36 @@ struct CampusTheme: Equatable {
     let primary: Color
     let secondary: Color
     let isDark: Bool
-    /// Neutral black/white/grey "DEV" campus — same UI, monochrome colors, and its own
-    /// community (`schoolID` "dev"). Debug simulator builds only (see `devThemeEnabled`).
+    /// The "popup dev" campus: same UI, monochrome colors, its own community
+    /// (`schoolID` "dev"). Only dev accounts land here; UO / OSU accounts never do.
     var isDev = false
-    /// The account's real school while on the DEV campus. Nil outside dev.
-    var dataShortName: String? = nil
 
-    /// The account's real school (meetup spots, which campus a profile belongs to).
-    private var dataSchool: String { dataShortName ?? shortName }
+    /// Profile school name (`profiles.country`) of the dev campus.
+    static let devSchoolName = "popup dev"
 
-    static let devThemeDefaultsKey = "popupDevTheme"
-
-    /// Picked from the simulator-only "dev" section in Preferences (on by default there).
-    /// Always false in device / TestFlight / App Store builds, so UO and OSU keep their colors.
-    static var devThemeEnabled: Bool {
+    /// Dev accounts are only recognized in Debug simulator builds; everywhere else the
+    /// dev school doesn't exist.
+    static func isDevSchool(_ schoolName: String?) -> Bool {
         #if DEBUG && targetEnvironment(simulator)
-        return UserDefaults.standard.object(forKey: devThemeDefaultsKey) as? Bool ?? true
+        return (schoolName ?? "").lowercased().contains(devSchoolName)
         #else
         return false
         #endif
     }
 
     static func from(schoolName: String?, appearance: PopupAppearance = .light) -> CampusTheme {
-        let theme = schoolTheme(schoolName: schoolName, appearance: appearance)
-        return devThemeEnabled ? theme.dev() : theme
-    }
-
-    private static func schoolTheme(schoolName: String?, appearance: PopupAppearance) -> CampusTheme {
         let school = (schoolName ?? "").lowercased()
         let isDark = appearance == .dark
+        if isDevSchool(schoolName) {
+            return CampusTheme(
+                shortName: "DEV",
+                // Filled buttons put white text on `primary`, so it stays dark in both modes.
+                primary: isDark ? Color(hex: "#3A3A3A") : Color(hex: "#111111"),
+                secondary: isDark ? Color(hex: "#A3A3A3") : Color(hex: "#737373"),
+                isDark: isDark,
+                isDev: true
+            )
+        }
         if school.contains("oregon state") || school.contains("osu") || school.contains("beaver") {
             return CampusTheme(
                 shortName: "OSU",
@@ -99,19 +100,6 @@ struct CampusTheme: Equatable {
             primary: Theme.uoGreen,
             secondary: Theme.uoYellow,
             isDark: isDark
-        )
-    }
-
-    /// The DEV campus: monochrome palette matching the logo + login screen.
-    private func dev() -> CampusTheme {
-        CampusTheme(
-            shortName: "DEV",
-            // Filled buttons put white text on `primary`, so it stays dark in both modes.
-            primary: isDark ? Color(hex: "#3A3A3A") : Color(hex: "#111111"),
-            secondary: isDark ? Color(hex: "#A3A3A3") : Color(hex: "#737373"),
-            isDark: isDark,
-            isDev: true,
-            dataShortName: shortName
         )
     }
 
@@ -178,30 +166,30 @@ struct CampusTheme: Equatable {
     }
 
     var fullName: String {
-        if isDev { return "popup dev" }
-        return dataSchool == "OSU" ? "Oregon State University" : "University of Oregon"
+        if isDev { return Self.devSchoolName }
+        return shortName == "OSU" ? "Oregon State University" : "University of Oregon"
     }
 
     /// Stable campus key for listing isolation (`products.school`).
-    /// Every listing, search, ranking and people count is scoped to this, so campuses
-    /// never share anything. DEV is its own empty community.
-    var schoolID: String { isDev ? "dev" : homeSchoolID }
-
-    /// The account's real school — used to keep other-campus profiles out (DEV included).
-    var homeSchoolID: String { dataSchool == "OSU" ? "osu" : "uo" }
+    /// Every listing, search, ranking, people count and profile is scoped to this, so
+    /// campuses never share anything.
+    var schoolID: String {
+        if isDev { return "dev" }
+        return shortName == "OSU" ? "osu" : "uo"
+    }
 
     var meetupSectionTitle: String {
-        dataSchool == "OSU" ? "Campus meetup" : "Dorm / meetup"
+        shortName == "OSU" ? "Campus meetup" : "Dorm / meetup"
     }
 
     var meetupSectionHint: String {
-        dataSchool == "OSU"
+        shortName == "OSU"
             ? "Tap + to pick where you’ll meet on campus"
             : "Tap + to pick a dorm or meetup area"
     }
 
     var meetupLocations: [CampusMeetupSpot] {
-        switch dataSchool {
+        switch shortName {
         case "OSU":
             return [
                 .init(id: "memorial-union", name: "Memorial Union (MU)", latitude: 44.5647, longitude: -123.2789),

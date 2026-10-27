@@ -7,10 +7,17 @@ private struct CampusSchool: Identifiable, Hashable {
     let name: String
     let emailDomain: String
 
-    static let all: [CampusSchool] = [
-        CampusSchool(id: "uo", name: "University of Oregon", emailDomain: "uoregon.edu"),
-        CampusSchool(id: "osu", name: "Oregon State University", emailDomain: "oregonstate.edu"),
-    ]
+    static var all: [CampusSchool] {
+        var schools = [
+            CampusSchool(id: "uo", name: "University of Oregon", emailDomain: "uoregon.edu"),
+            CampusSchool(id: "osu", name: "Oregon State University", emailDomain: "oregonstate.edu"),
+        ]
+        #if DEBUG && targetEnvironment(simulator)
+        // Dev-only campus for the simulator; never offered in TestFlight / App Store builds.
+        schools.append(CampusSchool(id: "dev", name: CampusTheme.devSchoolName, emailDomain: "popupdev.test"))
+        #endif
+        return schools
+    }
 }
 
 private enum RegisterStep: Int, CaseIterable {

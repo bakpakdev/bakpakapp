@@ -61,7 +61,6 @@ struct ProfileView: View {
     }
 
     private var universityLabel: String {
-        if campusTheme.isDev { return campusTheme.fullName }
         if let c = user?.country?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty {
             return c
         }

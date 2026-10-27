@@ -61,7 +61,6 @@ struct UserProfileView: View {
     }
 
     private var universityLabel: String {
-        if campusTheme.isDev { return campusTheme.fullName }
         if let c = user?.country?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty {
             return c
         }
@@ -588,8 +587,8 @@ struct UserProfileView: View {
             let (profile, listings) = try await (profileTask, productsTask)
             user = profile
             // Students only see their own campus; someone from another school is off-limits.
-            let theirSchool = CampusTheme.from(schoolName: profile.country).homeSchoolID
-            if !isOwnProfile && theirSchool != campusTheme.homeSchoolID {
+            let theirSchool = CampusTheme.from(schoolName: profile.country).schoolID
+            if !isOwnProfile && theirSchool != campusTheme.schoolID {
                 isUnavailable = true
                 products = []
             } else {
