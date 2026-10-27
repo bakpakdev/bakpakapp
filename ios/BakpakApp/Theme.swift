@@ -57,9 +57,15 @@ struct CampusTheme: Equatable {
     let primary: Color
     let secondary: Color
     let isDark: Bool
-    /// Neutral black/white/grey "dev" skin — colors only; the school (data, copy,
-    /// meetup spots) stays whatever the user picked. Debug simulator builds only.
+    /// Neutral black/white/grey "DEV" campus — same UI, monochrome colors, not tied to a
+    /// school. Debug simulator builds only (see `devThemeEnabled`).
     var isDev = false
+    /// The account's real school under the DEV campus, so listings, meetup spots and
+    /// rankings still load from real data. Nil outside dev.
+    var dataShortName: String? = nil
+
+    /// School that backs data queries (`schoolID`, `fullName`, meetup spots).
+    private var dataSchool: String { dataShortName ?? shortName }
 
     /// On by default in Debug simulator builds; opt out with launch arg `-popupDevTheme NO`.
     /// Always false in device / TestFlight / App Store builds.
@@ -95,15 +101,16 @@ struct CampusTheme: Equatable {
         )
     }
 
-    /// Same school, monochrome palette matching the logo + login screen.
+    /// The DEV campus: monochrome palette matching the logo + login screen.
     private func dev() -> CampusTheme {
         CampusTheme(
-            shortName: shortName,
+            shortName: "DEV",
             // Filled buttons put white text on `primary`, so it stays dark in both modes.
             primary: isDark ? Color(hex: "#3A3A3A") : Color(hex: "#111111"),
             secondary: isDark ? Color(hex: "#A3A3A3") : Color(hex: "#737373"),
             isDark: isDark,
-            isDev: true
+            isDev: true,
+            dataShortName: shortName
         )
     }
 
@@ -170,24 +177,24 @@ struct CampusTheme: Equatable {
     }
 
     var fullName: String {
-        shortName == "OSU" ? "Oregon State University" : "University of Oregon"
+        dataSchool == "OSU" ? "Oregon State University" : "University of Oregon"
     }
 
     /// Stable campus key for listing isolation (`products.school`).
-    var schoolID: String { shortName == "OSU" ? "osu" : "uo" }
+    var schoolID: String { dataSchool == "OSU" ? "osu" : "uo" }
 
     var meetupSectionTitle: String {
-        shortName == "OSU" ? "Campus meetup" : "Dorm / meetup"
+        dataSchool == "OSU" ? "Campus meetup" : "Dorm / meetup"
     }
 
     var meetupSectionHint: String {
-        shortName == "OSU"
+        dataSchool == "OSU"
             ? "Tap + to pick where you’ll meet on campus"
             : "Tap + to pick a dorm or meetup area"
     }
 
     var meetupLocations: [CampusMeetupSpot] {
-        switch shortName {
+        switch dataSchool {
         case "OSU":
             return [
                 .init(id: "memorial-union", name: "Memorial Union (MU)", latitude: 44.5647, longitude: -123.2789),

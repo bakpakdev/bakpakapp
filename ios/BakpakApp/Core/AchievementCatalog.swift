@@ -60,17 +60,17 @@ struct BadgeCampusTheme: Hashable {
         return .uo
     }
 
-    /// Same school, monochrome colors (see `CampusTheme.devThemeEnabled`).
+    /// The DEV campus skin, monochrome (see `CampusTheme.devThemeEnabled`).
     private func dev() -> BadgeCampusTheme {
         BadgeCampusTheme(
             id: id,
-            shortName: shortName,
-            schoolName: schoolName,
-            mascotName: mascotName,
-            tagline: tagline,
+            shortName: "DEV",
+            schoolName: "popup dev",
+            mascotName: "Devs",
+            tagline: "Built here, tested here",
             primary: Color(hex: "#111111"),
             secondary: Color(hex: "#A3A3A3"),
-            motifSystemName: motifSystemName
+            motifSystemName: "hammer.fill"
         )
     }
 }
