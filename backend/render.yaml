@@ -68,7 +68,7 @@ services:
       - key: APNS_TEAM_ID
         value: 38BTDK54M3
       - key: APNS_BUNDLE_ID
-        value: com.popup.app
+        value: com.popupapp.campus
       # Must match private.push_config.secret in Supabase (supabase/migrate_push_notifications.sql).
       - key: PUSH_WEBHOOK_SECRET
         sync: false

@@ -53,9 +53,9 @@ Money path after a successful Tap to Pay (or buyer Apple Pay/card):
 
 ### A. Apple Developer (Organization team)
 
-1. Move / enroll App ID `com.popup.app` under the **Organization** team (or create a new Org team and transfer).
+1. Move / enroll App ID `com.popupapp.campus` under the **Organization** team (or create a new Org team and transfer).
 2. Request: [Tap to Pay on iPhone entitlement](https://developer.apple.com/contact/request/tap-to-pay-on-iphone/) (Account → tap to pay request). Wait for approval (days–weeks).
-3. App ID `com.popup.app` → enable **Tap to Pay on iPhone** (keep **Apple Pay** + `merchant.com.popup.app`).
+3. App ID `com.popupapp.campus` → enable **Tap to Pay on iPhone** (keep **Apple Pay** + `merchant.com.popup.app`).
 4. Regenerate provisioning profiles / let Xcode Automatic Signing refresh.
 
 ### B. Square

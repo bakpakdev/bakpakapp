@@ -1,7 +1,7 @@
 // Apple Push Notification service (APNs) sender + the "who gets alerted for what" rules.
 //
 // Env (Render): APNS_KEY (contents of the .p8 key, \n allowed), APNS_KEY_ID, APNS_TEAM_ID,
-// APNS_BUNDLE_ID (default com.popup.app). Tokens carry their own environment:
+// APNS_BUNDLE_ID (default com.popupapp.campus). Tokens carry their own environment:
 // Xcode/Debug builds register as 'sandbox', TestFlight/App Store as 'production'.
 const http2 = require('http2');
 const jwt = require('jsonwebtoken');
@@ -16,7 +16,7 @@ function apnsConfig() {
   const key = (process.env.APNS_KEY || '').replace(/\\n/g, '\n').trim();
   const keyId = (process.env.APNS_KEY_ID || '').trim();
   const teamId = (process.env.APNS_TEAM_ID || '').trim();
-  const bundleId = (process.env.APNS_BUNDLE_ID || 'com.popup.app').trim();
+  const bundleId = (process.env.APNS_BUNDLE_ID || 'com.popupapp.campus').trim();
   if (!key || !keyId || !teamId) return null;
   return { key, keyId, teamId, bundleId };
 }

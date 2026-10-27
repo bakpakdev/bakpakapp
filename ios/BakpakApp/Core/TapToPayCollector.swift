@@ -48,7 +48,7 @@ final class TapToPayCollector: NSObject, ObservableObject {
         if !isEntitled {
             return """
             Tap to Pay isn’t enabled on this build. Request Apple’s “Tap to Pay on iPhone” entitlement \
-            (Organization team), enable it on App ID com.popup.app, set \
+            (Organization team), enable it on App ID com.popupapp.campus, set \
             POPUP_RELEASE_ENTITLEMENTS=PopupApp.Payments.entitlements and TAP_TO_PAY_ENABLED=YES, \
             then ship a new TestFlight.
             """

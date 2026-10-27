@@ -50,5 +50,5 @@ xcodebuild \
 
 APP="$DERIVED/Build/Products/Debug-iphonesimulator/PopupApp.app"
 xcrun simctl install "$UDID" "$APP"
-xcrun simctl launch "$UDID" com.popup.app
+xcrun simctl launch "$UDID" com.popupapp.campus
 echo "Installed and launched on $UDID"
