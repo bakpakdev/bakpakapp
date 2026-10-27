@@ -308,7 +308,7 @@ final class AuthViewModel: ObservableObject {
         // Landing-page mail only. Do not call Supabase resend/generateLink — those
         // HTTPS verify URLs are consumed by Mail prefetch on TestFlight.
         let emailed = await deliverCampusConfirmation(email: trimmedEmail)
-        if !emailed {
+        if !emailed, errorMessage == nil {
             errorMessage = "We couldn’t send the confirmation email. Tap Resend verification email."
         }
         return emailed
@@ -427,9 +427,14 @@ final class AuthViewModel: ObservableObject {
                 method: "POST",
                 body: body
             )
-            return response.emailed == true
+            if response.emailed == true { return true }
+            if let message = response.message, !message.isEmpty {
+                errorMessage = message
+            }
+            return false
         } catch {
             print("campus-confirm: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
             return false
         }
     }

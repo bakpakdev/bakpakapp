@@ -415,7 +415,7 @@ struct RegisterView: View {
     private var verifyStatusText: String {
         if authVM.hasVerifiedSignupEmail { return "Email confirmed" }
         if authVM.emailConfirmationLinkOpened { return "Link opened — confirm below" }
-        return "Waiting for you to open the email"
+        return "Check inbox and junk for popup from noreply@usepopupapp.com"
     }
 
     private var passwordStep: some View {

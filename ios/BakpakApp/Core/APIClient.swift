@@ -95,6 +95,8 @@ final class APIClient {
             return "Access denied (403). The server refused this request—often wrong account for that resource, or a firewall/proxy blocking your API URL. Confirm the API base URL ends with /api and try logging out and back in."
         case 404:
             return "Not found (404). Check the API base URL and path."
+        case 429:
+            return "Too many confirmation requests. Wait a few minutes."
         case 502, 503:
             return "Server unavailable (\(statusCode)). The API may be down or restarting."
         default:

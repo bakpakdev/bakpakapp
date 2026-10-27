@@ -12,6 +12,15 @@ function publicOrigin() {
   ).replace(/\/$/, '').replace(/\/api$/i, '');
 }
 
+// Branded confirm links (www.usepopupapp.com) look less like phishing to .edu filters
+// than the Render hostname. Stripe and webhooks still use PUBLIC_BASE_URL.
+function emailPublicOrigin() {
+  return (
+    process.env.EMAIL_PUBLIC_BASE_URL
+    || publicOrigin()
+  ).replace(/\/$/, '').replace(/\/api$/i, '');
+}
+
 function jwtSecret() {
   const secret = (process.env.JWT_SECRET || '').trim();
   if (!secret) throw new Error('JWT_SECRET is not set');
@@ -55,10 +64,13 @@ function confirmHtml(link) {
 </html>`;
 }
 
-async function sendViaResend(to, link, { subject = 'Confirm your popup campus email', html = confirmHtml(link) } = {}) {
+async function sendViaResend(to, link, { subject = 'Confirm your popup campus email', html = confirmHtml(link), text } = {}) {
   const key = (process.env.RESEND_API_KEY || '').trim();
-  if (!key) return false;
-  const from = (process.env.RESEND_FROM || 'popup <noreply@popup.app>').trim();
+  if (!key) {
+    console.error('Resend email failed: RESEND_API_KEY is not set');
+    return false;
+  }
+  const from = (process.env.RESEND_FROM || 'popup <noreply@usepopupapp.com>').trim();
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -70,13 +82,16 @@ async function sendViaResend(to, link, { subject = 'Confirm your popup campus em
       to,
       subject,
       html,
+      text: text || `Confirm your campus email in popup:\n\n${link}\n\nIf you didn’t create a popup account, ignore this email.`,
     }),
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    console.error('Resend email failed:', res.status, text);
+    const errText = await res.text().catch(() => '');
+    console.error('Resend email failed:', res.status, errText);
     return false;
   }
+  const payload = await res.json().catch(() => ({}));
+  console.log('Resend email queued:', payload.id || 'ok');
   return true;
 }
 
@@ -112,7 +127,7 @@ function isDemoBypass(email) {
 
 function confirmLinkFor(userId, email) {
   const token = signCampusToken(userId, email);
-  return `${publicOrigin()}/auth/confirm-email.html?campus_token=${encodeURIComponent(token)}`;
+  return `${emailPublicOrigin()}/auth/confirm-email.html?campus_token=${encodeURIComponent(token)}`;
 }
 
 async function findUserByEmail(admin, email) {
@@ -277,7 +292,11 @@ router.post('/campus-confirm', async (req, res) => {
       return res.status(400).json({ message: 'Create your account first, then resend the email.' });
     }
     if (isConfirmed(user)) {
-      return res.json({ emailed: true, message: 'Email is already confirmed.' });
+      return res.json({
+        emailed: false,
+        confirmed: true,
+        message: 'That email is already confirmed. Sign in instead.',
+      });
     }
 
     const emailed = await emailConfirmLink(email, user.id);
