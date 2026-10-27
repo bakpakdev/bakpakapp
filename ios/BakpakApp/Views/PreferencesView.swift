@@ -53,6 +53,39 @@ struct PreferencesView: View {
                         .background(CampusCardBackground())
                     }
 
+                    #if DEBUG && targetEnvironment(simulator)
+                    VStack(alignment: .leading, spacing: 0) {
+                        SettingsSectionTitle(title: "dev", subtitle: "Simulator only. Never in TestFlight or the App Store.")
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 8) {
+                                ForEach([false, true], id: \.self) { dev in
+                                    Button {
+                                        withAnimation(Motion.snappy) {
+                                            appState.devTheme = dev
+                                        }
+                                        Motion.haptic(.light)
+                                    } label: {
+                                        Text(dev ? "dev" : "school colors")
+                                            .font(Theme.syne(14, weight: .semibold))
+                                            .foregroundStyle(appState.devTheme == dev ? Color.white : campusTheme.textPrimary)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 44)
+                                            .background(
+                                                appState.devTheme == dev
+                                                    ? campusTheme.primary
+                                                    : campusTheme.elevatedSurface
+                                            )
+                                            .clipShape(Capsule())
+                                    }
+                                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .background(CampusCardBackground())
+                    }
+                    #endif
+
                     VStack(alignment: .leading, spacing: 0) {
                         SettingsSectionTitle(
                             title: "notifications",

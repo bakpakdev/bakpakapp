@@ -67,11 +67,13 @@ struct CampusTheme: Equatable {
     /// School that backs data queries (`schoolID`, `fullName`, meetup spots).
     private var dataSchool: String { dataShortName ?? shortName }
 
-    /// On by default in Debug simulator builds; opt out with launch arg `-popupDevTheme NO`.
-    /// Always false in device / TestFlight / App Store builds.
+    static let devThemeDefaultsKey = "popupDevTheme"
+
+    /// Picked from the simulator-only "dev" section in Preferences (on by default there).
+    /// Always false in device / TestFlight / App Store builds, so UO and OSU keep their colors.
     static var devThemeEnabled: Bool {
         #if DEBUG && targetEnvironment(simulator)
-        return UserDefaults.standard.object(forKey: "popupDevTheme") as? Bool ?? true
+        return UserDefaults.standard.object(forKey: devThemeDefaultsKey) as? Bool ?? true
         #else
         return false
         #endif
