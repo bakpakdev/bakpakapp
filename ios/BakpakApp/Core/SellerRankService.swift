@@ -54,7 +54,7 @@ struct SellerRankSnapshot: Hashable {
 
     var rankHeadlinePrimary: String { rank.map { "#\($0)" } ?? "—" }
     var rankHeadlineSecondary: String { "of \(totalSellers)" }
-    var gridSubtitle: String { "on the \(gridShortName) Grid" }
+    var gridSubtitle: String { "on the \(gridShortName) campus" }
 }
 
 struct LeaderboardResponse: Decodable {

@@ -115,7 +115,7 @@ struct AccountSettingsView: View {
             settingsGroup(
                 title: "Privacy",
                 rows: [
-                    .init(icon: "hand.raised", title: "Privacy settings", subtitle: "Profile, messages, and the Grid") {
+                    .init(icon: "hand.raised", title: "Privacy settings", subtitle: "Profile, messages, and campus rank") {
                         appState.path.append(.privacySettings)
                     },
                     .init(

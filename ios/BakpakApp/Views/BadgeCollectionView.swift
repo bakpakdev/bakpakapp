@@ -28,7 +28,7 @@ struct BadgeCollectionView: View {
                     .font(Theme.syne(22, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
 
-                Text("Seller rank tiers will unlock as you close campus sales — earn badges from your first deal up through the top of the \(campus.shortName) Grid.")
+                Text("Seller rank tiers will unlock as you close campus sales — earn badges from your first deal up through the top of the \(campus.shortName) campus rankings.")
                     .font(Theme.syne(14, weight: .medium))
                     .foregroundStyle(campusTheme.textMuted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -46,7 +46,7 @@ struct BadgeCollectionView: View {
                     Text("Seller Rank")
                         .font(Theme.syne(17, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
-                    Text("\(campus.shortName) Grid")
+                    Text("\(campus.shortName) campus")
                         .font(Theme.syne(11, weight: .medium))
                         .foregroundStyle(campusTheme.textMuted)
                 }

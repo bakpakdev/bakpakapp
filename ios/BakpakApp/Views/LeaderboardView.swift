@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The campus Grid: real sellers ranked by completed sales. Every sale paid through popup
+/// Campus rankings: real sellers ranked by completed sales. Every sale paid through popup
 /// moves you up; on a tie the most recent seller is ahead.
 struct LeaderboardView: View {
     @EnvironmentObject private var appState: AppState
@@ -28,7 +28,7 @@ struct LeaderboardView: View {
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 18) {
-                        CampusPageHeader(title: "leaderboard", subtitle: "top sellers · \(campusTheme.shortName.lowercased()) grid")
+                        CampusPageHeader(title: "leaderboard", subtitle: "top sellers · \(campusTheme.shortName.lowercased()) campus")
 
                         rangePicker
 
@@ -38,14 +38,14 @@ struct LeaderboardView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 60)
                         } else if let loadError {
-                            CampusEmptyCard(systemImage: "wifi.exclamationmark", title: "couldn’t load the grid", message: loadError)
+                            CampusEmptyCard(systemImage: "wifi.exclamationmark", title: "couldn’t load the rankings", message: loadError)
                         } else {
                             yourCard { scrollToMe(proxy) }
                             if entries.isEmpty {
                                 CampusEmptyCard(
                                     systemImage: "trophy",
                                     title: range == .all ? "no sales yet" : "no sales \(range.title.lowercased())",
-                                    message: "Make a sale through popup to claim #1 on the \(campusTheme.shortName) Grid."
+                                    message: "Make a sale through popup to claim #1 on the \(campusTheme.shortName) campus."
                                 )
                             } else {
                                 podium
@@ -155,10 +155,10 @@ struct LeaderboardView: View {
     private var nextGoal: String {
         guard let me, let rank = me.rank else {
             return entries.isEmpty
-                ? "Be the first sale on the Grid."
-                : "Make your first sale to join the Grid."
+                ? "Be the first sale on campus."
+                : "Make your first sale to get a campus rank."
         }
-        if rank == 1 { return "You’re #1 on the \(campusTheme.shortName) Grid. Keep selling to stay there." }
+        if rank == 1 { return "You’re #1 on the \(campusTheme.shortName) campus. Keep selling to stay there." }
         guard let ahead = entries.last(where: { ($0.rank ?? .max) < rank }) else { return "Keep selling to move up." }
         let needed = max(1, ahead.sales - me.sales + 1)
         let name = ahead.hidden ? "the seller" : ahead.name

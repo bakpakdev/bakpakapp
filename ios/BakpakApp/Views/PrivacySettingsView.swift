@@ -81,12 +81,12 @@ struct PrivacySettingsView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         SettingsSectionTitle(
                             title: "leaderboard",
-                            subtitle: "Your Grid rank still counts even if your name is hidden."
+                            subtitle: "Your campus rank still counts even if your name is hidden."
                         )
                         VStack(spacing: 0) {
                             SettingsToggleRow(
                                 title: "Hide my name",
-                                subtitle: "Show as Anonymous Seller on the \(campusTheme.shortName) Grid.",
+                                subtitle: "Show as Anonymous Seller in the \(campusTheme.shortName) campus rankings.",
                                 // Saved with your other privacy choices so everyone's board honors it.
                                 isOn: $privacy.hideOnLeaderboard,
                                 showDivider: false

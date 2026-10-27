@@ -424,7 +424,7 @@ struct ProfileView: View {
         } label: {
             HStack(alignment: .center, spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Grid rank")
+                    Text("Campus Rank")
                         .font(Theme.syne(11, weight: .semibold))
                         .foregroundStyle(campusTheme.textMuted)
 
