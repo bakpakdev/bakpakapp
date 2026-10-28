@@ -73,6 +73,21 @@ struct UserProfileView: View {
         CampusTheme.from(schoolName: user?.country, appearance: appState.appearance)
     }
 
+    /// Opens the report form for this person, with their active listings to pick from.
+    private func reportUser() {
+        let listings = activeShopItems.map { product in
+            ReportListingOption(
+                productId: product.id,
+                title: product.title,
+                imageURL: product.images?.first(where: { $0.isPrimary == true })?.url ?? product.images?.first?.url,
+                price: product.price
+            )
+        }
+        appState.path.append(
+            .reportUser(ReportUserTarget(userId: userId, displayName: displayName, listings: listings))
+        )
+    }
+
     private var activeShopItems: [Product] {
         products.filter { $0.isSold != true }
     }
@@ -184,21 +199,33 @@ struct UserProfileView: View {
         .toolbar {
             if !isOwnProfile && !isUnavailable {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        if isBlocked {
-                            Task {
-                                await blockStore.unblock(userId: userId)
-                                isBlocked = false
-                                Motion.haptic(.light)
+                    Menu {
+                        Button(role: .destructive) {
+                            reportUser()
+                        } label: {
+                            Label("Report", systemImage: "flag")
+                        }
+                        Button(role: isBlocked ? nil : .destructive) {
+                            if isBlocked {
+                                Task {
+                                    await blockStore.unblock(userId: userId)
+                                    isBlocked = false
+                                    Motion.haptic(.light)
+                                }
+                            } else {
+                                showBlockConfirm = true
                             }
-                        } else {
-                            showBlockConfirm = true
+                        } label: {
+                            Label(isBlocked ? "Unblock" : "Block", systemImage: "hand.raised")
                         }
                     } label: {
-                        Text(isBlocked ? "Unblock" : "Block")
-                            .font(Theme.syne(14, weight: .semibold))
-                            .foregroundStyle(isBlocked ? campusTheme.textPrimary : Color(hex: "#E11D48"))
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Report or block")
                 }
             }
         }

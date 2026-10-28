@@ -51,7 +51,7 @@ struct HelpSupportView: View {
                             faqRow(
                                 id: "report",
                                 question: "How do I report someone?",
-                                answer: "In a chat, tap ⋯ → Report. Pick a reason, add details if you want, and submit. We’ll get the report at \(SupportMail.address). You can also block them at the same time.",
+                                answer: "Tap ⋯ in a chat, on their profile, or on a listing, then Report. Pick a reason, add details if you want, and submit. We review every report within 24 hours. You can also block them at the same time.",
                                 showDivider: false
                             )
                         }

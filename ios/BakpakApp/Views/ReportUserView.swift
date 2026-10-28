@@ -1,4 +1,3 @@
-import MessageUI
 import SwiftUI
 
 struct ReportListingOption: Hashable, Identifiable {
@@ -32,9 +31,6 @@ struct ReportUserView: View {
     @State private var isSubmitting = false
     @State private var errorMessage: String?
     @State private var didSubmit = false
-    @State private var showMailComposer = false
-    @State private var pendingMailSubject = ""
-    @State private var pendingMailBody = ""
 
     private let reasons = [
         "Scam or fraud",
@@ -179,20 +175,6 @@ struct ReportUserView: View {
                 selectedProductId = target.listings[0].productId
             }
         }
-        .sheet(isPresented: $showMailComposer) {
-            MailComposeView(
-                recipients: [SupportMail.address],
-                subject: pendingMailSubject,
-                body: pendingMailBody
-            ) { result in
-                showMailComposer = false
-                if result == .failed {
-                    errorMessage = "Report saved. Couldn’t open email — message us at \(SupportMail.address)."
-                }
-                finishAfterReport()
-            }
-            .ignoresSafeArea()
-        }
     }
 
     private func sectionTitle(_ title: String) -> some View {
@@ -294,46 +276,12 @@ struct ReportUserView: View {
             }
             Motion.haptic(.medium)
             didSubmit = true
-            notifySupportByEmail(reason: reason)
+            finishAfterReport()
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription
                 ?? "Couldn’t send your report. Try again."
             Motion.haptic(.light)
             isSubmitting = false
-        }
-    }
-
-    private func notifySupportByEmail(reason: String) {
-        let listing = target.listings.first(where: { $0.productId == selectedProductId })
-        let reporter = authVM.user
-        pendingMailSubject = "popup report — \(reason)"
-        pendingMailBody = """
-        User report from the popup app.
-
-        Reason: \(reason)
-        Details: \(details.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "—" : details.trimmingCharacters(in: .whitespacesAndNewlines))
-
-        Reported user: \(target.displayName)
-        Reported user ID: \(target.userId)
-        Conversation ID: \(target.conversationId.isEmpty ? "—" : target.conversationId)
-        Related listing: \(listing?.title ?? "—")
-        Listing ID: \(selectedProductId.isEmpty ? "—" : selectedProductId)
-        Also blocked: \(alsoBlock ? "yes" : "no")
-
-        —
-        Reporter: \(reporter?.username ?? "—")
-        Reporter email: \(reporter?.email ?? "—")
-        Reporter ID: \(reporter?.id ?? "—")
-        """
-
-        if SupportMail.canSendMail {
-            isSubmitting = false
-            showMailComposer = true
-        } else if let url = SupportMail.mailtoURL(subject: pendingMailSubject, body: pendingMailBody) {
-            UIApplication.shared.open(url)
-            finishAfterReport()
-        } else {
-            finishAfterReport()
         }
     }
 

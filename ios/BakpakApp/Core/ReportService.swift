@@ -64,8 +64,11 @@ enum ReportService {
             let details: String?
         }
 
+        struct Inserted: Decodable { let id: String }
+
+        let reportId: String
         do {
-            _ = try await c.from("user_reports")
+            let inserted: Inserted = try await c.from("user_reports")
                 .insert(
                     Ins(
                         reporter_id: me,
@@ -76,9 +79,23 @@ enum ReportService {
                         details: detailsValue
                     )
                 )
+                .select("id")
+                .single()
                 .execute()
+                .value
+            reportId = inserted.id
         } catch {
             throw ReportServiceError.failed
+        }
+
+        // Emails popup support right away. The report is already saved, so a failed
+        // email never fails the report.
+        if let body = try? JSONEncoder().encode(["report_id": reportId]) {
+            let _: APIMessage? = try? await APIClient.shared.request(
+                path: "/reports/notify",
+                method: "POST",
+                body: body
+            )
         }
     }
 }

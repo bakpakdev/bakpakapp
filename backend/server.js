@@ -99,6 +99,7 @@ try {
   app.use('/api/identify-clothing', require('./routes/identify'));
   app.use('/api/push', require('./routes/push'));
   app.use('/api/leaderboard', require('./routes/leaderboard'));
+  app.use('/api/reports', require('./routes/reports'));
 
   app.get('/u/:username', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'share.html'));
