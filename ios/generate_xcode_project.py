@@ -507,7 +507,7 @@ def main() -> None:
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = BakpakApp/PopupApp.Debug.entitlements;
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 6;
+\t\t\t\tCURRENT_PROJECT_VERSION = 7;
 \t\t\t\tDEVELOPMENT_TEAM = {development_team};
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -538,7 +538,7 @@ def main() -> None:
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = "BakpakApp/$(POPUP_RELEASE_ENTITLEMENTS:default=PopupApp.entitlements)";
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 6;
+\t\t\t\tCURRENT_PROJECT_VERSION = 7;
 \t\t\t\tDEVELOPMENT_TEAM = {development_team};
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;
