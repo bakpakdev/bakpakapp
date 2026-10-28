@@ -50,7 +50,7 @@ enum PaymentsConfig {
     /// Shown when the buyer/seller tries to pay or cash out before the API is reachable.
     static var userFacingBlocker: String? {
         if !isAPIConfigured {
-            return "The payments server isn’t reachable. In Debug, run the Node API on port 5001. For TestFlight, set API_BASE_URL_RELEASE to your hosted HTTPS backend."
+            return "Payments aren’t available right now. Check your connection and try again."
         }
         return nil
     }
