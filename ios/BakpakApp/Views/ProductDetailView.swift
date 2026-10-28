@@ -86,7 +86,10 @@ struct ProductDetailView: View {
         mainContent
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if !isOwner { navTitle }
+                if !isOwner {
+                    navTitle
+                    reportMenu
+                }
             }
             .overlay { confirmCards }
             .modifier(ProductDetailAlerts(actionError: $actionError, comingSoonMessage: $comingSoonMessage, paymentPresenter: paymentPresenter, suppressPaymentAlert: paymentOutcome != nil))
@@ -274,6 +277,49 @@ struct ProductDetailView: View {
         ToolbarItem(placement: .principal) {
             Text("Listing").font(Theme.syne(16, weight: .bold)).foregroundStyle(campusTheme.textPrimary)
         }
+    }
+
+    /// Lets buyers flag a listing (App Store guideline 1.2: report objectionable content where it's shown).
+    private var reportMenu: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarTrailing) {
+            if let product, let seller = product.user {
+                Menu {
+                    Button(role: .destructive) {
+                        reportListing(product, seller: seller)
+                    } label: {
+                        Label("Report listing", systemImage: "flag")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("More")
+            }
+        }
+    }
+
+    private func reportListing(_ product: Product, seller: User) {
+        let name = seller.username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let image = product.images?.first(where: { $0.isPrimary == true })?.url ?? product.images?.first?.url
+        appState.path.append(
+            .reportUser(
+                ReportUserTarget(
+                    userId: seller.id,
+                    displayName: name.isEmpty ? "this seller" : name,
+                    listings: [
+                        ReportListingOption(
+                            productId: product.id,
+                            title: product.title,
+                            imageURL: image,
+                            price: product.price
+                        ),
+                    ]
+                )
+            )
+        )
     }
 
     // MARK: - Owner manage layout (matches the settings / campus page chrome)

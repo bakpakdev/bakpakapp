@@ -507,7 +507,7 @@ def main() -> None:
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = BakpakApp/PopupApp.Debug.entitlements;
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 7;
+\t\t\t\tCURRENT_PROJECT_VERSION = 8;
 \t\t\t\tDEVELOPMENT_TEAM = {development_team};
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -528,7 +528,7 @@ def main() -> None:
 \t\t\t\tSUPPORTS_MACCATALYST = NO;
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = YES;
 \t\t\t\tSWIFT_VERSION = 5.0;
-\t\t\t\tTARGETED_DEVICE_FAMILY = "1,2";
+\t\t\t\tTARGETED_DEVICE_FAMILY = 1;
 \t\t\t}};
 \t\t\tname = Debug;
 \t\t}};
@@ -538,7 +538,7 @@ def main() -> None:
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = "BakpakApp/$(POPUP_RELEASE_ENTITLEMENTS:default=PopupApp.entitlements)";
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 7;
+\t\t\t\tCURRENT_PROJECT_VERSION = 8;
 \t\t\t\tDEVELOPMENT_TEAM = {development_team};
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -558,7 +558,7 @@ def main() -> None:
 \t\t\t\tSUPPORTS_MACCATALYST = NO;
 \t\t\t\tSWIFT_EMIT_LOC_STRINGS = YES;
 \t\t\t\tSWIFT_VERSION = 5.0;
-\t\t\t\tTARGETED_DEVICE_FAMILY = "1,2";
+\t\t\t\tTARGETED_DEVICE_FAMILY = 1;
 \t\t\t}};
 \t\t\tname = Release;
 \t\t}};

@@ -60,6 +60,9 @@ services:
         sync: false
       - key: RESEND_FROM
         sync: false
+      # Inbox for user reports (backend/routes/reports.js); defaults to popupapp.support@gmail.com.
+      - key: REPORTS_EMAIL
+        sync: false
       # Push notifications (backend/lib/push.js). APNS_KEY = contents of the .p8 auth key.
       - key: APNS_KEY
         sync: false
