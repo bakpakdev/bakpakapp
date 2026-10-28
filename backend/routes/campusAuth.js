@@ -245,7 +245,9 @@ router.post('/campus-register', async (req, res) => {
       if (!user) {
         return res.status(400).json({ message: 'Could not create account.' });
       }
-      if (isConfirmed(user) && !demo) {
+      // Only the dev demo address may be re-registered once confirmed. The App Review
+      // account must not be: anyone who knows the address could reset its password.
+      if (isConfirmed(user) && !isDemoBypass(email)) {
         return res.status(409).json({
           emailed: false,
           message: 'That email already has an account. Sign in instead.',
