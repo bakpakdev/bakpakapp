@@ -62,7 +62,7 @@ struct UserProfileView: View {
 
     private var universityLabel: String {
         if let c = user?.country?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty {
-            return c
+            return CampusTheme.displaySchoolName(c)
         }
         return sellerCampusTheme.shortName == "OSU"
             ? "Oregon State University"

@@ -64,14 +64,18 @@ struct CampusTheme: Equatable {
     /// Profile school name (`profiles.country`) of the dev campus.
     static let devSchoolName = "popup dev"
 
-    /// Dev accounts are only recognized in Debug simulator builds; everywhere else the
-    /// dev school doesn't exist.
+    /// What the dev campus is called on screen (badges, profiles, screenshots).
+    static let devDisplayName = "popup university"
+
+    /// The school name to show for a profile: the dev campus reads as `devDisplayName`.
+    static func displaySchoolName(_ schoolName: String) -> String {
+        isDevSchool(schoolName) ? devDisplayName : schoolName
+    }
+
+    /// Accounts whose school is "popup dev": the simulator dev account and the App Store
+    /// review account. Real students can't pick this school, so it's recognized in every build.
     static func isDevSchool(_ schoolName: String?) -> Bool {
-        #if DEBUG && targetEnvironment(simulator)
-        return (schoolName ?? "").lowercased().contains(devSchoolName)
-        #else
-        return false
-        #endif
+        (schoolName ?? "").lowercased().contains(devSchoolName)
     }
 
     static func from(schoolName: String?, appearance: PopupAppearance = .light) -> CampusTheme {
@@ -79,7 +83,7 @@ struct CampusTheme: Equatable {
         let isDark = appearance == .dark
         if isDevSchool(schoolName) {
             return CampusTheme(
-                shortName: "DEV",
+                shortName: "PU",
                 // Filled buttons put white text on `primary`, so it stays dark in both modes.
                 primary: isDark ? Color(hex: "#3A3A3A") : Color(hex: "#111111"),
                 secondary: isDark ? Color(hex: "#A3A3A3") : Color(hex: "#737373"),
@@ -166,7 +170,7 @@ struct CampusTheme: Equatable {
     }
 
     var fullName: String {
-        if isDev { return Self.devSchoolName }
+        if isDev { return Self.devDisplayName }
         return shortName == "OSU" ? "Oregon State University" : "University of Oregon"
     }
 
