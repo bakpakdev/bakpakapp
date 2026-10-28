@@ -335,7 +335,9 @@ final class AuthViewModel: ObservableObject {
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let trimmedUser = username.trimmingCharacters(in: .whitespacesAndNewlines)
         let isDemo = Self.isDemoBypassEmail(trimmedEmail)
-        guard isDemo || (trimmedEmail.contains("@") && trimmedEmail.hasSuffix(".edu")) else {
+        // popupdev.test is popup university; the API only lets the App Review address through.
+        let isPopupUniversity = trimmedEmail.hasSuffix("@popupdev.test")
+        guard isDemo || isPopupUniversity || (trimmedEmail.contains("@") && trimmedEmail.hasSuffix(".edu")) else {
             errorMessage = "Use a valid college email ending in .edu."
             return false
         }

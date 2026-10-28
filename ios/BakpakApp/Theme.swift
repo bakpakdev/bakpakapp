@@ -72,14 +72,10 @@ struct CampusTheme: Equatable {
         isDevSchool(schoolName) ? devDisplayName : schoolName
     }
 
-    /// Dev accounts are only recognized in Debug simulator builds; everywhere else the
-    /// dev school doesn't exist.
+    /// Accounts whose school is "popup dev": the simulator dev account and the App Store
+    /// review account. Real students can't pick this school, so it's recognized in every build.
     static func isDevSchool(_ schoolName: String?) -> Bool {
-        #if DEBUG && targetEnvironment(simulator)
-        return (schoolName ?? "").lowercased().contains(devSchoolName)
-        #else
-        return false
-        #endif
+        (schoolName ?? "").lowercased().contains(devSchoolName)
     }
 
     static func from(schoolName: String?, appearance: PopupAppearance = .light) -> CampusTheme {

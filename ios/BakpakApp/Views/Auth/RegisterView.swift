@@ -7,16 +7,39 @@ private struct CampusSchool: Identifiable, Hashable {
     let name: String
     let emailDomain: String
 
-    static var all: [CampusSchool] {
+    /// popup university: the simulator dev campus, also offered in App Store builds while the
+    /// API has App Review mode on (`APP_REVIEW_EMAIL`), so reviewers can sign up there.
+    static let popupUniversity = CampusSchool(id: "dev", name: CampusTheme.devSchoolName, emailDomain: "popupdev.test")
+
+    static func all(includeReviewCampus: Bool) -> [CampusSchool] {
         var schools = [
             CampusSchool(id: "uo", name: "University of Oregon", emailDomain: "uoregon.edu"),
             CampusSchool(id: "osu", name: "Oregon State University", emailDomain: "oregonstate.edu"),
         ]
         #if DEBUG && targetEnvironment(simulator)
-        // Dev-only campus for the simulator; never offered in TestFlight / App Store builds.
-        schools.append(CampusSchool(id: "dev", name: CampusTheme.devSchoolName, emailDomain: "popupdev.test"))
+        schools.append(popupUniversity)
+        #else
+        if includeReviewCampus { schools.append(popupUniversity) }
         #endif
         return schools
+    }
+
+    var displayName: String { CampusTheme.displaySchoolName(name) }
+
+    /// Signup emails must be .edu, except on popup university (the API only accepts the
+    /// review address there).
+    func allowsSignupEmail(_ email: String) -> Bool {
+        email.hasSuffix(".edu") || (id == "dev" && email.hasSuffix("@\(emailDomain)"))
+    }
+}
+
+/// Asks the API whether App Review mode is on (popup university offered at signup).
+private enum ReviewCampusService {
+    struct Response: Decodable { let enabled: Bool }
+
+    static func isEnabled() async -> Bool {
+        let response: Response? = try? await APIClient.shared.request(path: "/auth/review-campus")
+        return response?.enabled ?? false
     }
 }
 
@@ -47,6 +70,9 @@ struct RegisterView: View {
     @State private var showConfirmPassword = false
     @State private var localError: String?
     @State private var statusMessage: String?
+    @State private var reviewCampusEnabled = false
+
+    private var schools: [CampusSchool] { CampusSchool.all(includeReviewCampus: reviewCampusEnabled) }
 
     private var composedEmail: String {
         if AuthViewModel.isDemoBypassEmail(emailLocal) {
@@ -66,7 +92,7 @@ struct RegisterView: View {
             return selectedSchool != nil
         case .email:
             let trimmed = composedEmail
-            return !trimmed.isEmpty && (trimmed.hasSuffix(".edu") || AuthViewModel.isDemoBypassEmail(trimmed))
+            return !trimmed.isEmpty && (selectedSchool?.allowsSignupEmail(trimmed) == true || AuthViewModel.isDemoBypassEmail(trimmed))
         case .verify:
             // Continue only after they opened the email link AND tapped Confirm email.
             return authVM.hasVerifiedSignupEmail
@@ -173,6 +199,7 @@ struct RegisterView: View {
                 .padding(.bottom, 24)
         }
         .animation(.easeInOut(duration: 0.3), value: step)
+        .task { reviewCampusEnabled = await ReviewCampusService.isEnabled() }
         .onAppear {
             if authVM.isAwaitingEmailVerification {
                 if let pending = authVM.pendingVerificationEmail,
@@ -291,7 +318,7 @@ struct RegisterView: View {
 
     private var schoolStep: some View {
         VStack(spacing: 8) {
-            ForEach(CampusSchool.all) { school in
+            ForEach(schools) { school in
                 Button {
                     Motion.haptic(.light)
                     selectedSchool = school
@@ -301,7 +328,7 @@ struct RegisterView: View {
                 } label: {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(school.name)
+                            Text(school.displayName)
                                 .font(Theme.syne(15, weight: .semibold))
                                 .foregroundStyle(PopupBrand.textPrimary)
                             Text("@\(school.emailDomain)")
@@ -578,7 +605,7 @@ struct RegisterView: View {
 
     private func sendVerificationAndAdvance() async {
         let trimmed = composedEmail
-        guard !trimmed.isEmpty, trimmed.hasSuffix(".edu") || AuthViewModel.isDemoBypassEmail(trimmed) else {
+        guard !trimmed.isEmpty, selectedSchool?.allowsSignupEmail(trimmed) == true || AuthViewModel.isDemoBypassEmail(trimmed) else {
             localError = "Enter the name part of your school email."
             return
         }
@@ -651,7 +678,7 @@ struct RegisterView: View {
         }
         emailLocal = sanitizedEmailLocal(String(trimmed[..<at]))
         let domain = String(trimmed[trimmed.index(after: at)...])
-        if let match = CampusSchool.all.first(where: { $0.emailDomain == domain }) {
+        if let match = schools.first(where: { $0.emailDomain == domain }) {
             selectedSchool = match
         }
     }

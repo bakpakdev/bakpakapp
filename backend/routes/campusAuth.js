@@ -133,6 +133,11 @@ function isAppReviewBypass(email) {
   return Boolean(reviewEmail) && email === reviewEmail;
 }
 
+// Tells the app whether to offer popup university at signup (App Review mode).
+router.get('/review-campus', (req, res) => {
+  res.json({ enabled: Boolean(String(process.env.APP_REVIEW_EMAIL || '').trim()) });
+});
+
 function confirmLinkFor(userId, email) {
   const token = signCampusToken(userId, email);
   return `${emailPublicOrigin()}/auth/confirm-email.html?campus_token=${encodeURIComponent(token)}`;
