@@ -293,6 +293,7 @@ struct RegisterView: View {
                     text: $firstName,
                     prompt: Text("First name").foregroundColor(PopupBrand.textMuted)
                 )
+                .textContentType(.givenName)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
                 .foregroundColor(PopupBrand.textPrimary)
@@ -308,6 +309,7 @@ struct RegisterView: View {
                     text: $lastName,
                     prompt: Text("Last name").foregroundColor(PopupBrand.textMuted)
                 )
+                .textContentType(.familyName)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
                 .foregroundColor(PopupBrand.textPrimary)
@@ -466,6 +468,7 @@ struct RegisterView: View {
                             SecureField("", text: $password, prompt: Text("Password").foregroundColor(PopupBrand.textMuted))
                         }
                     }
+                    .textContentType(.newPassword)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .foregroundColor(PopupBrand.textPrimary)
@@ -498,6 +501,7 @@ struct RegisterView: View {
                             SecureField("", text: $confirmPassword, prompt: Text("Confirm password").foregroundColor(PopupBrand.textMuted))
                         }
                     }
+                    .textContentType(.newPassword)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .foregroundColor(PopupBrand.textPrimary)

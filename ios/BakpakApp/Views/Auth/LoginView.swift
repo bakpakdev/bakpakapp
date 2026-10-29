@@ -42,6 +42,7 @@ struct PopupLanding: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.emailAddress)
+                        .textContentType(.username)
                         .foregroundColor(PopupBrand.textPrimary)
                         .authFieldStyle()
                     }
@@ -66,6 +67,7 @@ struct PopupLanding: View {
                                     )
                                 }
                             }
+                            .textContentType(.password)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .foregroundColor(PopupBrand.textPrimary)

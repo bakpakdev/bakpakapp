@@ -14,6 +14,7 @@ struct ProductDetailView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var imageIndex = 0
+    @State private var showPhotoViewer = false
     @State private var showDeleteConfirm = false
     @State private var showMarkSoldConfirm = false
     @State private var showCancelRequestConfirm = false
@@ -118,6 +119,9 @@ struct ProductDetailView: View {
                     onCancel: { showMeetupRequestSheet = false }
                 )
                 .environment(\.campusTheme, campusTheme)
+            }
+            .fullScreenCover(isPresented: $showPhotoViewer) {
+                ListingPhotoViewer(urls: imageURLs, index: imageIndex)
             }
             .background(PaymentSheetHost(presenter: paymentPresenter))
             .onChange(of: paymentPresenter.didComplete) { completed in
@@ -597,6 +601,8 @@ struct ProductDetailView: View {
                             }
                         }
                         .tabViewStyle(.page(indexDisplayMode: .never))
+                        .contentShape(Rectangle())
+                        .onTapGesture { showPhotoViewer = true }
                     }
                 }
                 .frame(maxWidth: .infinity)

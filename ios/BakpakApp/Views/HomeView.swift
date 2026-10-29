@@ -106,6 +106,13 @@ struct HomeProductCard: View {
     let product: Product
     let onTap: () -> Void
     @Environment(\.campusTheme) private var campusTheme
+    @EnvironmentObject private var authVM: AuthViewModel
+
+    /// The signed-in user's own listing, outlined and tagged "Your listing".
+    private var isMine: Bool {
+        guard let me = authVM.user?.id, let seller = product.user?.id else { return false }
+        return me.lowercased() == seller.lowercased()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -139,6 +146,17 @@ struct HomeProductCard: View {
             Color.clear
                 .aspectRatio(0.95, contentMode: .fit)
                 .overlay { HomeProductImage(product: product) }
+                .overlay(alignment: .topLeading) {
+                    if isMine {
+                        Text("Your listing")
+                            .font(Theme.syne(11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(Color.black.opacity(0.72)))
+                            .padding(8)
+                    }
+                }
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .padding(12)
@@ -146,7 +164,7 @@ struct HomeProductCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(campusTheme.border, lineWidth: 1)
+                .stroke(isMine ? campusTheme.textPrimary : campusTheme.border, lineWidth: isMine ? 2 : 1)
         )
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())

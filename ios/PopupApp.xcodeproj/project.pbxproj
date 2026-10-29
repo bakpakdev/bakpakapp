@@ -21,6 +21,7 @@
 		E5342D1406BEE0FC8795CB54 /* FollowReviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 924E5080DBE8AA88C54229E9 /* FollowReviewService.swift */; };
 		9DE8874A880C03ADD8B04542 /* InboxReadStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F486F7C2EADFAB9EF5098D3 /* InboxReadStore.swift */; };
 		497C9C545888C954DDBDC26E /* InstagramConnectService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C07CBEF540023CB4A4C6069 /* InstagramConnectService.swift */; };
+		86E93629C313F89DA03B9B41 /* KeyboardDismiss.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D9D0428C712B624FD33CB23 /* KeyboardDismiss.swift */; };
 		207234CCA878F8FF820C7028 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7871CFD5DCB6299D557980A /* KeychainManager.swift */; };
 		F9426CD177899F477825C445 /* LegalLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C2422C158DE36DAEFDAA69C /* LegalLinks.swift */; };
 		472DC7E18D52F1B2E3F09B05 /* Meetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82DE559B90AD3B62F80AA834 /* Meetup.swift */; };
@@ -85,6 +86,7 @@
 		B1B1DBB975C308505AC799B6 /* LeaderboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD419531D6B0033F16964C24 /* LeaderboardView.swift */; };
 		AB94A29EB43149AAE642270B /* LikedItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B4E4458F4005ABAF011A2DB /* LikedItemsView.swift */; };
 		46DB263707D84754C5B1C371 /* ListingPhotoCropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8AFB7BCFF8232B36176D03D /* ListingPhotoCropView.swift */; };
+		70798C856FD7F65E7DA35C76 /* ListingPhotoViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863DEDCD9C5F7E24E2DF59C1 /* ListingPhotoViewer.swift */; };
 		EA4FB363000CE27A91577A4C /* MeetupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46B40B5E85713168193D296D /* MeetupDetailView.swift */; };
 		28D0E9882EA35B6153192F13 /* MeetupPayFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 454860ACBA32D8A3164D316E /* MeetupPayFlowView.swift */; };
 		52974F96272826B33BCE75E4 /* MeetupCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7819251CD462E500E6D41FCD /* MeetupCard.swift */; };
@@ -148,6 +150,7 @@
 		924E5080DBE8AA88C54229E9 /* FollowReviewService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'FollowReviewService.swift'; sourceTree = "<group>"; };
 		3F486F7C2EADFAB9EF5098D3 /* InboxReadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'InboxReadStore.swift'; sourceTree = "<group>"; };
 		8C07CBEF540023CB4A4C6069 /* InstagramConnectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'InstagramConnectService.swift'; sourceTree = "<group>"; };
+		6D9D0428C712B624FD33CB23 /* KeyboardDismiss.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'KeyboardDismiss.swift'; sourceTree = "<group>"; };
 		E7871CFD5DCB6299D557980A /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'KeychainManager.swift'; sourceTree = "<group>"; };
 		9C2422C158DE36DAEFDAA69C /* LegalLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'LegalLinks.swift'; sourceTree = "<group>"; };
 		82DE559B90AD3B62F80AA834 /* Meetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Meetup.swift'; sourceTree = "<group>"; };
@@ -212,6 +215,7 @@
 		DD419531D6B0033F16964C24 /* LeaderboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'LeaderboardView.swift'; sourceTree = "<group>"; };
 		4B4E4458F4005ABAF011A2DB /* LikedItemsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'LikedItemsView.swift'; sourceTree = "<group>"; };
 		C8AFB7BCFF8232B36176D03D /* ListingPhotoCropView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ListingPhotoCropView.swift'; sourceTree = "<group>"; };
+		863DEDCD9C5F7E24E2DF59C1 /* ListingPhotoViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ListingPhotoViewer.swift'; sourceTree = "<group>"; };
 		46B40B5E85713168193D296D /* MeetupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupDetailView.swift'; sourceTree = "<group>"; };
 		454860ACBA32D8A3164D316E /* MeetupPayFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupPayFlowView.swift'; sourceTree = "<group>"; };
 		7819251CD462E500E6D41FCD /* MeetupCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupCard.swift'; sourceTree = "<group>"; };
@@ -324,6 +328,7 @@
 				924E5080DBE8AA88C54229E9 /* FollowReviewService.swift */,
 				3F486F7C2EADFAB9EF5098D3 /* InboxReadStore.swift */,
 				8C07CBEF540023CB4A4C6069 /* InstagramConnectService.swift */,
+				6D9D0428C712B624FD33CB23 /* KeyboardDismiss.swift */,
 				E7871CFD5DCB6299D557980A /* KeychainManager.swift */,
 				9C2422C158DE36DAEFDAA69C /* LegalLinks.swift */,
 				82DE559B90AD3B62F80AA834 /* Meetup.swift */,
@@ -383,6 +388,7 @@
 				DD419531D6B0033F16964C24 /* LeaderboardView.swift */,
 				4B4E4458F4005ABAF011A2DB /* LikedItemsView.swift */,
 				C8AFB7BCFF8232B36176D03D /* ListingPhotoCropView.swift */,
+				863DEDCD9C5F7E24E2DF59C1 /* ListingPhotoViewer.swift */,
 				46B40B5E85713168193D296D /* MeetupDetailView.swift */,
 				454860ACBA32D8A3164D316E /* MeetupPayFlowView.swift */,
 				20C059AEF4B17C9CD369B410 /* MessagedItemsView.swift */,
@@ -546,6 +552,7 @@
 				E5342D1406BEE0FC8795CB54 /* FollowReviewService.swift in Sources */,
 				9DE8874A880C03ADD8B04542 /* InboxReadStore.swift in Sources */,
 				497C9C545888C954DDBDC26E /* InstagramConnectService.swift in Sources */,
+				86E93629C313F89DA03B9B41 /* KeyboardDismiss.swift in Sources */,
 				207234CCA878F8FF820C7028 /* KeychainManager.swift in Sources */,
 				F9426CD177899F477825C445 /* LegalLinks.swift in Sources */,
 				472DC7E18D52F1B2E3F09B05 /* Meetup.swift in Sources */,
@@ -610,6 +617,7 @@
 				B1B1DBB975C308505AC799B6 /* LeaderboardView.swift in Sources */,
 				AB94A29EB43149AAE642270B /* LikedItemsView.swift in Sources */,
 				46DB263707D84754C5B1C371 /* ListingPhotoCropView.swift in Sources */,
+				70798C856FD7F65E7DA35C76 /* ListingPhotoViewer.swift in Sources */,
 				EA4FB363000CE27A91577A4C /* MeetupDetailView.swift in Sources */,
 				28D0E9882EA35B6153192F13 /* MeetupPayFlowView.swift in Sources */,
 				52974F96272826B33BCE75E4 /* MeetupCard.swift in Sources */,
