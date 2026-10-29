@@ -113,55 +113,50 @@ struct PopupCameraView: View {
 
     // MARK: - Chrome
 
+    /// Top stays clear apart from the wordmark; the controls sit down by the thumb.
     private var topBar: some View {
-        HStack(alignment: .top) {
-            Button {
-                Motion.haptic(.light)
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
-
+        HStack {
             Spacer()
-
             PopupWordmark(scale: .badge)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
                 .background(Color.white.opacity(0.12))
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
-
             Spacer()
-
-            if !capturedThumbs.isEmpty {
-                Button {
-                    Motion.haptic(.medium)
-                    dismiss()
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("Done")
-                            .font(Theme.syne(17, weight: .bold))
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 14, weight: .heavy))
-                    }
-                    .foregroundStyle(.black)
-                    .padding(.horizontal, 22)
-                    .frame(minHeight: 48)
-                    .background(Color.white)
-                    .clipShape(Capsule())
-                    .contentShape(Capsule())
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
-                .accessibilityLabel("Done, \(capturedThumbs.count) photos")
-            } else {
-                Color.clear.frame(width: 40, height: 40)
-            }
         }
+    }
+
+    private var closeButton: some View {
+        Button {
+            Motion.haptic(.light)
+            dismiss()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
+        .accessibilityLabel("Close camera")
+    }
+
+    private var doneButton: some View {
+        Button {
+            Motion.haptic(.medium)
+            dismiss()
+        } label: {
+            Text("Done")
+                .font(Theme.syne(14, weight: .bold))
+                .foregroundStyle(.black)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Color.white)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
+        .accessibilityLabel("Done, \(capturedThumbs.count) photos")
     }
 
     private var bottomBar: some View {
@@ -170,10 +165,29 @@ struct PopupCameraView: View {
                 capturedStrip
             }
 
+            // Close and flash just above the shutter row, within thumb reach.
+            HStack {
+                closeButton
+                Spacer()
+                Button {
+                    Motion.haptic(.light)
+                    flashOn.toggle()
+                } label: {
+                    Image(systemName: flashOn ? "bolt.fill" : "bolt.slash.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(flashOn ? accent : .white)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
+                .accessibilityLabel(flashOn ? "Flash on" : "Flash off")
+            }
+
             HStack(alignment: .center) {
                 libraryButton
                     .opacity(onPickLibrary == nil ? 0.35 : 1)
                     .disabled(onPickLibrary == nil)
+                    .frame(width: 80, alignment: .leading)
 
                 Spacer()
 
@@ -181,13 +195,14 @@ struct PopupCameraView: View {
 
                 Spacer()
 
-                chromeSquareButton(
-                    systemName: flashOn ? "bolt.fill" : "bolt.slash.fill",
-                    accentBorder: flashOn
-                ) {
-                    Motion.haptic(.light)
-                    flashOn.toggle()
+                Group {
+                    if capturedThumbs.isEmpty {
+                        Color.clear.frame(width: 1, height: 1)
+                    } else {
+                        doneButton
+                    }
                 }
+                .frame(width: 80, alignment: .trailing)
             }
         }
     }
@@ -339,26 +354,6 @@ struct PopupCameraView: View {
             .padding(.horizontal, 18)
             .padding(.top, 12)
         }
-    }
-
-    private func chromeSquareButton(
-        systemName: String,
-        accentBorder: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(accentBorder ? accent : .white)
-                .frame(width: 52, height: 52)
-                .background(Color.white.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(accentBorder ? accent.opacity(0.85) : Color.white.opacity(0.14), lineWidth: accentBorder ? 1.5 : 1)
-                )
-        }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
     }
 
     private var viewfinderBrackets: some View {
