@@ -35,6 +35,17 @@ enum OfferMessageCodec {
     enum Decision: String {
         case accepted
         case declined
+        /// Shown only: a newer offer on the same listing took this one's place. Never sent.
+        case replaced
+    }
+
+    /// Dollar amount in cents ("$12.50" -> 1250), for matching an answer to its offer.
+    static func cents(_ amount: String) -> Int? {
+        let digits = amount.replacingOccurrences(of: "$", with: "")
+            .replacingOccurrences(of: ",", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Double(digits) else { return nil }
+        return Int((value * 100).rounded())
     }
 
     static func isOffer(_ content: String) -> Bool {
@@ -54,7 +65,7 @@ enum OfferMessageCodec {
         guard trimmed.hasPrefix(decisionPrefix) else { return nil }
         let rest = String(trimmed.dropFirst(decisionPrefix.count))
         let parts = rest.split(separator: "|", maxSplits: 1).map(String.init)
-        guard parts.count == 2, let decision = Decision(rawValue: parts[0]) else { return nil }
+        guard parts.count == 2, let decision = Decision(rawValue: parts[0]), decision != .replaced else { return nil }
         return (decision, parts[1].trimmingCharacters(in: .whitespacesAndNewlines))
     }
 

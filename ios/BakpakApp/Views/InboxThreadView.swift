@@ -440,10 +440,16 @@ struct InboxThreadView: View {
             offerDecision: offerDecision,
             canRespondToOffer: OfferMessageCodec.isOffer(msg.text) && !msg.isMe && offerDecision == nil,
             onAcceptOffer: {
-                Task { await respondToOffer(msg.text, accepted: true) }
+                Task {
+                    await respondToOffer(msg.text, accepted: true)
+                    beginMeetup(for: OfferMessageCodec.listing(from: msg.text))
+                }
             },
             onDeclineOffer: {
                 Task { await respondToOffer(msg.text, accepted: false) }
+            },
+            onSetUpMeetup: {
+                beginMeetup(for: OfferMessageCodec.listing(from: msg.text))
             },
             onOpenListing: { listing in
                 appState.path.append(.productDetail(listing.productId))
@@ -608,6 +614,17 @@ struct InboxThreadView: View {
         }
     }
 
+    /// After an offer is accepted: pick a spot and time for that listing.
+    private func beginMeetup(for listing: ListingRefPayload?) {
+        guard let listing else {
+            beginMeetup()
+            return
+        }
+        meetupDraft = .suggest
+        composeListing = listing
+        showMeetupPicker = true
+    }
+
     private func beginOffer() {
         let options = availableListings()
         if options.count <= 1 {
@@ -669,13 +686,25 @@ struct InboxThreadView: View {
         )
     }
 
+    /// Accepted/declined once the other person answers it; replaced once anyone makes
+    /// a newer offer on the same listing (only the latest offer can be answered).
     private func offerDecision(for messageId: String) -> OfferMessageCodec.Decision? {
-        let idx = vm.messages.firstIndex(where: { $0.id == messageId }) ?? -1
+        guard let idx = vm.messages.firstIndex(where: { $0.id == messageId }) else { return nil }
+        let offer = vm.messages[idx]
+        let listingId = OfferMessageCodec.listing(from: offer.content)?.productId.lowercased()
+        let offerCents = OfferMessageCodec.cents(OfferMessageCodec.displayAmount(offer.content))
         for later in vm.messages.dropFirst(idx + 1) {
             if let parsed = OfferMessageCodec.parseDecision(later.content) {
-                return parsed.0
+                let sameAmount = offerCents == nil || OfferMessageCodec.cents(parsed.1) == offerCents
+                if sameAmount, later.senderId?.lowercased() != offer.senderId?.lowercased() {
+                    return parsed.0
+                }
+                continue
             }
-            if OfferMessageCodec.isOffer(later.content) { return nil }
+            if OfferMessageCodec.isOffer(later.content),
+               OfferMessageCodec.listing(from: later.content)?.productId.lowercased() == listingId {
+                return .replaced
+            }
         }
         return nil
     }

@@ -5,6 +5,7 @@ const { getSupabaseAdmin } = require('../lib/supabaseAdmin');
 const { fulfillMeetupPayment, fetchProduct } = require('../lib/meetupFulfill');
 const stripe = require('../lib/stripe');
 const { buyerTotal, feeLabel } = require('../lib/platformFee');
+const { acceptedOfferCents, offerBuyersForListing } = require('../lib/acceptedOffer');
 
 const router = express.Router();
 const ACTIVE_STATUSES = ['awaiting_payment'];
@@ -145,6 +146,48 @@ router.get('/health', (_req, res) => {
  * Seller opens Receive: creates a waiting payment_session + payment_request.
  * Buyer Apple Pay is gated on this session being active.
  */
+/** Seller: people who made or got an offer on this listing in chat, so Receive can pick the buyer. */
+router.get('/meetup/offers/:productId', protectSupabase, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    const product = await fetchProduct(supabase, req.params.productId);
+    if (!product) return res.status(404).json({ message: 'Listing not found' });
+    if (product.user_id !== req.user.id) {
+      return res.status(403).json({ message: 'Only the seller can see offers' });
+    }
+    const buyers = await offerBuyersForListing(supabase, { productId: product.id, sellerId: product.user_id });
+    const ids = buyers.map((b) => b.buyerId);
+    let profiles = [];
+    if (ids.length) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, first_name, last_name, avatar_url')
+        .in('id', ids);
+      if (error) throw error;
+      profiles = data || [];
+    }
+    const byId = new Map(profiles.map((p) => [p.id, p]));
+    res.json({
+      offers: buyers.map((b) => {
+        const p = byId.get(b.buyerId) || {};
+        return {
+          buyerId: b.buyerId,
+          conversationId: b.conversationId,
+          username: p.username || '',
+          name: [p.first_name, p.last_name].filter(Boolean).join(' '),
+          avatarUrl: p.avatar_url || null,
+          amountCents: b.offerCents,
+          accepted: b.accepted,
+        };
+      }),
+      listingCents: Math.round(Number(product.price) * 100),
+    });
+  } catch (error) {
+    console.error('List listing offers error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 router.post('/meetup/receive', protectSupabase, requireStripePayments, async (req, res) => {
   try {
     const { productId, meetupId, buyerId } = req.body || {};
@@ -164,8 +207,8 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
       return res.status(400).json({ message: 'This item is already sold' });
     }
 
-    const amountCents = Math.round(Number(product.price) * 100);
-    if (!Number.isFinite(amountCents) || amountCents < 50) {
+    const listingCents = Math.round(Number(product.price) * 100);
+    if (!Number.isFinite(listingCents) || listingCents < 50) {
       return res.status(400).json({ message: 'Invalid listing price' });
     }
 
@@ -186,6 +229,14 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
       }
       resolvedBuyerId = participants.find((id) => id && id !== req.user.id) || resolvedBuyerId;
     }
+
+    // An offer the seller and this buyer agreed on in chat sets the price; otherwise the listing price.
+    const offerCents = await acceptedOfferCents(supabase, {
+      productId: product.id,
+      sellerId: product.user_id,
+      buyerId: resolvedBuyerId,
+    });
+    const amountCents = offerCents || listingCents;
 
     await cancelWaitingSessionsForProduct(supabase, productId);
     await cancelOpenRequestsForProduct(supabase, productId);
@@ -269,7 +320,7 @@ function receivePayload(session, product, requestRow = null) {
       created_at: session.created_at,
     },
     productTitle: product.title,
-    amount: product.price,
+    amount: session.amount_cents / 100,
     amountCents: session.amount_cents,
     serviceFeeCents: session.service_fee_cents,
     totalCents: session.total_cents,
@@ -435,7 +486,7 @@ router.post('/meetup/request', protectSupabase, requireStripePayments, async (re
       paymentRequest: requestRow,
       session: serializeSession({ ...session, buyer_id: session.buyer_id || req.user.id }),
       productTitle: product.title,
-      amount: product.price,
+      amount: requestRow.amount_cents / 100,
       amountCents: requestRow.amount_cents,
       provider: 'stripe',
       mode: 'apple_pay',
@@ -524,11 +575,18 @@ router.get('/meetup/:requestId/checkout', protectSupabase, requireStripePayments
       return res.status(400).json({ message: 'This item is no longer available' });
     }
 
-    // Never trust client amount — charge from DB listing price.
-    const amountCents = Math.round(Number(product.price) * 100);
-    if (!Number.isFinite(amountCents) || amountCents < 50) {
+    // Never trust client amount: charge the listing price, or the offer this buyer
+    // and the seller accepted in chat.
+    const listingCents = Math.round(Number(product.price) * 100);
+    if (!Number.isFinite(listingCents) || listingCents < 50) {
       return res.status(400).json({ message: 'Invalid listing price' });
     }
+    const offerCents = await acceptedOfferCents(supabase, {
+      productId: product.id,
+      sellerId: requestRow.seller_id,
+      buyerId: req.user.id,
+    });
+    const amountCents = offerCents || listingCents;
     if (amountCents !== requestRow.amount_cents) {
       const split = buyerTotal(amountCents);
       await supabase
