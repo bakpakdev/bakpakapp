@@ -28,7 +28,8 @@ enum NotificationKeywordRouter {
         (["meet up", "meet-up", "meetup"], { .meetupDetail($0.meetupId) }),
         (["messaged items"], { _ in .messagedItems }),
         (["leaderboard", "ranking", "rank"], { _ in .leaderboard }),
-        (["badge", "achievement", "achievements"], { _ in .badgeCollection }),
+        // Seller rank tiers aren't built yet, so badge alerts open the leaderboard instead of a placeholder.
+        (["badge", "achievement", "achievements"], { _ in .leaderboard }),
         (["liked", "likes", "like"], { _ in .likedItems }),
         (["saved", "bookmark", "bookmarks"], { _ in .savedItems }),
         (["order", "orders", "purchase", "purchased", "bought", "sold"], { _ in .orders }),
