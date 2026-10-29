@@ -42,7 +42,7 @@ async function fulfillMeetupPayment({
   const product = await fetchProduct(supabase, productId);
   if (!product) return { skipped: true };
 
-  // amount_cents = listing price (the seller's share); the buyer paid that plus
+  // amount_cents = listing price or accepted offer (the seller's share); the buyer paid that plus
   // popup's service fee. chargedCents is what Stripe actually collected.
   const priceCents = requestRow.amount_cents || 0;
   const charged = Number.isFinite(Number(chargedCents)) && chargedCents > 0 ? Number(chargedCents) : priceCents;
@@ -97,7 +97,8 @@ async function fulfillMeetupPayment({
       order_id: order.id,
       product_id: productId,
       quantity: 1,
-      price: product.price,
+      // What the buyer agreed to pay: the listing price or an accepted offer.
+      price: priceCents ? priceCents / 100 : product.price,
     });
     if (itemError) throw itemError;
   }

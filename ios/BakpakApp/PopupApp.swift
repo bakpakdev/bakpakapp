@@ -56,6 +56,7 @@ final class PopupAppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         MeetupNotificationScheduler.shared.install()
+        KeyboardDismiss.shared.install()
         return true
     }
 

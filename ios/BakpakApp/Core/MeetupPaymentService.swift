@@ -116,6 +116,23 @@ struct MeetupCheckoutResponse: Decodable {
     let sessionId: String?
 }
 
+/// Someone who made or got an offer on the listing in chat (Receive payment picks one).
+struct ListingOfferBuyer: Decodable, Identifiable, Hashable {
+    let buyerId: String
+    let conversationId: String?
+    let username: String
+    let name: String
+    let avatarUrl: String?
+    let amountCents: Int
+    let accepted: Bool
+    var id: String { buyerId }
+}
+
+struct ListingOffersResponse: Decodable {
+    let offers: [ListingOfferBuyer]
+    let listingCents: Int
+}
+
 @MainActor
 final class MeetupPaymentService {
     static let shared = MeetupPaymentService()
@@ -128,6 +145,10 @@ final class MeetupPaymentService {
         if let buyerId, !buyerId.isEmpty { payload["buyerId"] = buyerId }
         let body = try JSONEncoder().encode(payload)
         return try await api.request(path: "/payments/meetup/receive", method: "POST", body: body)
+    }
+
+    func fetchOffers(productId: String) async throws -> ListingOffersResponse {
+        try await api.request(path: "/payments/meetup/offers/\(productId)")
     }
 
     func fetchSession(productId: String) async throws -> PaymentSessionStatusResponse {

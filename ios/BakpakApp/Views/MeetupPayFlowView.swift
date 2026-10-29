@@ -101,6 +101,8 @@ struct MeetupPayFlowView: View {
     private var otherRoleName: String { isCollecting ? "buyer" : "seller" }
 
     private var priceLabel: String? {
+        // An open session carries the agreed price (listing price or accepted offer).
+        if let cents = activeSession?.amountCents { return moneyLabel(cents: cents) }
         guard let productPrice else { return nil }
         if productPrice.rounded() == productPrice {
             return "$\(Int(productPrice))"

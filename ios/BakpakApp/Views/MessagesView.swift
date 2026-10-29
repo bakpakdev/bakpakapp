@@ -155,6 +155,8 @@ struct MessageBubbleView: View {
     var canRespondToOffer: Bool = false
     var onAcceptOffer: (() -> Void)? = nil
     var onDeclineOffer: (() -> Void)? = nil
+    /// Accepted offer: open the meetup picker for that listing.
+    var onSetUpMeetup: (() -> Void)? = nil
     var onOpenListing: ((ListingRefPayload) -> Void)? = nil
     @Environment(\.campusTheme) private var campusTheme
 
@@ -253,13 +255,27 @@ struct MessageBubbleView: View {
                     .foregroundStyle(campusTheme.textPrimary)
 
                 if let decision {
-                    Text(decision == .accepted ? "accepted" : "declined")
+                    Text(decisionLabel(decision))
                         .font(Theme.syne(12, weight: .bold))
                         .foregroundStyle(decision == .accepted ? campusTheme.primary : campusTheme.textMuted)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background((decision == .accepted ? campusTheme.primary : campusTheme.textMuted).opacity(0.12))
                         .clipShape(Capsule())
+                    if decision == .accepted, let onSetUpMeetup {
+                        Button {
+                            onSetUpMeetup()
+                        } label: {
+                            Label("Set up meetup", systemImage: "mappin.and.ellipse")
+                                .font(Theme.syne(13, weight: .bold))
+                                .foregroundStyle(Color.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(campusTheme.primary)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 } else if canRespond {
                     HStack(spacing: 8) {
                         Button {
@@ -300,6 +316,14 @@ struct MessageBubbleView: View {
             )
             .shadow(color: Color.black.opacity(0.06), radius: 10, y: 4)
             if !isMe { Spacer(minLength: 48) }
+        }
+    }
+
+    private func decisionLabel(_ decision: OfferMessageCodec.Decision) -> String {
+        switch decision {
+        case .accepted: return "accepted"
+        case .declined: return "declined"
+        case .replaced: return "replaced by a newer offer"
         }
     }
 

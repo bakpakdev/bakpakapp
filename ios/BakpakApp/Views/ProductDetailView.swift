@@ -14,6 +14,9 @@ struct ProductDetailView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var imageIndex = 0
+    @State private var showPhotoViewer = false
+    @State private var sellerWaitingAmountCents: Int?
+    @State private var receiveOffers: ListingOffersResponse?
     @State private var showDeleteConfirm = false
     @State private var showMarkSoldConfirm = false
     @State private var showCancelRequestConfirm = false
@@ -94,6 +97,24 @@ struct ProductDetailView: View {
             .overlay { confirmCards }
             .modifier(ProductDetailAlerts(actionError: $actionError, comingSoonMessage: $comingSoonMessage, paymentPresenter: paymentPresenter, suppressPaymentAlert: paymentOutcome != nil))
             .sheet(isPresented: $showSellerPaymentSheet) { sellerPaymentWaitingSheet }
+            .sheet(isPresented: Binding(
+                get: { receiveOffers != nil },
+                set: { if !$0 { receiveOffers = nil } }
+            )) {
+                if let receiveOffers {
+                    ReceiveBuyerPicker(
+                        offers: receiveOffers.offers,
+                        listingCents: receiveOffers.listingCents,
+                        onPick: { pick in
+                            self.receiveOffers = nil
+                            Task { await openReceive(buyerId: pick?.buyerId) }
+                        },
+                        onCancel: { self.receiveOffers = nil }
+                    )
+                    .environment(\.campusTheme, campusTheme)
+                    .presentationDetents([.medium, .large])
+                }
+            }
             .sheet(isPresented: $showOfferSheet) {
                 if let product {
                     sendOfferPopup(product)
@@ -118,6 +139,9 @@ struct ProductDetailView: View {
                     onCancel: { showMeetupRequestSheet = false }
                 )
                 .environment(\.campusTheme, campusTheme)
+            }
+            .fullScreenCover(isPresented: $showPhotoViewer) {
+                ListingPhotoViewer(urls: imageURLs, index: imageIndex)
             }
             .background(PaymentSheetHost(presenter: paymentPresenter))
             .onChange(of: paymentPresenter.didComplete) { completed in
@@ -597,6 +621,8 @@ struct ProductDetailView: View {
                             }
                         }
                         .tabViewStyle(.page(indexDisplayMode: .never))
+                        .contentShape(Rectangle())
+                        .onTapGesture { showPhotoViewer = true }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -1204,7 +1230,7 @@ struct ProductDetailView: View {
                     .padding(.horizontal, 8)
 
                 if let product {
-                    Text("$\(formattedPrice(product.price))")
+                    Text("$\(formattedPrice(sellerWaitingAmountCents.map { Double($0) / 100 } ?? product.price))")
                         .font(Theme.syne(32, weight: .bold))
                         .foregroundStyle(campusTheme.tint)
                 }
@@ -1300,17 +1326,32 @@ struct ProductDetailView: View {
             actionError = blocker
             return
         }
+        // People made offers in chat: ask who's buying before opening Receive.
+        if let offers = try? await paymentService.fetchOffers(productId: productId), !offers.offers.isEmpty {
+            receiveOffers = offers
+            return
+        }
+        let meetup = confirmedMeetupForListing
+        await openReceive(buyerId: meetup.map { $0.otherUserId(meId: meetupStore.meId) })
+    }
+
+    private func openReceive(buyerId: String?) async {
         isPaymentBusy = true
         defer { isPaymentBusy = false }
         do {
-            let meetup = confirmedMeetupForListing
+            // Keep the meetup link only when it's with the buyer being charged.
+            let meetup = confirmedMeetupForListing.flatMap { m -> Meetup? in
+                let other = m.otherUserId(meId: meetupStore.meId)
+                return buyerId == nil || other.lowercased() == buyerId?.lowercased() ? m : nil
+            }
             let response = try await paymentService.openReceive(
                 productId: productId,
-                meetupId: meetup?.id,
-                buyerId: meetup.map { $0.otherUserId(meId: meetupStore.meId) }
+                meetupId: buyerId == nil ? nil : meetup?.id,
+                buyerId: buyerId
             )
             sellerWaitingRequestId = response.paymentRequest.id
             sellerWaitingSessionId = response.session.id
+            sellerWaitingAmountCents = response.amountCents
             buyerServiceFeeCents = response.serviceFeeCents
             Motion.haptic(.medium)
             showSellerPaymentSheet = true

@@ -17,6 +17,8 @@ struct PopupCameraView: View {
     @State private var shutterPulse = false
     @State private var captureFlash = false
     @State private var capturedThumbs: [UIImage] = []
+    /// Index of the taken photo being previewed full screen.
+    @State private var previewIndex: Int?
 
     private let accent = Color(red: 0.93, green: 0.18, blue: 0.42)
 
@@ -73,6 +75,12 @@ struct PopupCameraView: View {
                 }
             }
 
+            if let previewIndex, !capturedThumbs.isEmpty {
+                capturedPreview(startAt: previewIndex)
+                    .transition(.opacity)
+                    .zIndex(2)
+            }
+
             if captureFlash {
                 Color.white.opacity(0.55)
                     .ignoresSafeArea()
@@ -105,49 +113,50 @@ struct PopupCameraView: View {
 
     // MARK: - Chrome
 
+    /// Top stays clear apart from the wordmark; the controls sit down by the thumb.
     private var topBar: some View {
-        HStack(alignment: .top) {
-            Button {
-                Motion.haptic(.light)
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
-
+        HStack {
             Spacer()
-
             PopupWordmark(scale: .badge)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
                 .background(Color.white.opacity(0.12))
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
-
             Spacer()
-
-            if !capturedThumbs.isEmpty {
-                Button {
-                    Motion.haptic(.medium)
-                    dismiss()
-                } label: {
-                    Text("Done")
-                        .font(Theme.syne(14, weight: .bold))
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background(Color.white)
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
-            } else {
-                Color.clear.frame(width: 40, height: 40)
-            }
         }
+    }
+
+    private var closeButton: some View {
+        Button {
+            Motion.haptic(.light)
+            dismiss()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
+        .accessibilityLabel("Close camera")
+    }
+
+    private var doneButton: some View {
+        Button {
+            Motion.haptic(.medium)
+            dismiss()
+        } label: {
+            Text("Done")
+                .font(Theme.syne(14, weight: .bold))
+                .foregroundStyle(.black)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Color.white)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
+        .accessibilityLabel("Done, \(capturedThumbs.count) photos")
     }
 
     private var bottomBar: some View {
@@ -156,17 +165,29 @@ struct PopupCameraView: View {
                 capturedStrip
             }
 
-            HStack(alignment: .center) {
-                chromeSquareButton(systemName: "photo.on.rectangle") {
+            // Close and flash just above the shutter row, within thumb reach.
+            HStack {
+                closeButton
+                Spacer()
+                Button {
                     Motion.haptic(.light)
-                    let pick = onPickLibrary
-                    dismiss()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                        pick?()
-                    }
+                    flashOn.toggle()
+                } label: {
+                    Image(systemName: flashOn ? "bolt.fill" : "bolt.slash.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(flashOn ? accent : .white)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
                 }
-                .opacity(onPickLibrary == nil ? 0.35 : 1)
-                .disabled(onPickLibrary == nil)
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
+                .accessibilityLabel(flashOn ? "Flash on" : "Flash off")
+            }
+
+            HStack(alignment: .center) {
+                libraryButton
+                    .opacity(onPickLibrary == nil ? 0.35 : 1)
+                    .disabled(onPickLibrary == nil)
+                    .frame(width: 80, alignment: .leading)
 
                 Spacer()
 
@@ -174,13 +195,14 @@ struct PopupCameraView: View {
 
                 Spacer()
 
-                chromeSquareButton(
-                    systemName: flashOn ? "bolt.fill" : "bolt.slash.fill",
-                    accentBorder: flashOn
-                ) {
-                    Motion.haptic(.light)
-                    flashOn.toggle()
+                Group {
+                    if capturedThumbs.isEmpty {
+                        Color.clear.frame(width: 1, height: 1)
+                    } else {
+                        doneButton
+                    }
                 }
+                .frame(width: 80, alignment: .trailing)
             }
         }
     }
@@ -189,16 +211,23 @@ struct PopupCameraView: View {
         HStack(spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(Array(capturedThumbs.enumerated()), id: \.offset) { _, thumb in
-                        Image(uiImage: thumb)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 44, height: 44)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
-                            )
+                    ForEach(Array(capturedThumbs.enumerated()), id: \.offset) { idx, thumb in
+                        Button {
+                            Motion.haptic(.light)
+                            withAnimation(.easeOut(duration: 0.18)) { previewIndex = idx }
+                        } label: {
+                            Image(uiImage: thumb)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 56, height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(Color.white.opacity(0.5), lineWidth: 1.5)
+                                )
+                        }
+                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+                        .accessibilityLabel("Preview photo \(idx + 1)")
                     }
                 }
             }
@@ -258,24 +287,73 @@ struct PopupCameraView: View {
         .accessibilityLabel("Take photo")
     }
 
-    private func chromeSquareButton(
-        systemName: String,
-        accentBorder: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(accentBorder ? accent : .white)
-                .frame(width: 52, height: 52)
-                .background(Color.white.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(accentBorder ? accent.opacity(0.85) : Color.white.opacity(0.14), lineWidth: accentBorder ? 1.5 : 1)
-                )
+    /// Photo library: one plain round button with a label so it reads at a glance.
+    private var libraryButton: some View {
+        Button {
+            Motion.haptic(.light)
+            let pick = onPickLibrary
+            dismiss()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                pick?()
+            }
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: "photo")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 52, height: 52)
+                    .background(Circle().fill(Color.white.opacity(0.16)))
+                Text("Library")
+                    .font(Theme.syne(11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+        .accessibilityLabel("Choose from library")
+    }
+
+    /// Full-screen look at the photos taken so far; swipe between them.
+    private func capturedPreview(startAt index: Int) -> some View {
+        ZStack(alignment: .top) {
+            Color.black.ignoresSafeArea()
+            TabView(selection: Binding(
+                get: { min(previewIndex ?? index, capturedThumbs.count - 1) },
+                set: { previewIndex = $0 }
+            )) {
+                ForEach(Array(capturedThumbs.enumerated()), id: \.offset) { idx, image in
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .tag(idx)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: capturedThumbs.count > 1 ? .always : .never))
+            .ignoresSafeArea()
+
+            HStack {
+                Button {
+                    withAnimation(.easeOut(duration: 0.18)) { previewIndex = nil }
+                } label: {
+                    Label("Back to camera", systemImage: "chevron.left")
+                        .font(Theme.syne(15, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 44)
+                        .background(Capsule().fill(Color.white.opacity(0.16)))
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
+
+                Spacer()
+
+                Text("\((previewIndex ?? index) + 1) of \(capturedThumbs.count)")
+                    .font(Theme.syne(13, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 12)
+        }
     }
 
     private var viewfinderBrackets: some View {
