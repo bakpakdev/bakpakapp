@@ -27,6 +27,14 @@ function requireStripe(_req, res, next) {
   next();
 }
 
+/** Stripe's own reason (e.g. Connect setup unfinished) reads better than "Server error". */
+function payoutErrorMessage(error) {
+  if (String(error?.type || '').startsWith('Stripe') && error.message) {
+    return `Stripe: ${error.message}`;
+  }
+  return 'Server error';
+}
+
 async function loadSellerProfile(supabase, userId) {
   const { data, error } = await supabase
     .from('profiles')
@@ -187,7 +195,7 @@ router.get('/status', protectSupabase, async (req, res) => {
     res.json(statusPayload(account, swept || balance, await stripeBalanceIfOnboarded(account)));
   } catch (error) {
     console.error('Stripe status error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: payoutErrorMessage(error), error: error.message });
   }
 });
 
@@ -200,7 +208,7 @@ router.post('/onboarding', protectSupabase, requirePayoutMfa, requireStripe, asy
     res.json({ url: link.url, expiresAt: link.expires_at, accountId: account.id });
   } catch (error) {
     console.error('Stripe onboarding error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: payoutErrorMessage(error), error: error.message });
   }
 });
 
@@ -228,7 +236,7 @@ router.post('/dashboard', protectSupabase, requirePayoutMfa, requireStripe, asyn
     res.json({ url: login.url, requiresOnboarding: false });
   } catch (error) {
     console.error('Stripe dashboard error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: payoutErrorMessage(error), error: error.message });
   }
 });
 
@@ -329,7 +337,7 @@ router.get('/payouts', protectSupabase, async (req, res) => {
     res.json({ payouts: data || [] });
   } catch (error) {
     console.error('Stripe payouts list error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ message: payoutErrorMessage(error), error: error.message });
   }
 });
 
