@@ -108,19 +108,6 @@ struct InboxThreadView: View {
             )
             .environment(\.campusTheme, campusTheme)
         }
-        .confirmationDialog("Cancel this meetup?", isPresented: $showCancelMeetupConfirm, titleVisibility: .visible) {
-            Button("Cancel meetup", role: .destructive) {
-                if let pendingCancelMeetup {
-                    Task { await cancelMeetup(pendingCancelMeetup) }
-                }
-                pendingCancelMeetup = nil
-            }
-            Button("Keep meetup", role: .cancel) {
-                pendingCancelMeetup = nil
-            }
-        } message: {
-            Text("They’ll be notified in chat and the reminder will be removed.")
-        }
         .sheet(isPresented: $showOfferComposer) {
             offerComposerSheet
                 .environment(\.campusTheme, campusTheme)
@@ -143,6 +130,29 @@ struct InboxThreadView: View {
                         blockOtherUser()
                     },
                     onCancel: { showBlockConfirm = false }
+                )
+                .ignoresSafeArea()
+                .zIndex(20)
+            }
+        }
+        .overlay {
+            if showCancelMeetupConfirm {
+                ConfirmActionCard(
+                    title: "cancel this meetup?",
+                    message: "They’ll be notified in chat and the reminder will be removed.",
+                    confirmTitle: "Cancel meetup",
+                    confirmIcon: "calendar.badge.minus",
+                    onConfirm: {
+                        showCancelMeetupConfirm = false
+                        if let pendingCancelMeetup {
+                            Task { await cancelMeetup(pendingCancelMeetup) }
+                        }
+                        pendingCancelMeetup = nil
+                    },
+                    onCancel: {
+                        showCancelMeetupConfirm = false
+                        pendingCancelMeetup = nil
+                    }
                 )
                 .ignoresSafeArea()
                 .zIndex(20)

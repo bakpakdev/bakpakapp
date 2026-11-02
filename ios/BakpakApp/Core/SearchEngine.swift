@@ -51,7 +51,8 @@ enum SearchEngine {
     private static let categoryHints: [String: String] = [
         "shirt": "tops", "hoodie": "tops", "sweater": "tops",
         "jacket": "outerwear",
-        "pants": "bottoms", "jeans": "bottoms", "shorts": "bottoms", "skirt": "bottoms",
+        // "jeans" has no hint: "denim" is also a material, so it shouldn't pull in every pair of pants.
+        "pants": "bottoms", "shorts": "bottoms", "skirt": "bottoms",
         "dress": "dresses",
         "shoes": "shoes",
         "hat": "accessories", "bag": "accessories", "accessories": "accessories",
@@ -135,7 +136,12 @@ enum SearchEngine {
         }
 
         let full = scored.filter { $0.2 == terms.count }
-        let pool = full.isEmpty ? scored.filter { $0.1 > 0 } : full
+        // Nothing matches every word: show only the listings that match the most words, and
+        // only on a real match (not just a passing mention in the description).
+        let bestMatched = scored.map(\.2).max() ?? 0
+        let pool = full.isEmpty
+            ? scored.filter { $0.2 == bestMatched && $0.2 > 0 && $0.1 >= 3 }
+            : full
         let sorted = pool.sorted {
             if $0.1 != $1.1 { return $0.1 > $1.1 }
             return ($0.0.createdAt ?? "") > ($1.0.createdAt ?? "")
