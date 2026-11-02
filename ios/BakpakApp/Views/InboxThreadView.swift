@@ -420,7 +420,7 @@ struct InboxThreadView: View {
             meetupStatus: status,
             canRespondToMeetup: (meetup?.kind.isProposal == true) && !msg.isMe && status == nil,
             canManageMeetup: msg.isMe
-                && meetup.map { isLatestManagedMeetup($0) } == true
+                && meetup.map { isLatestManagedMeetup($0) && !isFinishedMeetup($0) } == true
                 && (effective == .accepted || (meetup?.kind.isProposal == true && status == nil)),
             onAcceptMeetup: {
                 if let meetup { Task { await respondToMeetup(meetup, accepted: true) } }
@@ -757,6 +757,17 @@ struct InboxThreadView: View {
             if parsed.kind.isProposal { return .cancelled }
         }
         return nil
+    }
+
+    /// The meetup this card is about already happened (paid / marked done), so there's
+    /// nothing left to reschedule or cancel even if its time hasn't come yet.
+    private func isFinishedMeetup(_ payload: MeetupMessagePayload) -> Bool {
+        meetupStore.meetups.contains { stored in
+            stored.conversationId.caseInsensitiveCompare(threadId) == .orderedSame
+                && stored.spotId == payload.spotId
+                && stored.status == .completed
+                && payload.proposedAt.map { abs($0.timeIntervalSince(stored.scheduledAt)) < 60 } ?? true
+        }
     }
 
     private func isLatestManagedMeetup(_ payload: MeetupMessagePayload) -> Bool {

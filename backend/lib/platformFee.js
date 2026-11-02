@@ -11,8 +11,8 @@ function envNumber(key, fallback) {
 
 function feeSettings() {
   return {
-    percent: envNumber('PLATFORM_FEE_PERCENT', 8),
-    fixedCents: Math.round(envNumber('PLATFORM_FEE_FIXED_CENTS', 30)),
+    percent: envNumber('PLATFORM_FEE_PERCENT', 3.5),
+    fixedCents: Math.round(envNumber('PLATFORM_FEE_FIXED_CENTS', 60)),
     minCents: Math.round(envNumber('PLATFORM_FEE_MIN_CENTS', 0)),
   };
 }
@@ -25,7 +25,7 @@ function buyerTotal(priceCents) {
   return { priceCents: price, serviceFeeCents: fee, totalCents: price + fee };
 }
 
-/** Short label for the app, e.g. "10% (min $0.50)" or "8% + $0.30". */
+/** Short label for the app, e.g. "10% (min $0.50)" or "3.5% + $0.60". */
 function feeLabel() {
   const { percent, fixedCents, minCents } = feeSettings();
   let label = `${percent}%`;

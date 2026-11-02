@@ -34,6 +34,8 @@ struct MeetupPayFlowView: View {
     @State private var isCollecting = false
     @State private var isPaymentBusy = false
     @State private var paymentError: String?
+    /// The server refused Receive because the seller hasn't set up payouts yet.
+    @State private var needsPayoutSetup = false
     @State private var activeSession: PaymentSessionDTO?
     @State private var sellerCanReceive = false
     @State private var buyerCanPay = false
@@ -260,7 +262,15 @@ struct MeetupPayFlowView: View {
             get: { paymentOutcome == nil && !showBuyerSentAnimation && (paymentError != nil || paymentPresenter.errorMessage != nil) },
             set: { if !$0 { paymentError = nil; paymentPresenter.errorMessage = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            if needsPayoutSetup {
+                Button("Set up payouts") {
+                    needsPayoutSetup = false
+                    appState.path.append(.sellerCashOutSetup)
+                }
+                Button("Not now", role: .cancel) { needsPayoutSetup = false }
+            } else {
+                Button("OK", role: .cancel) {}
+            }
         } message: {
             Text(paymentError ?? paymentPresenter.errorMessage ?? "")
         }
@@ -784,6 +794,7 @@ struct MeetupPayFlowView: View {
             selectedMethod = nil
             sessionHint = nil
         } catch {
+            needsPayoutSetup = error.localizedDescription.hasPrefix("Set up payouts")
             paymentError = error.localizedDescription
         }
     }
