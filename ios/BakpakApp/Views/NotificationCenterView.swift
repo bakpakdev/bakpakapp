@@ -151,7 +151,10 @@ enum NotificationCenterStore {
 
         let headline: String
         let body: String
-        if isOffer {
+        if let meetup = MeetupMessageCodec.parse(preview) {
+            headline = NotificationText.meetupHeadline(meetup, name: name)
+            body = NotificationText.meetupDetail(meetup)
+        } else if isOffer {
             let amount = OfferMessageCodec.displayAmount(preview)
             headline = "\(name) sent an offer"
             if let productTitle, !productTitle.isEmpty {
@@ -200,6 +203,49 @@ enum NotificationCenterStore {
     private static func save(_ items: [AppNotification]) {
         guard let data = try? JSONEncoder().encode(items) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
+    }
+}
+
+/// Turns chat codes like "Meetup accepted|emu|Erb Memorial Union|2026-10-20T22:30:00Z" into plain text.
+enum NotificationText {
+    static func readable(_ raw: String) -> String {
+        if let meetup = MeetupMessageCodec.parse(raw) {
+            return meetupDetail(meetup)
+        }
+        if OfferMessageCodec.isOffer(raw) {
+            let amount = OfferMessageCodec.displayAmount(raw)
+            if let title = OfferMessageCodec.listing(from: raw)?.title, !title.isEmpty {
+                return amount.isEmpty ? "Offer on \(title)" : "\(amount) on \(title)"
+            }
+            return amount.isEmpty ? "Sent an offer" : "Offered \(amount)"
+        }
+        if let listing = ListingRefMessageCodec.parse(raw) {
+            return listing.title
+        }
+        return raw
+    }
+
+    static func meetupHeadline(_ meetup: MeetupMessagePayload, name: String) -> String {
+        switch meetup.kind {
+        case .invite: return "\(name) invited you to meet up"
+        case .rescheduled: return "\(name) suggested a new time"
+        case .accepted: return "\(name) accepted the meetup"
+        case .declined: return "\(name) declined the meetup"
+        case .cancelled: return "\(name) cancelled the meetup"
+        }
+    }
+
+    /// "Erb Memorial Union · Tue, Oct 20 at 3:30 PM"
+    static func meetupDetail(_ meetup: MeetupMessagePayload) -> String {
+        guard let date = meetup.proposedAt, meetup.kind != .declined, meetup.kind != .cancelled else {
+            return meetup.spotName
+        }
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("EEEMMMd")
+        let t = DateFormatter()
+        t.dateStyle = .none
+        t.timeStyle = .short
+        return "\(meetup.spotName) · \(f.string(from: date)) at \(t.string(from: date))"
     }
 }
 
@@ -343,7 +389,7 @@ struct NotificationCenterView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(item.kind.title.lowercased())
                             .font(Theme.syne(12, weight: .semibold))
-                            .foregroundStyle(item.isRead ? campusTheme.textMuted : campusTheme.primary)
+                            .foregroundStyle(campusTheme.textMuted)
                         Spacer(minLength: 8)
                         Text(relativeTime(item.createdAt))
                             .font(Theme.syne(11, weight: .medium))
@@ -356,8 +402,9 @@ struct NotificationCenterView: View {
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(item.body)
-                        .font(Theme.syne(13, weight: .regular))
+                    // Older saved rows may still hold raw meetup/offer codes, so clean them up here too.
+                    Text(NotificationText.readable(item.body))
+                        .font(Theme.syne(14, weight: .regular))
                         .foregroundStyle(campusTheme.textMuted)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
