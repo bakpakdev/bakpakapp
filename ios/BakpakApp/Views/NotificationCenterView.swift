@@ -149,12 +149,13 @@ enum NotificationCenterStore {
             ?? conv.product?.title
         let created = InboxReadStore.parseISO(conv.updatedAt ?? last?.createdAt) ?? Date()
 
+        // Meetup updates already get their own "Meetup confirmed / declined / …" row
+        // from the server, so a chat copy would just show the same thing twice.
+        if MeetupMessageCodec.parse(preview) != nil { return nil }
+
         let headline: String
         let body: String
-        if let meetup = MeetupMessageCodec.parse(preview) {
-            headline = NotificationText.meetupHeadline(meetup, name: name)
-            body = NotificationText.meetupDetail(meetup)
-        } else if isOffer {
+        if isOffer {
             let amount = OfferMessageCodec.displayAmount(preview)
             headline = "\(name) sent an offer"
             if let productTitle, !productTitle.isEmpty {
@@ -197,7 +198,9 @@ enum NotificationCenterStore {
 
     private static func loadAll() -> [AppNotification] {
         guard let data = UserDefaults.standard.data(forKey: storageKey) else { return [] }
-        return (try? JSONDecoder().decode([AppNotification].self, from: data)) ?? []
+        let items = (try? JSONDecoder().decode([AppNotification].self, from: data)) ?? []
+        // Older builds saved chat copies of meetup updates with the raw code as the body.
+        return items.filter { !($0.kind == .message && MeetupMessageCodec.parse($0.body) != nil) }
     }
 
     private static func save(_ items: [AppNotification]) {
@@ -223,16 +226,6 @@ enum NotificationText {
             return listing.title
         }
         return raw
-    }
-
-    static func meetupHeadline(_ meetup: MeetupMessagePayload, name: String) -> String {
-        switch meetup.kind {
-        case .invite: return "\(name) invited you to meet up"
-        case .rescheduled: return "\(name) suggested a new time"
-        case .accepted: return "\(name) accepted the meetup"
-        case .declined: return "\(name) declined the meetup"
-        case .cancelled: return "\(name) cancelled the meetup"
-        }
     }
 
     /// "Erb Memorial Union · Tue, Oct 20 at 3:30 PM"
