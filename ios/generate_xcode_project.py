@@ -84,6 +84,9 @@ def main() -> None:
     stripe_remote = gid("popup:swiftpkg:stripe-remote")
     stripe_product = gid("popup:swiftpkg:stripe-paymentsheet-product")
     stripe_build = gid("popup:swiftpkg:stripe-paymentsheet-buildfile")
+    # Seller payout signup and payouts screens inside the app (Connect embedded components).
+    stripe_connect_product = gid("popup:swiftpkg:stripe-connect-product")
+    stripe_connect_build = gid("popup:swiftpkg:stripe-connect-buildfile")
     debug_entitlements_ref = gid("popup:fileref:PopupApp.Debug.entitlements")
     release_entitlements_ref = gid("popup:fileref:PopupApp.entitlements")
     applepay_entitlements_ref = gid("popup:fileref:PopupApp.ApplePay.entitlements")
@@ -227,6 +230,7 @@ def main() -> None:
 \t\t{privacy_build} /* PrivacyInfo.xcprivacy in Resources */ = {{isa = PBXBuildFile; fileRef = {privacy_ref} /* PrivacyInfo.xcprivacy */; }};
 \t\t{spa_build} /* Supabase in Frameworks */ = {{isa = PBXBuildFile; productRef = {spa_product} /* Supabase */; }};
 {square_build_files}\t\t{stripe_build} /* StripePaymentSheet in Frameworks */ = {{isa = PBXBuildFile; productRef = {stripe_product} /* StripePaymentSheet */; }};
+\t\t{stripe_connect_build} /* StripeConnect in Frameworks */ = {{isa = PBXBuildFile; productRef = {stripe_connect_product} /* StripeConnect */; }};
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -253,6 +257,7 @@ def main() -> None:
 \t\t\tfiles = (
 \t\t\t\t{spa_build} /* Supabase in Frameworks */,
 {square_framework_files}\t\t\t\t{stripe_build} /* StripePaymentSheet in Frameworks */,
+\t\t\t\t{stripe_connect_build} /* StripeConnect in Frameworks */,
 \t\t\t);
 \t\t\trunOnlyForDeploymentPostprocessing = 0;
 \t\t}};
@@ -379,6 +384,7 @@ def main() -> None:
 \t\t\tpackageProductDependencies = (
 \t\t\t\t{spa_product} /* Supabase */,
 {square_product_refs}\t\t\t\t{stripe_product} /* StripePaymentSheet */,
+\t\t\t\t{stripe_connect_product} /* StripeConnect */,
 \t\t\t);
 \t\t\tname = PopupApp;
 \t\t\tproductName = PopupApp;
@@ -476,6 +482,11 @@ def main() -> None:
 \t\t\tisa = XCSwiftPackageProductDependency;
 \t\t\tpackage = {stripe_remote} /* XCRemoteSwiftPackageReference "stripe-ios-spm" */;
 \t\t\tproductName = StripePaymentSheet;
+\t\t}};
+\t\t{stripe_connect_product} /* StripeConnect */ = {{
+\t\t\tisa = XCSwiftPackageProductDependency;
+\t\t\tpackage = {stripe_remote} /* XCRemoteSwiftPackageReference "stripe-ios-spm" */;
+\t\t\tproductName = StripeConnect;
 \t\t}};
 /* End XCSwiftPackageProductDependency section */
 

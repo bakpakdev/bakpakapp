@@ -52,7 +52,7 @@ async function ensureAccount(supabase, user) {
   const existing = await retrieveAccount(profile?.stripe_account_id);
   if (existing) return existing;
 
-  const account = await stripe.createExpressAccount({
+  const account = await stripe.createSellerAccount({
     userId: user.id,
     email: profile?.email || user.email || null,
     firstName: profile?.first_name || null,
@@ -212,6 +212,27 @@ router.post('/onboarding', protectSupabase, requirePayoutMfa, requireStripe, asy
   }
 });
 
+/**
+ * Session for Stripe's in-app signup and payouts screens (app 1.0 build 9+). Creates
+ * the seller's account first if needed.
+ */
+router.post('/account-session', protectSupabase, requirePayoutMfa, requireStripe, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    const account = await ensureAccount(supabase, req.user);
+    const session = await stripe.createAccountSession(account);
+    res.json({
+      ...session,
+      publishableKey: stripe.publishableKey(),
+      accountId: account.id,
+      onboardingComplete: stripe.summarizeAccount(account).onboardingComplete,
+    });
+  } catch (error) {
+    console.error('Stripe account session error:', error);
+    res.status(500).json({ message: payoutErrorMessage(error), error: error.message });
+  }
+});
+
 // Stripe needs https return/refresh URLs; these bounce back into the app.
 router.get('/onboarding/return', (_req, res) => {
   res.redirect('popup://stripe-connect?done=1');
@@ -231,6 +252,13 @@ router.post('/dashboard', protectSupabase, requirePayoutMfa, requireStripe, asyn
       const ensured = account || await ensureAccount(supabase, req.user);
       const link = await stripe.createOnboardingLink(ensured.id);
       return res.json({ url: link.url, requiresOnboarding: true });
+    }
+    if (!stripe.hasStripeDashboard(account)) {
+      // In-app accounts have no Stripe login; the app shows Stripe's payouts screen.
+      return res.status(409).json({
+        code: 'IN_APP_PAYOUTS',
+        message: 'Update popup to manage your payout bank in the app.',
+      });
     }
     const login = await stripe.getStripe().accounts.createLoginLink(account.id);
     res.json({ url: login.url, requiresOnboarding: false });

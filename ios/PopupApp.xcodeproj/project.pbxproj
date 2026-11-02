@@ -125,6 +125,7 @@
 		C731F8663F3A02BE46FFED80 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BE1D4ADB8984DFCE52F63580 /* PrivacyInfo.xcprivacy */; };
 		40EE98DC765EB129F328B9A3 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 292965126FD5E2A9E949BD61 /* Supabase */; };
 		949200B0B48E6527317F6A1E /* StripePaymentSheet in Frameworks */ = {isa = PBXBuildFile; productRef = F22AF2F4963258DA1280308A /* StripePaymentSheet */; };
+		B705B53ECB08ADEB7255C4FF /* StripeConnect in Frameworks */ = {isa = PBXBuildFile; productRef = B8516A1FDB96056456A42F7D /* StripeConnect */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -260,6 +261,7 @@
 			files = (
 				40EE98DC765EB129F328B9A3 /* Supabase in Frameworks */,
 				949200B0B48E6527317F6A1E /* StripePaymentSheet in Frameworks */,
+				B705B53ECB08ADEB7255C4FF /* StripeConnect in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -493,6 +495,7 @@
 			packageProductDependencies = (
 				292965126FD5E2A9E949BD61 /* Supabase */,
 				F22AF2F4963258DA1280308A /* StripePaymentSheet */,
+				B8516A1FDB96056456A42F7D /* StripeConnect */,
 			);
 			name = PopupApp;
 			productName = PopupApp;
@@ -702,6 +705,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 3CC1E711354C5794B95292AC /* XCRemoteSwiftPackageReference "stripe-ios-spm" */;
 			productName = StripePaymentSheet;
+		};
+		B8516A1FDB96056456A42F7D /* StripeConnect */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3CC1E711354C5794B95292AC /* XCRemoteSwiftPackageReference "stripe-ios-spm" */;
+			productName = StripeConnect;
 		};
 /* End XCSwiftPackageProductDependency section */
 
