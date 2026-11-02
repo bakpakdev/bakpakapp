@@ -87,7 +87,7 @@ struct SellerCashOutSetupView: View {
         if status?.needsMoreInfo == true {
             return "Stripe needs a little more info before sales can go to your bank. Pick up where you left off."
         }
-        return "Your sales wait safely in your popup balance. Set up payouts once with Stripe, our payments partner, and they go to your bank from then on."
+        return "Your sales wait safely in your popup balance. Set up payouts once, right here in popup, and they go to your bank from then on."
     }
 
     // MARK: - Cards
@@ -154,7 +154,7 @@ struct SellerCashOutSetupView: View {
                     ? "You’ll enter a code from Passwords before payout changes."
                     : "Payouts are locked behind a 6-digit code from Passwords or your authenticator app. It takes a minute."
             )
-            stepRow(icon: "2.circle.fill", title: "Sign up with Stripe", body: "Legal name, date of birth, address, the last 4 of your SSN, and a bank account or debit card. Stripe keeps these; popup never sees them.")
+            stepRow(icon: "2.circle.fill", title: "Set up payouts", body: "Legal name, date of birth, address, the last 4 of your SSN, and a bank account or debit card. Our payments partner Stripe verifies and keeps these; popup never sees them.")
             stepRow(icon: "3.circle.fill", title: "Cash out anytime", body: "Your balance stays here until you tap Cash out, then it goes to your bank in 1–2 business days.")
             if let due = status?.requirementsDue, !due.isEmpty, status?.connected == true {
                 statusPill(ok: false, text: "Stripe still needs \(due.count) item\(due.count == 1 ? "" : "s")")
@@ -174,7 +174,7 @@ struct SellerCashOutSetupView: View {
                     Text("Change bank or debit card")
                         .font(Theme.syne(14, weight: .semibold))
                     Spacer()
-                    Image(systemName: "arrow.up.right")
+                    Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .foregroundStyle(campusTheme.textPrimary)
@@ -270,7 +270,7 @@ struct SellerCashOutSetupView: View {
             return clearingCents > 0 ? "Clearing \(formattedMoney(cents: clearingCents))" : "Nothing to cash out yet"
         }
         if !twoFactorOn { return "Turn on two-factor" }
-        return status?.needsMoreInfo == true ? "Continue with Stripe" : "Set up payouts with Stripe"
+        return status?.needsMoreInfo == true ? "Finish payout setup" : "Set up payouts"
     }
 
     private var primaryEnabled: Bool {

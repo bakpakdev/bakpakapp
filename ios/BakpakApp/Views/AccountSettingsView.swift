@@ -219,7 +219,7 @@ struct AccountSettingsView: View {
         if payoutStatus.needsMoreInfo {
             return "Stripe needs a bit more info"
         }
-        return "A few minutes with Stripe, once"
+        return "A few minutes, once"
     }
 
     private var cashOutButtonTitle: String {
