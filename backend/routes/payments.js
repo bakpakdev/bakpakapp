@@ -243,6 +243,22 @@ router.post('/meetup/receive', protectSupabase, requireStripePayments, async (re
       return res.status(400).json({ message: 'This item is already sold' });
     }
 
+    // Sales go straight to the seller's own Stripe account, so popup never holds a
+    // seller's money on its own balance. That needs payouts set up before the first sale.
+    const { data: sellerProfile, error: sellerError } = await supabase
+      .from('profiles')
+      .select('stripe_account_id')
+      .eq('id', req.user.id)
+      .maybeSingle();
+    if (sellerError) throw sellerError;
+    const sellerAccount = await stripe.retrieveAccount(sellerProfile?.stripe_account_id);
+    if (!stripe.summarizeAccount(sellerAccount).onboardingComplete) {
+      return res.status(409).json({
+        message: 'Set up payouts with Stripe before you receive your first payment.',
+        code: 'PAYOUTS_SETUP_REQUIRED',
+      });
+    }
+
     const listingCents = Math.round(Number(product.price) * 100);
     if (!Number.isFinite(listingCents) || listingCents < 50) {
       return res.status(400).json({ message: 'Invalid listing price' });
