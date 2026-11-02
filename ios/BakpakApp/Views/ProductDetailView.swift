@@ -95,7 +95,7 @@ struct ProductDetailView: View {
                 }
             }
             .overlay { confirmCards }
-            .modifier(ProductDetailAlerts(actionError: $actionError, comingSoonMessage: $comingSoonMessage, paymentPresenter: paymentPresenter, suppressPaymentAlert: paymentOutcome != nil))
+            .modifier(ProductDetailAlerts(actionError: $actionError, comingSoonMessage: $comingSoonMessage, paymentPresenter: paymentPresenter, suppressPaymentAlert: paymentOutcome != nil, onSetUpPayouts: { appState.path.append(.sellerCashOutSetup) }))
             .sheet(isPresented: $showSellerPaymentSheet) { sellerPaymentWaitingSheet }
             .sheet(isPresented: Binding(
                 get: { receiveOffers != nil },
@@ -1586,11 +1586,23 @@ private struct ProductDetailAlerts: ViewModifier {
     @Binding var comingSoonMessage: String?
     @ObservedObject var paymentPresenter: PaymentSheetPresenter
     var suppressPaymentAlert: Bool = false
+    var onSetUpPayouts: () -> Void = {}
+
+    /// The server refused Receive because the seller hasn't set up payouts yet.
+    private var needsPayoutSetup: Bool { actionError?.hasPrefix("Set up payouts") == true }
 
     func body(content: Content) -> some View {
         content
-            .alert("Couldn't update", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
-                Button("OK", role: .cancel) { actionError = nil }
+            .alert(needsPayoutSetup ? "Set up payouts" : "Couldn't update", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) {
+                if needsPayoutSetup {
+                    Button("Set up payouts") {
+                        actionError = nil
+                        onSetUpPayouts()
+                    }
+                    Button("Not now", role: .cancel) { actionError = nil }
+                } else {
+                    Button("OK", role: .cancel) { actionError = nil }
+                }
             } message: { Text(actionError ?? "") }
             .alert("Coming soon", isPresented: Binding(get: { comingSoonMessage != nil }, set: { if !$0 { comingSoonMessage = nil } })) {
                 Button("OK", role: .cancel) { comingSoonMessage = nil }
