@@ -29,6 +29,7 @@ struct MeetupPayFlowView: View {
     @State private var step: MeetupPayStep = .confirm
     @State private var selectedMethod: String?
     @State private var productPrice: Double?
+    @State private var acceptedOfferApplied = false
     @State private var isLoadingPrice = false
     @State private var isCollecting = false
     @State private var isPaymentBusy = false
@@ -557,7 +558,7 @@ struct MeetupPayFlowView: View {
                 summaryRow(label: "Item", value: title)
             }
             if let priceLabel {
-                summaryRow(label: "Amount", value: priceLabel)
+                summaryRow(label: "Amount", value: acceptedOfferApplied ? "\(priceLabel) (accepted offer)" : priceLabel)
             }
         }
         .padding(20)
@@ -945,6 +946,11 @@ struct MeetupPayFlowView: View {
         do {
             let product = try await ProductService().product(id: pid)
             productPrice = product.price
+            // An accepted offer replaces the listing price; the server charges the same amount.
+            if let agreed = try? await paymentService.fetchPrice(productId: pid, meetupId: meetupId) {
+                productPrice = Double(agreed.amountCents) / 100
+                acceptedOfferApplied = agreed.offerCents != nil
+            }
             let me = (authVM.user?.id ?? "").lowercased()
             let seller = (product.user?.id ?? "").lowercased()
             if !me.isEmpty, !seller.isEmpty {

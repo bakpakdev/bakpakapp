@@ -188,6 +188,42 @@ router.get('/meetup/offers/:productId', protectSupabase, async (req, res) => {
   }
 });
 
+// Price for this meetup before anyone opens Receive: the accepted offer between
+// the seller and the buyer, or the listing price. Callable by the buyer or the seller.
+router.get('/meetup/price/:productId', protectSupabase, async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    const product = await fetchProduct(supabase, req.params.productId);
+    if (!product) return res.status(404).json({ message: 'Listing not found' });
+    const listingCents = Math.round(Number(product.price) * 100);
+
+    let buyerId = product.user_id === req.user.id ? null : req.user.id;
+    const meetupId = typeof req.query.meetupId === 'string' ? req.query.meetupId.trim() : '';
+    if (!buyerId && meetupId) {
+      const { data: meetup, error } = await supabase
+        .from('meetups')
+        .select('product_id, proposer_id, recipient_id')
+        .eq('id', meetupId)
+        .maybeSingle();
+      if (error) throw error;
+      if (meetup && meetup.product_id === product.id) {
+        const participants = [meetup.proposer_id, meetup.recipient_id];
+        if (participants.includes(req.user.id)) {
+          buyerId = participants.find((id) => id && id !== req.user.id) || null;
+        }
+      }
+    }
+
+    const offerCents = buyerId
+      ? await acceptedOfferCents(supabase, { productId: product.id, sellerId: product.user_id, buyerId })
+      : null;
+    res.json({ listingCents, offerCents: offerCents || null, amountCents: offerCents || listingCents });
+  } catch (error) {
+    console.error('Meetup price error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 router.post('/meetup/receive', protectSupabase, requireStripePayments, async (req, res) => {
   try {
     const { productId, meetupId, buyerId } = req.body || {};
