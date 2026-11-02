@@ -707,12 +707,26 @@ struct MessagesView: View {
                         .tag(index)
                     }
                 }
-                .tabViewStyle(.page(indexDisplayMode: open.count > 1 ? .automatic : .never))
+                // Built-in page dots draw on top of the card, so we show our own below it.
+                .tabViewStyle(.page(indexDisplayMode: .never))
                 .frame(height: open.contains(where: {
                     $0.needsMyResponse(meId: meetupStore.meId) || $0.canShowPayment()
                 }) ? 270 : 210)
                 .onChange(of: open.map(\.id)) { _ in
                     if heroPage >= open.count { heroPage = max(0, open.count - 1) }
+                }
+
+                if open.count > 1 {
+                    HStack(spacing: 7) {
+                        ForEach(open.indices, id: \.self) { index in
+                            Circle()
+                                .fill(index == heroPage ? campusTheme.textPrimary : campusTheme.textPrimary.opacity(0.25))
+                                .frame(width: 7, height: 7)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .animation(.easeInOut(duration: 0.2), value: heroPage)
+                    .accessibilityHidden(true)
                 }
             }
             .padding(.bottom, 8)

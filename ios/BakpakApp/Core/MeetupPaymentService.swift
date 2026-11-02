@@ -133,6 +133,13 @@ struct ListingOffersResponse: Decodable {
     let listingCents: Int
 }
 
+/// Agreed price for a meetup: the accepted offer if there is one, else the listing price.
+struct MeetupPriceResponse: Decodable {
+    let listingCents: Int
+    let offerCents: Int?
+    let amountCents: Int
+}
+
 @MainActor
 final class MeetupPaymentService {
     static let shared = MeetupPaymentService()
@@ -149,6 +156,10 @@ final class MeetupPaymentService {
 
     func fetchOffers(productId: String) async throws -> ListingOffersResponse {
         try await api.request(path: "/payments/meetup/offers/\(productId)")
+    }
+
+    func fetchPrice(productId: String, meetupId: String) async throws -> MeetupPriceResponse {
+        try await api.request(path: "/payments/meetup/price/\(productId)?meetupId=\(meetupId)")
     }
 
     func fetchSession(productId: String) async throws -> PaymentSessionStatusResponse {
