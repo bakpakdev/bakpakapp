@@ -1188,6 +1188,12 @@ struct MeetupInviteBubble: View {
         return payload.kind
     }
 
+    /// Once the meetup time has gone by there's nothing left to accept, reschedule or cancel.
+    private var isPast: Bool {
+        guard let proposedAt = payload.proposedAt else { return false }
+        return proposedAt < Date()
+    }
+
     var body: some View {
         HStack {
             if isFromMe { Spacer(minLength: 40) }
@@ -1223,7 +1229,7 @@ struct MeetupInviteBubble: View {
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
                 }
 
-                if canRespond && status == nil && payload.kind.isProposal {
+                if !isPast && canRespond && status == nil && payload.kind.isProposal {
                     HStack(spacing: 8) {
                         Button(action: onAccept) {
                             Text("Accept")
@@ -1247,7 +1253,7 @@ struct MeetupInviteBubble: View {
                         }
                         .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                     }
-                } else if canManage, effectiveKind == .accepted || (effectiveKind.isProposal && status == nil) {
+                } else if !isPast, canManage, effectiveKind == .accepted || (effectiveKind.isProposal && status == nil) {
                     HStack(spacing: 8) {
                         Button {
                             onRescheduleMeetup?()
@@ -1321,6 +1327,13 @@ struct MeetupInviteBubble: View {
     }
 
     private var subtitle: String {
+        if isPast {
+            switch effectiveKind {
+            case .accepted: return "This meetup time has passed."
+            case .invite, .rescheduled: return "This invite expired."
+            default: break
+            }
+        }
         switch effectiveKind {
         case .invite:
             return isFromMe
