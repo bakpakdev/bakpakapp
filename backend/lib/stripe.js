@@ -89,14 +89,26 @@ function summarizeAccount(account) {
   };
 }
 
-async function createExpressAccount({ email, firstName, lastName, userId }) {
+/**
+ * Creates the seller's connected account. Sellers sign up inside popup with Stripe's
+ * embedded onboarding and never get a Stripe login of their own (like Depop Payments):
+ * popup pays the Stripe fees and carries loss liability, Stripe still collects and
+ * verifies identity and bank details. Uses controller properties, not the legacy
+ * `type: 'express'`, which Stripe refuses when the platform is the losses collector.
+ */
+async function createSellerAccount({ email, firstName, lastName, userId }) {
   const individual = {};
   if (firstName) individual.first_name = firstName;
   if (lastName) individual.last_name = lastName;
   if (email) individual.email = email;
 
   return getStripe().accounts.create({
-    type: 'express',
+    controller: {
+      fees: { payer: 'application' },
+      losses: { payments: 'application' },
+      requirement_collection: 'stripe',
+      stripe_dashboard: { type: 'none' },
+    },
     country: 'US',
     email: email || undefined,
     business_type: 'individual',
@@ -152,6 +164,45 @@ async function createOnboardingLink(accountId) {
     return_url: onboardingReturnUrl(),
     collection_options: { fields: 'currently_due' },
   });
+}
+
+/** Accounts created by createSellerAccount have no Stripe dashboard to log in to. */
+function hasStripeDashboard(account) {
+  const type = account?.controller?.stripe_dashboard?.type;
+  return account?.type === 'express' || type === 'express' || type === 'full';
+}
+
+/**
+ * Short-lived session for Stripe's in-app screens (StripeConnect iOS SDK): onboarding
+ * to sign up or answer Stripe's follow-up questions, and payouts to see payouts and
+ * change the bank. Cash out stays popup's own button, so sellers can't start payouts
+ * or change the schedule from Stripe's screen. popup already asks for an
+ * authenticator code before this, so Stripe's extra login step is turned off where
+ * the account type allows it.
+ */
+async function createAccountSession(account) {
+  const noDashboard = !hasStripeDashboard(account);
+  const auth = noDashboard ? { disable_stripe_user_authentication: true } : {};
+  const session = await getStripe().accountSessions.create({
+    account: account.id,
+    components: {
+      account_onboarding: {
+        enabled: true,
+        features: { external_account_collection: true, ...auth },
+      },
+      payouts: {
+        enabled: true,
+        features: {
+          external_account_collection: true,
+          instant_payouts: false,
+          standard_payouts: false,
+          edit_payout_schedule: false,
+          ...auth,
+        },
+      },
+    },
+  });
+  return { clientSecret: session.client_secret, expiresAt: session.expires_at };
 }
 
 async function retrieveAccount(accountId) {
@@ -215,7 +266,9 @@ module.exports = {
   webhookSecret,
   stripeEnvironment,
   summarizeAccount,
-  createExpressAccount,
+  createSellerAccount,
+  createAccountSession,
+  hasStripeDashboard,
   createOnboardingLink,
   retrieveAccount,
   directPayoutAccountId,
