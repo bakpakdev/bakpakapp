@@ -43,11 +43,12 @@ services:
       # return links and the webhook URL are built from it.
       - key: PUBLIC_BASE_URL
         sync: false
-      # Buyer service fee popup keeps (see backend/lib/platformFee.js).
+      # Buyer service fee popup keeps (see backend/lib/platformFee.js). 3.5% + 60¢ just
+      # covers Stripe's card fee (2.9% + 30¢ on the total) and a payout (0.25% + 25¢).
       - key: PLATFORM_FEE_PERCENT
-        value: "2"
+        value: "3.5"
       - key: PLATFORM_FEE_FIXED_CENTS
-        value: "0"
+        value: "60"
       - key: PLATFORM_FEE_MIN_CENTS
         value: "0"
       - key: OPENAI_API_KEY
