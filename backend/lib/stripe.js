@@ -91,10 +91,11 @@ function summarizeAccount(account) {
 
 /**
  * Creates the seller's connected account. Sellers sign up inside popup with Stripe's
- * embedded onboarding and never get a Stripe login of their own (like Depop Payments):
- * popup pays the Stripe fees and carries loss liability, Stripe still collects and
- * verifies identity and bank details. Uses controller properties, not the legacy
- * `type: 'express'`, which Stripe refuses when the platform is the losses collector.
+ * embedded onboarding; popup pays the Stripe fees and carries loss liability, and
+ * Stripe collects and verifies identity and bank details. Uses controller properties,
+ * not the legacy `type: 'express'`, which Stripe refuses when the platform is the
+ * losses collector. Stripe requires a seller dashboard when it collects requirements
+ * and popup is liable, so sellers get the light Express one (`none` is rejected).
  */
 async function createSellerAccount({ email, firstName, lastName, userId }) {
   const individual = {};
@@ -107,7 +108,7 @@ async function createSellerAccount({ email, firstName, lastName, userId }) {
       fees: { payer: 'application' },
       losses: { payments: 'application' },
       requirement_collection: 'stripe',
-      stripe_dashboard: { type: 'none' },
+      stripe_dashboard: { type: 'express' },
     },
     country: 'US',
     email: email || undefined,
