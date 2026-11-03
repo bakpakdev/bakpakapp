@@ -93,6 +93,7 @@ final class StripeConnectService {
         guard let host = Self.topViewController() else {
             throw APIError.server("Couldn’t open payouts.")
         }
+        Self.matchAppChrome(nav)
         host.present(nav, animated: true)
     }
 
@@ -159,8 +160,13 @@ final class StripeConnectService {
             privacyPolicyUrl: LegalLinks.privacy
         )
         onboarding.title = "Set up payouts"
+        // Only auto-close for a seller who wasn't set up yet; someone reopening setup
+        // to update details closes it themselves.
+        let wasComplete = session.onboardingComplete == true
+        var watcher: Task<Void, Never>?
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             let handler = OnboardingExitHandler { [weak self] in
+                watcher?.cancel()
                 self?.onboardingDelegate = nil
                 self?.connectManager = nil
                 continuation.resume()
@@ -168,6 +174,49 @@ final class StripeConnectService {
             onboardingDelegate = handler
             onboarding.delegate = handler
             onboarding.present(from: host)
+            // Stripe builds its own navigation controller for the sheet.
+            let sheet = host.presentedViewController
+            if let sheet { Self.matchAppChrome(sheet) }
+            if !wasComplete, let sheet {
+                watcher = Task { [weak self] in
+                    await self?.closeWhenSetUp(sheet: sheet, handler: handler)
+                }
+            }
+        }
+    }
+
+    /// Stripe's sheet can sit on a spinner after the last step instead of closing, so
+    /// watch the account and close it as soon as Stripe says payouts are set up.
+    private func closeWhenSetUp(sheet: UIViewController, handler: OnboardingExitHandler) async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled, sheet.presentingViewController != nil else { return }
+            guard let status = try? await fetchStatus() else { continue }
+            let done = status.onboardingComplete == true
+                || (status.detailsSubmitted == true && (status.requirementsDue ?? []).isEmpty)
+            if done {
+                sheet.dismiss(animated: true) { handler.finish() }
+                return
+            }
+        }
+    }
+
+    /// Close / Done buttons in black (white in dark mode) instead of iOS's default blue.
+    private static func matchAppChrome(_ controller: UIViewController) {
+        controller.view.tintColor = .label
+        guard let nav = controller as? UINavigationController else { return }
+        nav.navigationBar.tintColor = .label
+        let bar = UINavigationBarAppearance()
+        bar.configureWithOpaqueBackground()
+        bar.backgroundColor = .systemBackground
+        bar.shadowColor = .clear
+        bar.titleTextAttributes = [.foregroundColor: UIColor.label]
+        nav.navigationBar.standardAppearance = bar
+        nav.navigationBar.scrollEdgeAppearance = bar
+        // iOS 26 draws `.done` items as a blue filled bubble that ignores the bar tint.
+        for item in nav.viewControllers.flatMap({ $0.navigationItem.rightBarButtonItems ?? [] }) {
+            item.style = .plain
+            item.tintColor = .label
         }
     }
 
@@ -230,7 +279,7 @@ private final class OnboardingExitHandler: AccountOnboardingControllerDelegate {
         print("Stripe onboarding failed to load:", error)
     }
 
-    private func finish() {
+    func finish() {
         onExit?()
         onExit = nil
     }
