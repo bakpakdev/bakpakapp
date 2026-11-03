@@ -93,6 +93,7 @@ final class StripeConnectService {
         guard let host = Self.topViewController() else {
             throw APIError.server("Couldn’t open payouts.")
         }
+        Self.matchAppChrome(nav)
         host.present(nav, animated: true)
     }
 
@@ -168,6 +169,27 @@ final class StripeConnectService {
             onboardingDelegate = handler
             onboarding.delegate = handler
             onboarding.present(from: host)
+            // Stripe builds its own navigation controller for the sheet.
+            if let sheet = host.presentedViewController { Self.matchAppChrome(sheet) }
+        }
+    }
+
+    /// Close / Done buttons in black (white in dark mode) instead of iOS's default blue.
+    private static func matchAppChrome(_ controller: UIViewController) {
+        controller.view.tintColor = .label
+        guard let nav = controller as? UINavigationController else { return }
+        nav.navigationBar.tintColor = .label
+        let bar = UINavigationBarAppearance()
+        bar.configureWithOpaqueBackground()
+        bar.backgroundColor = .systemBackground
+        bar.shadowColor = .clear
+        bar.titleTextAttributes = [.foregroundColor: UIColor.label]
+        nav.navigationBar.standardAppearance = bar
+        nav.navigationBar.scrollEdgeAppearance = bar
+        // iOS 26 draws `.done` items as a blue filled bubble that ignores the bar tint.
+        for item in nav.viewControllers.flatMap({ $0.navigationItem.rightBarButtonItems ?? [] }) {
+            item.style = .plain
+            item.tintColor = .label
         }
     }
 
