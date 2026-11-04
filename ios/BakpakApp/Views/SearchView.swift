@@ -749,6 +749,13 @@ struct SearchView: View {
 
     private var resultsContent: some View {
         VStack(alignment: .leading, spacing: 18) {
+            if let closestNote {
+                Text(closestNote)
+                    .font(Theme.syne(13, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, -8)
+            }
             HStack {
                 sectionTitle(resultsTitle)
                     .lineLimit(1)
@@ -783,6 +790,15 @@ struct SearchView: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    /// Nothing matched every word (e.g. no "vintage" shirts): say so instead of
+    /// implying these are exact matches.
+    private var closestNote: String? {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty, !filteredProducts.isEmpty,
+              !SearchEngine.rank(filteredProducts, query: q).exact else { return nil }
+        return "No exact matches for \u{201C}\(q)\u{201D}. Here’s the closest."
     }
 
     private var resultsTitle: String {
