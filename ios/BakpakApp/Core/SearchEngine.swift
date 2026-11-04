@@ -30,7 +30,15 @@ enum SearchEngine {
         ["shorts"],
         ["skirt", "mini", "midi"],
         ["dress", "gown"],
-        ["shoes", "shoe", "sneakers", "sneaker", "kicks", "trainers", "boots", "boot", "heels", "loafers", "sandals", "slides", "cleats"],
+        // Kinds of shoes are their own words ("boots" shouldn't bring up sneakers);
+        // they all share the shoes category, so "shoes" still finds every pair.
+        ["shoes", "shoe", "footwear"],
+        ["sneakers", "sneaker", "kicks", "trainers"],
+        ["boots", "boot"],
+        ["heels", "heel", "pumps"],
+        ["loafers", "loafer"],
+        ["sandals", "sandal", "slides"],
+        ["cleats", "cleat"],
         ["hat", "cap", "beanie", "snapback"],
         ["bag", "backpack", "purse", "tote", "handbag"],
         ["accessories", "accessory", "jewelry", "necklace", "ring", "belt", "sunglasses", "scarf", "watch"],
@@ -54,9 +62,15 @@ enum SearchEngine {
         // "jeans" has no hint: "denim" is also a material, so it shouldn't pull in every pair of pants.
         "pants": "bottoms", "shorts": "bottoms", "skirt": "bottoms",
         "dress": "dresses",
-        "shoes": "shoes",
+        "shoes": "shoes", "sneakers": "shoes", "boots": "shoes", "heels": "shoes",
+        "loafers": "shoes", "sandals": "shoes", "cleats": "shoes",
         "hat": "accessories", "bag": "accessories", "accessories": "accessories",
     ]
+
+    /// Words that mean the whole category ("shoes" = every pair, "jacket" = all outerwear).
+    /// Narrower words ("hoodie", "boots", "pants") only match listings that say so, so a
+    /// search for hoodies doesn't fill up with t-shirts from the same category.
+    private static let broadCategoryWords: Set<String> = ["shoes", "sneakers", "jacket", "dress"]
 
     private static let groupIndex: [String: Int] = {
         var map: [String: Int] = [:]
@@ -71,6 +85,9 @@ enum SearchEngine {
         let original: String
         let variants: Set<String>
         let category: String?
+        /// A specific kind ("boots") only matches listings that say so; a broad word
+        /// ("shoes", "shirt") also matches anything filed under its category.
+        var matchesWholeCategory: Bool = true
     }
 
     static func terms(for query: String) -> [Term] {
@@ -94,7 +111,9 @@ enum SearchEngine {
                 variants.formUnion(synonymGroups[g])
                 category = categoryHints[synonymGroups[g][0]]
             }
-            result.append(Term(original: word, variants: variants, category: category))
+            let canonical = (groupIndex[base] ?? groupIndex[aliased]).map { synonymGroups[$0][0] }
+            let broad = canonical.map { broadCategoryWords.contains($0) } ?? false
+            result.append(Term(original: word, variants: variants, category: category, matchesWholeCategory: broad))
         }
         return result
     }
@@ -121,26 +140,36 @@ enum SearchEngine {
         let terms = terms(for: query)
         guard !terms.isEmpty else { return Ranked(products: products, exact: true) }
 
-        let scored: [(Product, Double, Int)] = products.map { product in
+        // The word that says what the item is ("shirts", "boots"), as opposed to a
+        // describing word ("vintage", "black", a brand).
+        let typeTerms = Set(terms.indices.filter { terms[$0].category != nil })
+
+        let scored: [(Product, Double, Int, Bool)] = products.map { product in
             let fields = Fields(product)
             var score = 0.0
             var matched = 0
-            for term in terms {
+            var matchesType = typeTerms.isEmpty
+            for (i, term) in terms.enumerated() {
                 let s = fields.score(term)
-                if s > 0 { matched += 1 }
+                if s > 0 {
+                    matched += 1
+                    if typeTerms.contains(i) { matchesType = true }
+                }
                 score += s
             }
             // Listings that match every word win; newer listings break ties.
             if matched == terms.count { score += 10 }
-            return (product, score, matched)
+            return (product, score, matched, matchesType)
         }
 
         let full = scored.filter { $0.2 == terms.count }
-        // Nothing matches every word: show only the listings that match the most words, and
-        // only on a real match (not just a passing mention in the description).
-        let bestMatched = scored.map(\.2).max() ?? 0
+        // Nothing matches every word ("vintage boots" with no vintage boots): show the
+        // closest items of the kind they asked for (boots), not anything that happens to
+        // be vintage. Only real matches, not a passing mention in the description.
+        let candidates = scored.filter { $0.3 && $0.2 > 0 && $0.1 >= 3 }
+        let bestMatched = candidates.map(\.2).max() ?? 0
         let pool = full.isEmpty
-            ? scored.filter { $0.2 == bestMatched && $0.2 > 0 && $0.1 >= 3 }
+            ? candidates.filter { $0.2 == bestMatched }
             : full
         let sorted = pool.sorted {
             if $0.1 != $1.1 { return $0.1 > $1.1 }
@@ -192,7 +221,7 @@ enum SearchEngine {
                 if size == v { best = max(best, 3 * weight) }
                 if v.count >= 3, description.contains(v) { best = max(best, 2 * weight) }
             }
-            if let cat = term.category, category == cat { best = max(best, 3.5) }
+            if term.matchesWholeCategory, let cat = term.category, category == cat { best = max(best, 3.5) }
             if best == 0, term.original.count >= 4 {
                 // Typos: "nkie" → nike, "hoddie" → hoodie.
                 let limit = term.original.count >= 7 ? 2 : 1

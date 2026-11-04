@@ -57,12 +57,7 @@ final class MeetupStore: ObservableObject {
     var heroMeetup: Meetup? { heroMeetups.first }
 
     private func isPast(_ meetup: Meetup) -> Bool {
-        if meetup.status.isTerminal { return true }
-        // Unanswered requests vanish at the meetup time (not 30 min after).
-        if meetup.status == .proposed {
-            return meetup.isInviteExpired
-        }
-        return meetup.scheduledAt.addingTimeInterval(30 * 60) < Date()
+        meetup.hasEnded()
     }
 
     /// Inbox reminder strip: pending invites plus open meetups that aren’t in the past.
