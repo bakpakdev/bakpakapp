@@ -317,6 +317,8 @@ struct ProfileView: View {
                         .foregroundStyle(campusTheme.textPrimary)
                         .lineLimit(1)
 
+                    RatingBadge(reviews: reviews)
+
                     HStack(spacing: 8) {
                         HStack(spacing: 5) {
                             Circle()

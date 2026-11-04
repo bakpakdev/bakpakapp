@@ -249,6 +249,12 @@ enum FollowReviewService {
     }
 
     static func submitReview(sellerId: String, productId: String, rating: Int, comment: String) async throws {
+        try await submitReview(reviewedId: sellerId, productId: productId, rating: rating, comment: comment)
+    }
+
+    /// Review the other person from a sale: the buyer rates the seller, or the seller rates the buyer.
+    /// The database only allows it once the backend has recorded the order for this sold item.
+    static func submitReview(reviewedId: String, productId: String, rating: Int, comment: String) async throws {
         let c = try await client()
         let me = try await myId(c)
         struct Ins: Encodable {
@@ -264,7 +270,7 @@ enum FollowReviewService {
                 .upsert(
                     Ins(
                         reviewer_id: me,
-                        reviewed_id: sellerId.lowercased(),
+                        reviewed_id: reviewedId.lowercased(),
                         product_id: productId.lowercased(),
                         rating: min(max(rating, 1), 5),
                         comment: trimmed.isEmpty ? nil : String(trimmed.prefix(600))
