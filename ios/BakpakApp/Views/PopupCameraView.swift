@@ -56,22 +56,23 @@ struct PopupCameraView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            viewfinderBrackets
-                .padding(.horizontal, 36)
-                .padding(.vertical, 120)
-                .allowsHitTesting(false)
-
             GeometryReader { geo in
                 VStack(spacing: 0) {
                     topBar
-                        .padding(.horizontal, 18)
-                        .padding(.top, max(geo.safeAreaInsets.top, 12))
+                        .padding(.horizontal, 16)
+                        .padding(.top, topInset(geo))
 
-                    Spacer()
+                    // Framing guide fills the space between the controls, so its corners
+                    // never run into the buttons.
+                    viewfinderBrackets
+                        .padding(.horizontal, 36)
+                        .padding(.vertical, 28)
+                        .frame(maxHeight: .infinity)
+                        .allowsHitTesting(false)
 
                     bottomBar
                         .padding(.horizontal, 28)
-                        .padding(.bottom, max(geo.safeAreaInsets.bottom, 16) + 16)
+                        .padding(.bottom, bottomInset(geo))
                 }
             }
 
@@ -113,18 +114,41 @@ struct PopupCameraView: View {
 
     // MARK: - Chrome
 
-    /// Top stays clear apart from the wordmark; the controls sit down by the thumb.
+    /// The camera is presented with `.ignoresSafeArea()`, so SwiftUI reports zero
+    /// insets here. Read the window's real ones so nothing sits under the Dynamic
+    /// Island or the home indicator.
+    private var windowInsets: UIEdgeInsets {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .safeAreaInsets ?? .zero
+    }
+
+    private func topInset(_ geo: GeometryProxy) -> CGFloat {
+        max(geo.safeAreaInsets.top, windowInsets.top, 20) + 6
+    }
+
+    private func bottomInset(_ geo: GeometryProxy) -> CGFloat {
+        max(geo.safeAreaInsets.bottom, windowInsets.bottom, 16) + 16
+    }
+
+    /// Close top left, wordmark centered. Done lives next to the photos at the bottom.
     private var topBar: some View {
-        HStack {
-            Spacer()
+        ZStack {
             PopupWordmark(scale: .badge)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
                 .background(Color.white.opacity(0.12))
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
-            Spacer()
+
+            HStack {
+                closeButton
+                Spacer()
+            }
         }
+        .frame(minHeight: 48)
     }
 
     private var closeButton: some View {
@@ -133,9 +157,12 @@ struct PopupCameraView: View {
             dismiss()
         } label: {
             Image(systemName: "xmark")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(Color.black.opacity(0.35)))
+                .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 1))
+                .padding(4)
                 .contentShape(Rectangle())
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
@@ -148,39 +175,45 @@ struct PopupCameraView: View {
             dismiss()
         } label: {
             Text("Done")
-                .font(Theme.syne(14, weight: .bold))
+                .font(Theme.syne(15, weight: .bold))
                 .foregroundStyle(.black)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(Color.white)
-                .clipShape(Capsule())
+                .padding(.horizontal, 18)
+                .frame(minHeight: 44)
+                .background(Capsule().fill(Color.white))
+                .padding(4)
+                .contentShape(Rectangle())
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
         .accessibilityLabel("Done, \(capturedThumbs.count) photos")
+    }
+
+    /// Flash: round button in the bottom right, mirroring Library on the left.
+    private var flashButton: some View {
+        Button {
+            Motion.haptic(.light)
+            flashOn.toggle()
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: flashOn ? "bolt.fill" : "bolt.slash.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(flashOn ? accent : .white)
+                    .frame(width: 52, height: 52)
+                    .background(Circle().fill(Color.white.opacity(0.16)))
+                    .overlay(Circle().stroke(flashOn ? accent.opacity(0.85) : Color.clear, lineWidth: 1.5))
+                Text(flashOn ? "Flash on" : "Flash")
+                    .font(Theme.syne(11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+        .accessibilityLabel(flashOn ? "Flash on" : "Flash off")
     }
 
     private var bottomBar: some View {
         VStack(spacing: 16) {
             if !capturedThumbs.isEmpty {
                 capturedStrip
-            }
-
-            // Close and flash just above the shutter row, within thumb reach.
-            HStack {
-                closeButton
-                Spacer()
-                Button {
-                    Motion.haptic(.light)
-                    flashOn.toggle()
-                } label: {
-                    Image(systemName: flashOn ? "bolt.fill" : "bolt.slash.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(flashOn ? accent : .white)
-                        .frame(width: 40, height: 40)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
-                .accessibilityLabel(flashOn ? "Flash on" : "Flash off")
             }
 
             HStack(alignment: .center) {
@@ -195,14 +228,8 @@ struct PopupCameraView: View {
 
                 Spacer()
 
-                Group {
-                    if capturedThumbs.isEmpty {
-                        Color.clear.frame(width: 1, height: 1)
-                    } else {
-                        doneButton
-                    }
-                }
-                .frame(width: 80, alignment: .trailing)
+                flashButton
+                    .frame(width: 80, alignment: .trailing)
             }
         }
     }
@@ -232,13 +259,7 @@ struct PopupCameraView: View {
                 }
             }
 
-            Text("\(capturedThumbs.count)")
-                .font(Theme.syne(13, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.white.opacity(0.16))
-                .clipShape(Capsule())
+            doneButton
         }
         .padding(.horizontal, 4)
         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -315,44 +336,47 @@ struct PopupCameraView: View {
 
     /// Full-screen look at the photos taken so far; swipe between them.
     private func capturedPreview(startAt index: Int) -> some View {
-        ZStack(alignment: .top) {
-            Color.black.ignoresSafeArea()
-            TabView(selection: Binding(
-                get: { min(previewIndex ?? index, capturedThumbs.count - 1) },
-                set: { previewIndex = $0 }
-            )) {
-                ForEach(Array(capturedThumbs.enumerated()), id: \.offset) { idx, image in
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .tag(idx)
+        GeometryReader { geo in
+            ZStack(alignment: .top) {
+                Color.black.ignoresSafeArea()
+                TabView(selection: Binding(
+                    get: { min(previewIndex ?? index, capturedThumbs.count - 1) },
+                    set: { previewIndex = $0 }
+                )) {
+                    ForEach(Array(capturedThumbs.enumerated()), id: \.offset) { idx, image in
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .tag(idx)
+                    }
                 }
-            }
-            .tabViewStyle(.page(indexDisplayMode: capturedThumbs.count > 1 ? .always : .never))
-            .ignoresSafeArea()
+                .tabViewStyle(.page(indexDisplayMode: capturedThumbs.count > 1 ? .always : .never))
+                .ignoresSafeArea()
 
-            HStack {
-                Button {
-                    withAnimation(.easeOut(duration: 0.18)) { previewIndex = nil }
-                } label: {
-                    Label("Back to camera", systemImage: "chevron.left")
-                        .font(Theme.syne(15, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: 44)
-                        .background(Capsule().fill(Color.white.opacity(0.16)))
+                HStack {
+                    Button {
+                        withAnimation(.easeOut(duration: 0.18)) { previewIndex = nil }
+                    } label: {
+                        Label("Back to camera", systemImage: "chevron.left")
+                            .font(Theme.syne(15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 44)
+                            .background(Capsule().fill(Color.white.opacity(0.16)))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
+
+                    Spacer()
+
+                    Text("\((previewIndex ?? index) + 1) of \(capturedThumbs.count)")
+                        .font(Theme.syne(13, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.85))
                 }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
-
-                Spacer()
-
-                Text("\((previewIndex ?? index) + 1) of \(capturedThumbs.count)")
-                    .font(Theme.syne(13, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.85))
+                .padding(.horizontal, 16)
+                .padding(.top, topInset(geo))
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
         }
     }
 
