@@ -27,6 +27,38 @@ struct ReviewStars: View {
     }
 }
 
+// MARK: - Rating badge
+
+/// Profile badge with someone's average rating, e.g. "★ 4.8 · 12 reviews". Hidden until they have one.
+struct RatingBadge: View {
+    let reviews: [SellerReview]
+    @Environment(\.campusTheme) private var campusTheme
+
+    var body: some View {
+        let summary = ReviewSummary(reviews: reviews)
+        if summary.count > 0 {
+            HStack(spacing: 5) {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 11, weight: .bold))
+                Text(String(format: "%.1f", summary.average))
+                    .font(Theme.syne(12, weight: .bold))
+                Text("·")
+                    .font(Theme.syne(12, weight: .medium))
+                    .opacity(0.7)
+                Text(summary.count == 1 ? "1 review" : "\(summary.count) reviews")
+                    .font(Theme.syne(12, weight: .medium))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(campusTheme.primary)
+            .clipShape(Capsule())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(format: "Rated %.1f out of 5 from %d review%@", summary.average, summary.count, summary.count == 1 ? "" : "s"))
+        }
+    }
+}
+
 // MARK: - Review card
 
 struct SellerReviewCard: View {
@@ -214,8 +246,8 @@ struct SellerReviewsSection: View {
                 .font(Theme.syne(17, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text(isOwnProfile
-                 ? "Reviews from campus buyers will land here."
-                 : "Reviews from people who bought from this seller will show here.")
+                 ? "After a sale, the buyer or seller you met can review you here."
+                 : "Reviews from people they bought from or sold to will show here.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
                 .multilineTextAlignment(.center)

@@ -44,6 +44,8 @@ struct MeetupPayFlowView: View {
     @State private var showBuyerSentAnimation = false
     @State private var showSellerReceivedCard = false
     @State private var paymentConfirmed = false
+    /// When this phone learned the payment went through; shown on the receipt.
+    @State private var paidAt: Date?
     @State private var sessionChannel: RealtimeChannelV2?
     @State private var presenceChannel: RealtimeChannelV2?
     @State private var presentUserIds: Set<String> = []
@@ -155,7 +157,9 @@ struct MeetupPayFlowView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         CampusPageHeader(
                             title: isCollecting ? "receive" : "pay",
-                            subtitle: isCollecting ? "get paid at your meetup" : "pay at your meetup"
+                            subtitle: step == .done
+                                ? "your receipt"
+                                : (isCollecting ? "get paid at your meetup" : "pay at your meetup")
                         )
 
                         stepIndicator
@@ -249,6 +253,7 @@ struct MeetupPayFlowView: View {
             guard completed else { return }
             paymentPresenter.didComplete = false
             paymentConfirmed = true
+            if paidAt == nil { paidAt = Date() }
             Motion.haptic(.medium)
             withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
                 showBuyerSentAnimation = true
@@ -526,38 +531,45 @@ struct MeetupPayFlowView: View {
 
     private var doneStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(isCollecting ? "payment received" : "payment complete")
-                .font(Theme.syne(18, weight: .semibold))
-                .foregroundStyle(campusTheme.textPrimary)
-
-            Text(isCollecting
-                 ? "Payment received. Finish to close out this meetup."
-                 : "Your payment went through. Finish to close out this meetup.")
-                .font(Theme.syne(14))
-                .foregroundStyle(campusTheme.textMuted)
-                .padding(.top, -8)
-
-            VStack(alignment: .leading, spacing: 14) {
-                summaryRow(label: "Meetup", value: item.spotName)
-                summaryRow(label: isCollecting ? "Buyer" : "Seller", value: item.otherPersonName)
-                if let title = item.productTitle, !title.isEmpty {
-                    summaryRow(label: "Item", value: title)
-                }
-                if let method = selectedMethod {
-                    summaryRow(label: isCollecting ? "Received with" : "Paid with", value: method)
-                }
-                if activeSession != nil || priceLabel != nil {
-                    // The buyer was charged the price plus the service fee; the seller keeps the price.
-                    summaryRow(label: "Amount", value: isCollecting ? sessionAmountLabel : buyerTotalLabel)
-                }
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(CampusCardBackground())
+            SaleReceiptView(
+                isSeller: isCollecting,
+                otherName: item.otherPersonName,
+                itemTitle: activeSession?.productTitle ?? item.productTitle,
+                spotName: item.spotName,
+                priceCents: activeSession?.amountCents ?? productPrice.map { Int(($0 * 100).rounded()) },
+                serviceFeeCents: activeSession?.serviceFeeCents,
+                totalCents: activeSession?.totalCents,
+                receiptNumber: activeSession?.id,
+                paidAt: paidAt ?? Date(),
+                submitReview: reviewSubmitter
+            )
 
             safetyNote
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var reviewSubmitter: ((Int, String) async throws -> Void)? {
+        guard let target = reviewTarget else { return nil }
+        return { rating, comment in
+            try await FollowReviewService.submitReview(
+                reviewedId: target.userId,
+                productId: target.productId,
+                rating: rating,
+                comment: comment
+            )
+        }
+    }
+
+    /// Who this person reviews after the sale (the other side of the meetup) and for which item.
+    private var reviewTarget: (userId: String, productId: String)? {
+        let other = item.otherUserId
+            ?? (isCollecting ? activeSession?.buyerId : activeSession?.sellerId)
+        guard let other = other?.trimmingCharacters(in: .whitespacesAndNewlines), !other.isEmpty,
+              let productId = (activeSession?.productId ?? item.productId)?
+                .trimmingCharacters(in: .whitespacesAndNewlines), !productId.isEmpty,
+              other.lowercased() != meetupStore.meId.lowercased() else { return nil }
+        return (other, productId)
     }
 
     private var detailCard: some View {
@@ -855,6 +867,7 @@ struct MeetupPayFlowView: View {
     private func handleSessionPaid(_ session: PaymentSessionDTO?) {
         guard !paymentConfirmed else { return }
         paymentConfirmed = true
+        if paidAt == nil { paidAt = Date() }
         activeSession = session
         // Stripe's sheet also offers card, Link, and bank; we don't know which was used, so hide the row.
         selectedMethod = nil
@@ -1110,3 +1123,384 @@ private struct SellerReceivedOverlay: View {
         }
     }
 }
+
+// MARK: - Receipt + review
+
+/// The end of a meetup sale: a receipt for the buyer or seller, then stars and an optional
+/// note to review the other person. Kept free of payment state so it can be previewed.
+struct SaleReceiptView: View {
+    let isSeller: Bool
+    let otherName: String
+    let itemTitle: String?
+    let spotName: String
+    /// What the seller gets: the listing price or the accepted offer.
+    let priceCents: Int?
+    /// popup's fee, paid by the buyer on top of the price.
+    let serviceFeeCents: Int?
+    let totalCents: Int?
+    let receiptNumber: String?
+    let paidAt: Date
+    /// nil hides the review card (for example when the other person is unknown).
+    let submitReview: ((Int, String) async throws -> Void)?
+
+    @Environment(\.campusTheme) private var campusTheme
+    @State private var rating = 0
+    @State private var comment = ""
+    @State private var isSending = false
+    @State private var posted = false
+    @State private var reviewError: String?
+    @FocusState private var commentFocused: Bool
+
+    private var fee: Int { max(0, serviceFeeCents ?? 0) }
+    private var total: Int? {
+        if let totalCents { return totalCents }
+        return priceCents.map { $0 + fee }
+    }
+
+    private var headlineAmount: String {
+        let cents = isSeller ? priceCents : total
+        return cents.map(Self.money) ?? "—"
+    }
+
+    private static func money(_ cents: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "USD"
+        formatter.locale = Locale(identifier: "en_US")
+        return formatter.string(from: NSNumber(value: Double(cents) / 100)) ?? "$\(cents / 100)"
+    }
+
+    private var dateLine: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.dateFormat = "MMM d, yyyy · h:mm a"
+        return formatter.string(from: paidAt)
+    }
+
+    private var shortReceiptNumber: String? {
+        guard let raw = receiptNumber?.replacingOccurrences(of: "-", with: ""), raw.count >= 8 else { return nil }
+        return String(raw.prefix(8)).uppercased()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            receipt
+            if submitReview != nil {
+                reviewCard
+            }
+        }
+    }
+
+    // MARK: Receipt
+
+    private var receipt: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center) {
+                Text("popup")
+                    .font(Theme.syne(20, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                Spacer()
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                    Text(isSeller ? "Received" : "Paid")
+                        .font(Theme.syne(12, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .frame(height: 28)
+                .background(campusTheme.primary)
+                .clipShape(Capsule())
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(isSeller ? "you earned" : "total paid")
+                    .font(Theme.syne(13, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+                Text(headlineAmount)
+                    .font(Theme.syne(44, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                Text(dateLine)
+                    .font(Theme.syne(13, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+            }
+            .padding(.top, 18)
+
+            ReceiptDashedDivider()
+                .padding(.vertical, 18)
+
+            VStack(alignment: .leading, spacing: 12) {
+                if let title = itemTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+                    row("Item", title)
+                }
+                row(isSeller ? "Buyer" : "Seller", otherName)
+                row("Meetup spot", spotName)
+            }
+
+            ReceiptDashedDivider()
+                .padding(.vertical, 18)
+
+            VStack(alignment: .leading, spacing: 12) {
+                if isSeller {
+                    row("Sale price", priceCents.map(Self.money) ?? "—")
+                    row("Service fee", "Paid by buyer")
+                    row("You earn", priceCents.map(Self.money) ?? "—", emphasized: true)
+                } else {
+                    row("Item price", priceCents.map(Self.money) ?? "—")
+                    row("Service fee", Self.money(fee))
+                    row("Total", total.map(Self.money) ?? "—", emphasized: true)
+                }
+            }
+
+            ReceiptDashedDivider()
+                .padding(.vertical, 18)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(isSeller
+                     ? "Added to your earnings. Cash out from Settings → Getting paid."
+                     : "Paid securely through Stripe.")
+                    .font(Theme.syne(12, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+                if let shortReceiptNumber {
+                    Text("Receipt #\(shortReceiptNumber)")
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
+            }
+        }
+        .padding(22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(CampusCardBackground())
+        .accessibilityElement(children: .combine)
+    }
+
+    private func row(_ label: String, _ value: String, emphasized: Bool = false) -> some View {
+        HStack(alignment: .top) {
+            Text(label)
+                .font(Theme.syne(emphasized ? 15 : 14, weight: emphasized ? .semibold : .medium))
+                .foregroundStyle(emphasized ? campusTheme.textPrimary : campusTheme.textMuted)
+            Spacer(minLength: 12)
+            Text(value)
+                .font(Theme.syne(emphasized ? 17 : 15, weight: emphasized ? .bold : .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
+    // MARK: Review
+
+    private var reviewCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(posted ? "thanks for your review" : "rate \(otherName)")
+                    .font(Theme.syne(18, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(posted
+                     ? "It’s on their profile now."
+                     : (isSeller ? "How was the buyer and the meetup?" : "How was the item and the meetup?"))
+                    .font(Theme.syne(13))
+                    .foregroundStyle(campusTheme.textMuted)
+            }
+
+            HStack(spacing: 10) {
+                ForEach(1...5, id: \.self) { star in
+                    Button {
+                        Motion.haptic(.light)
+                        withAnimation(Motion.snappy) { rating = star }
+                    } label: {
+                        Image(systemName: star <= rating ? "star.fill" : "star")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(star <= rating ? .white : campusTheme.textPrimary)
+                            .frame(width: 46, height: 46)
+                            .background(
+                                Circle().fill(star <= rating ? campusTheme.primary : campusTheme.elevatedSurface)
+                            )
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
+                    .disabled(posted || isSending)
+                    .accessibilityLabel("\(star) star\(star == 1 ? "" : "s")")
+                }
+            }
+
+            if rating > 0 && !posted {
+                TextField("Add a message (optional)", text: $comment, axis: .vertical)
+                    .font(Theme.syne(15))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .lineLimit(2...5)
+                    .focused($commentFocused)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(campusTheme.elevatedSurface)
+                    )
+                    .onChange(of: comment) { value in
+                        if value.count > 600 { comment = String(value.prefix(600)) }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+
+                if let reviewError {
+                    Text(reviewError)
+                        .font(Theme.syne(13, weight: .medium))
+                        .foregroundStyle(.red)
+                }
+
+                Button {
+                    Task { await send() }
+                } label: {
+                    HStack(spacing: 8) {
+                        if isSending { ProgressView().tint(.white) }
+                        Text(isSending ? "Posting…" : "Post review")
+                            .font(Theme.syne(15, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(campusTheme.primary)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                .disabled(isSending)
+            }
+
+            if posted, !comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("“\(comment.trimmingCharacters(in: .whitespacesAndNewlines))”")
+                    .font(Theme.syne(14))
+                    .foregroundStyle(campusTheme.textPrimary)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(CampusCardBackground())
+    }
+
+    private func send() async {
+        guard let submitReview, rating > 0, !isSending, !posted else { return }
+        commentFocused = false
+        isSending = true
+        reviewError = nil
+        // The sale is recorded on the server a moment after payment, so retry briefly.
+        var lastError: Error?
+        for attempt in 0..<3 {
+            do {
+                try await submitReview(rating, comment)
+                lastError = nil
+                break
+            } catch {
+                lastError = error
+                if attempt < 2 { try? await Task.sleep(nanoseconds: 1_500_000_000) }
+            }
+        }
+        isSending = false
+        if lastError == nil {
+            Motion.haptic(.medium)
+            withAnimation(Motion.snappy) { posted = true }
+        } else {
+            reviewError = "Couldn’t post your review. Check your connection and try again."
+        }
+    }
+}
+
+private struct ReceiptDashedDivider: View {
+    @Environment(\.campusTheme) private var campusTheme
+
+    var body: some View {
+        GeometryReader { geo in
+            Path { path in
+                path.move(to: CGPoint(x: 0, y: 0.5))
+                path.addLine(to: CGPoint(x: geo.size.width, y: 0.5))
+            }
+            .stroke(campusTheme.border, style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
+        }
+        .frame(height: 1)
+    }
+}
+
+#if DEBUG
+/// Launch with `-popupReceiptPreview buyer` or `-popupReceiptPreview seller` to see the end-of-sale
+/// receipt with sample data (for screenshots). Debug builds only; reviews aren't sent.
+/// `-popupReceiptPreview profile` shows the rating badge and Reviews list with sample reviews.
+struct SaleReceiptDebugPreview: View {
+    let mode: String
+    private var isSeller: Bool { mode == "seller" }
+
+    static var requested: SaleReceiptDebugPreview? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-popupReceiptPreview"), i + 1 < args.count else { return nil }
+        return SaleReceiptDebugPreview(mode: args[i + 1].lowercased())
+    }
+
+    private static let sampleReviews: [SellerReview] = [
+        SellerReview(id: "r1", rating: 5, comment: "Super easy meetup, hoodie was exactly like the photos.",
+                     createdAt: Date(), reviewerId: "u1", reviewerName: "e2e_buyer", reviewerAvatar: nil,
+                     productId: "p1", productTitle: "Vintage Oregon Hoodie", productImage: nil),
+        SellerReview(id: "r2", rating: 5, comment: "On time and friendly.",
+                     createdAt: Date().addingTimeInterval(-86_400 * 3), reviewerId: "u2", reviewerName: "jules.thrifts",
+                     reviewerAvatar: nil, productId: "p2", productTitle: "Levi's 501 Jeans", productImage: nil),
+        SellerReview(id: "r3", rating: 4, comment: nil,
+                     createdAt: Date().addingTimeInterval(-86_400 * 9), reviewerId: "u3", reviewerName: "sam.k",
+                     reviewerAvatar: nil, productId: "p3", productTitle: "Nike Windbreaker", productImage: nil),
+    ]
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            CampusPageBackground()
+            ScrollView(showsIndicators: false) {
+                if mode == "profile" {
+                    profileSample
+                } else {
+                    receiptSample
+                }
+            }
+        }
+        .campusPageStyle()
+    }
+
+    private var profileSample: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            CampusPageHeader(title: "maya.closet", subtitle: "profile preview")
+            HStack(spacing: 14) {
+                AvatarView(urlString: nil, size: 76, cornerRadius: 22, initials: "maya.closet")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("maya.closet")
+                        .font(Theme.syne(20, weight: .bold))
+                    RatingBadge(reviews: Self.sampleReviews)
+                }
+            }
+            SellerReviewsSection(
+                reviews: Self.sampleReviews,
+                isLoading: false,
+                isOwnProfile: false,
+                purchases: [],
+                onLeaveReview: {}
+            )
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 24)
+    }
+
+    private var receiptSample: some View {
+                VStack(alignment: .leading, spacing: 0) {
+                    CampusPageHeader(title: isSeller ? "receive" : "pay", subtitle: "your receipt")
+                    SaleReceiptView(
+                        isSeller: isSeller,
+                        otherName: isSeller ? "e2e_buyer" : "maya.closet",
+                        itemTitle: "Vintage Oregon Hoodie",
+                        spotName: "EMU Amphitheater",
+                        priceCents: 1800,
+                        serviceFeeCents: 123,
+                        totalCents: 1923,
+                        receiptNumber: "8f3a2c91-4b7e-4d2a-9c1f-2e6b5a7d9e10",
+                        paidAt: Date(),
+                        submitReview: { _, _ in try await Task.sleep(nanoseconds: 600_000_000) }
+                    )
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
+    }
+}
+#endif

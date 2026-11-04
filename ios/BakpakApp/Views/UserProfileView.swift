@@ -312,6 +312,8 @@ struct UserProfileView: View {
                         .foregroundStyle(campusTheme.textPrimary)
                         .lineLimit(1)
 
+                    RatingBadge(reviews: reviews)
+
                     if let username = user?.username, !username.isEmpty,
                        displayName.caseInsensitiveCompare(username) != .orderedSame {
                         Text("@\(username)")

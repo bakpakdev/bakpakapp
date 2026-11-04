@@ -22,6 +22,19 @@ struct PopupApp: App {
 
     var body: some Scene {
         WindowGroup {
+            #if DEBUG
+            if let receiptPreview = SaleReceiptDebugPreview.requested {
+                receiptPreview
+            } else {
+                appRoot
+            }
+            #else
+            appRoot
+            #endif
+        }
+    }
+
+    private var appRoot: some View {
             ContentView()
                 .environmentObject(appState)
                 .environmentObject(appState.authVM)
@@ -46,7 +59,6 @@ struct PopupApp: App {
                         await appState.authVM.handleAuthRedirect(url)
                     }
                 }
-        }
     }
 }
 
