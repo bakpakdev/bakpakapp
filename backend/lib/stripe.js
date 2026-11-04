@@ -114,9 +114,10 @@ async function createSellerAccount({ email, firstName, lastName, userId }) {
     email: email || undefined,
     business_type: 'individual',
     individual: Object.keys(individual).length ? individual : undefined,
-    // Destination charges and transfers only: the charge is on popup's account, so
-    // sellers never need the card_payments capability.
-    capabilities: { transfers: { requested: true } },
+    // The charge is on popup's account (destination charges), but Stripe only lets a
+    // US account request transfers on its own with special approval, so request
+    // card_payments alongside it. Sellers still never take card payments themselves.
+    capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
     // Sales collect in the seller's balance (shown as their popup balance) until they
     // tap Cash out, instead of Stripe sweeping them to the bank on its own schedule.
     settings: { payouts: { schedule: { interval: 'manual' } } },
