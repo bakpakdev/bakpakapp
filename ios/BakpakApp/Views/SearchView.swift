@@ -51,6 +51,8 @@ struct SearchView: View {
     @State private var query = ""
     @State private var category = "all"
     @State private var products: [Product] = []
+    /// True when no listing matched every word, so the results are only the closest matches.
+    @State private var closestOnly = false
     @State private var likedProductIDs: Set<String> = []
     @State private var savedProductIDs: Set<String> = []
     @State private var recentSearches: [String] = []
@@ -763,6 +765,15 @@ struct SearchView: View {
             }
             .padding(.horizontal, 20)
 
+            if !loading, closestOnly, !filteredProducts.isEmpty {
+                Text("Nothing matches every word, so these are the closest listings. Try fewer words or a different one.")
+                    .font(Theme.syne(13, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 20)
+                    .padding(.top, -8)
+            }
+
             if loading {
                 ProgressView()
                     .tint(campusTheme.primary)
@@ -787,7 +798,9 @@ struct SearchView: View {
 
     private var resultsTitle: String {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !q.isEmpty { return "results for \"\(q)\"" }
+        if !q.isEmpty {
+            return closestOnly ? "closest to \"\(q)\"" : "results for \"\(q)\""
+        }
         if category != "all" { return categoryLabel(for: category).lowercased() }
         return "thrift finds"
     }
@@ -926,6 +939,7 @@ struct SearchView: View {
             let fetched = try await ProductService().search(query: q, category: cat, school: campusTheme.schoolID)
             await MainActor.run {
                 products = BlockStore.shared.filterProducts(fetched)
+                closestOnly = !q.isEmpty && !SearchEngine.rank(fetched, query: q).exact
                 loading = false
             }
             await SearchSuggestService().logEvent(

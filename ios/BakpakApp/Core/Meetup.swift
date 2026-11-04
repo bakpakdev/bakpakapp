@@ -217,12 +217,20 @@ struct Meetup: Codable, Identifiable, Hashable {
     /// Pay / Receive only after the meetup is accepted (confirmed), any time of day.
     /// Actual charge still requires seller on Receive + buyer on Pay (server session).
     func canShowPayment(now: Date = Date()) -> Bool {
-        _ = now
-        guard status == .confirmed else { return false }
+        guard status == .confirmed, !isOver(now: now) else { return false }
         guard let productId, !productId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return false
         }
         return true
+    }
+
+    /// Finished, cancelled, declined, an invite nobody answered in time, or a confirmed
+    /// meetup more than 30 minutes past its time (same cutoff as the Past list). Only
+    /// "Open chat" is offered for these.
+    func isOver(now: Date = Date()) -> Bool {
+        if status.isTerminal { return true }
+        if status == .proposed { return (expiresAt ?? scheduledAt) <= now }
+        return scheduledAt.addingTimeInterval(30 * 60) < now
     }
 
     /// Unanswered invites disappear at the scheduled meetup time.

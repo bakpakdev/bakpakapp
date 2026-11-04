@@ -14,7 +14,7 @@ struct MeetupCard: View {
     private var meId: String { meetupStore.meId }
     private var peer: MeetupPeer { meetupStore.peer(for: meetup) }
     private var listing: MeetupListingPreview? { meetupStore.listing(for: meetup) }
-    private var needsAnswer: Bool { meetup.needsMyResponse(meId: meId) }
+    private var needsAnswer: Bool { meetup.needsMyResponse(meId: meId) && !meetup.isOver() }
     private var showPaymentAction: Bool {
         showsActions && meetup.canShowPayment() && onPayOrReceive != nil
     }

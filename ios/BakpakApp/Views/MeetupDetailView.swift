@@ -361,7 +361,10 @@ struct MeetupDetailView: View {
     @ViewBuilder
     private func actionBar(_ meetup: Meetup) -> some View {
         VStack(spacing: 10) {
-            if meetup.needsMyResponse(meId: meId) {
+            if meetup.isOver() {
+                // Past or cancelled: nothing to answer, pay or reschedule; just the chat.
+                EmptyView()
+            } else if meetup.needsMyResponse(meId: meId) {
                 HStack(spacing: 10) {
                     primaryButton("Accept") { Task { await respond(accepted: true) } }
                     secondaryButton("Deny") { Task { await respond(accepted: false) } }
