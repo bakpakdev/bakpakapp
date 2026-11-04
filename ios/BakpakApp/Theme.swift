@@ -294,6 +294,17 @@ extension View {
         modifier(CampusScreenStyle())
     }
 
+    /// Pushed screens: on iOS 26 the floating back button sits over scrolled content;
+    /// a hard top edge fades the content out beneath it instead of showing through.
+    @ViewBuilder
+    func hardTopScrollEdge() -> some View {
+        if #available(iOS 26.0, *) {
+            scrollEdgeEffectStyle(.hard, for: .top)
+        } else {
+            self
+        }
+    }
+
     /// Hide or restore the UIKit navigation bar under a SwiftUI `NavigationStack`.
     func hidesSystemNavigationBar(_ hidden: Bool) -> some View {
         background(NavigationBarVisibilityBridge(hidden: hidden))

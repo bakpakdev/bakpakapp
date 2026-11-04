@@ -26,6 +26,7 @@ struct RootView: View {
                         .animation(.easeInOut(duration: 0.55), value: authVM.needsOnboarding)
                         .navigationDestination(for: Route.self) { route in
                             destination(for: route)
+                                .hardTopScrollEdge()
                         }
                     }
                     .sheet(isPresented: $payoutMFAGate.isPrompting, onDismiss: { payoutMFAGate.cancelIfPending() }) {
