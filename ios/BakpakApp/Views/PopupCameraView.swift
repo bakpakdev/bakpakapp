@@ -56,18 +56,19 @@ struct PopupCameraView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            viewfinderBrackets
-                .padding(.horizontal, 36)
-                .padding(.vertical, 120)
-                .allowsHitTesting(false)
-
             GeometryReader { geo in
                 VStack(spacing: 0) {
                     topBar
                         .padding(.horizontal, 16)
                         .padding(.top, topInset(geo))
 
-                    Spacer()
+                    // Framing guide fills the space between the controls, so its corners
+                    // never run into the buttons.
+                    viewfinderBrackets
+                        .padding(.horizontal, 36)
+                        .padding(.vertical, 28)
+                        .frame(maxHeight: .infinity)
+                        .allowsHitTesting(false)
 
                     bottomBar
                         .padding(.horizontal, 28)
@@ -132,7 +133,7 @@ struct PopupCameraView: View {
         max(geo.safeAreaInsets.bottom, windowInsets.bottom, 16) + 16
     }
 
-    /// Close top left, wordmark centered, Done top right once there's a photo.
+    /// Close top left, wordmark centered. Done lives next to the photos at the bottom.
     private var topBar: some View {
         ZStack {
             PopupWordmark(scale: .badge)
@@ -145,9 +146,6 @@ struct PopupCameraView: View {
             HStack {
                 closeButton
                 Spacer()
-                if !capturedThumbs.isEmpty {
-                    doneButton
-                }
             }
         }
         .frame(minHeight: 48)
@@ -261,13 +259,7 @@ struct PopupCameraView: View {
                 }
             }
 
-            Text("\(capturedThumbs.count)")
-                .font(Theme.syne(13, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.white.opacity(0.16))
-                .clipShape(Capsule())
+            doneButton
         }
         .padding(.horizontal, 4)
         .transition(.move(edge: .bottom).combined(with: .opacity))
