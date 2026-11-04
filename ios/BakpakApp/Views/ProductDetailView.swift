@@ -124,7 +124,7 @@ struct ProductDetailView: View {
                 MeetupComposeView(
                     spots: campusTheme.meetupLocations,
                     screenTitle: "Meetup request",
-                    confirmTitle: isSendingMeetupRequest ? "Sending…" : "Request meetup",
+                    confirmTitle: isSendingMeetupRequest ? "Sending…" : "Request",
                     onSend: { spot, time in
                         guard let product, let sellerId = product.user?.id else { return }
                         Task {
