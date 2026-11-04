@@ -1458,6 +1458,14 @@ struct SaleReceiptDebugPreview: View {
             }
         }
         .campusPageStyle()
+        .environment(\.campusTheme, Self.previewTheme)
+        .preferredColorScheme(Self.previewTheme.isDark ? .dark : .light)
+    }
+
+    /// Add `-popupPreviewDark` to the launch arguments to check the dark appearance.
+    private static var previewTheme: CampusTheme {
+        let dark = ProcessInfo.processInfo.arguments.contains("-popupPreviewDark")
+        return CampusTheme.from(schoolName: nil, appearance: dark ? .dark : .light)
     }
 
     private var profileSample: some View {
