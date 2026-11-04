@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 @MainActor
 final class AppState: ObservableObject {
@@ -43,8 +44,14 @@ final class AppState: ObservableObject {
     let authVM = AuthViewModel()
 
     init() {
-        let raw = UserDefaults.standard.string(forKey: Self.appearanceKey) ?? PopupAppearance.light.rawValue
-        appearance = PopupAppearance(rawValue: raw) ?? .light
+        // Never picked one: match the phone's light/dark setting each launch (nothing is
+        // saved until they choose in Preferences).
+        if let raw = UserDefaults.standard.string(forKey: Self.appearanceKey),
+           let saved = PopupAppearance(rawValue: raw) {
+            appearance = saved
+        } else {
+            appearance = UITraitCollection.current.userInterfaceStyle == .dark ? .dark : .light
+        }
     }
 
     func openSellCamera() {

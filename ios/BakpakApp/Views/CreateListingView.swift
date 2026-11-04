@@ -460,6 +460,24 @@ struct CreateListingView: View {
 
     private var canPost: Bool { isFormValid && !isPosting }
 
+    /// What's still missing before Post works, e.g. "Add a photo, title and price to post".
+    private var missingForPost: String? {
+        var missing: [String] = []
+        if photos.isEmpty { missing.append("a photo") }
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing.append("title") }
+        if selectedCategoryID.isEmpty || selectedGroupID.isEmpty || selectedGenderID.isEmpty {
+            missing.append("category")
+        }
+        if selectedConditionID.isEmpty { missing.append("condition") }
+        if selectedSizeID.isEmpty { missing.append("size") }
+        if price.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing.append("price") }
+        guard !missing.isEmpty else { return nil }
+        let list = missing.count == 1
+            ? missing[0]
+            : missing.dropLast().joined(separator: ", ") + " and " + missing.last!
+        return "Add \(list) to post"
+    }
+
     private var postListingBar: some View {
         VStack(spacing: 10) {
             if let postError {
@@ -492,6 +510,14 @@ struct CreateListingView: View {
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
             .disabled(!canPost)
+
+            if !isPosting, let missingForPost {
+                Text(missingForPost)
+                    .font(Theme.syne(12, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+            }
         }
     }
 
@@ -984,7 +1010,8 @@ struct CreateListingView: View {
                         .padding(.bottom, 20)
 
                     tipsBox
-                        .padding(.bottom, 28)
+                        // Clear the floating tab bar so the card isn't hidden behind it.
+                        .padding(.bottom, 120)
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 24)

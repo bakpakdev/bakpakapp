@@ -541,7 +541,7 @@ struct ProfileView: View {
                 .frame(width: 1, height: 48)
             balanceStat(
                 value: "$\(formattedMoney(potentialProfit))",
-                label: "potential profit",
+                label: "listed value",
                 caption: activeShopItems.isEmpty
                     ? (soldCount > 0 ? "no active listings" : "no listings yet")
                     : (activeShopItems.count == 1 ? "1 listing" : "\(activeShopItems.count) listings")

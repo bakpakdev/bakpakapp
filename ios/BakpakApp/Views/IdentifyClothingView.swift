@@ -146,10 +146,15 @@ struct IdentifyClothingView: View {
             Task { await loadLibraryImages(items) }
         }
         .alert("Camera unavailable", isPresented: $cameraUnavailable) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
             Button("Choose from library") { showLibrary = true }
-            Button("OK", role: .cancel) {}
+            Button("Not now", role: .cancel) {}
         } message: {
-            Text("Use the photo library on Simulator, or allow camera access in Settings.")
+            Text("Camera access is off. Turn it on in Settings, or choose photos from your library.")
         }
         .sheet(item: $editingField) { field in
             summaryEditSheet(field)

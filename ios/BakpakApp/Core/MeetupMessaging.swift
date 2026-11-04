@@ -640,9 +640,7 @@ struct MeetupComposeView: View {
 
     @Environment(\.campusTheme) private var campusTheme
     @State private var selectedSpotId: String = ""
-    @State private var proposedAt: Date = MeetupComposeView.roundedToHalfHour(
-        Calendar.current.date(byAdding: .hour, value: 1, to: Date()) ?? Date()
-    )
+    @State private var proposedAt: Date = MeetupComposeView.nextDaytimeSlot()
     @State private var searchText = ""
     @State private var showSpotPicker = false
     @State private var region = MKCoordinateRegion(
@@ -744,6 +742,8 @@ struct MeetupComposeView: View {
             } label: {
                 Text(confirmTitle)
                     .font(Theme.syne(14, weight: .bold))
+                    .lineLimit(1)
+                    .fixedSize()
                     .foregroundStyle(selectedSpot == nil ? campusTheme.textMuted : Color.white)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
@@ -1038,6 +1038,25 @@ struct MeetupComposeView: View {
         } else {
             region = next
         }
+    }
+
+    /// Default meetup time: the next full hour between 10 AM and 8 PM; after 7 PM
+    /// (or before 10 AM) it's 12 PM the next sensible day.
+    static func nextDaytimeSlot(from now: Date = Date()) -> Date {
+        let cal = Calendar.current
+        var comps = cal.dateComponents([.year, .month, .day, .hour], from: now)
+        comps.minute = 0
+        comps.second = 0
+        let thisHour = cal.date(from: comps) ?? now
+        let nextHour = cal.date(byAdding: .hour, value: 1, to: thisHour) ?? now
+        let hour = cal.component(.hour, from: nextHour)
+        if (10...20).contains(hour), cal.isDate(nextHour, inSameDayAs: now) {
+            return nextHour
+        }
+        let day = hour < 10 && cal.isDate(nextHour, inSameDayAs: now)
+            ? now
+            : (cal.date(byAdding: .day, value: 1, to: now) ?? now)
+        return cal.date(bySettingHour: 12, minute: 0, second: 0, of: day) ?? nextHour
     }
 
     static func roundedToHalfHour(_ date: Date) -> Date {

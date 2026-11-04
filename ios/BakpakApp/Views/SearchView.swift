@@ -281,14 +281,7 @@ struct SearchView: View {
             .foregroundStyle(campusTheme.textPrimary)
             .tint(campusTheme.primary)
             .submitLabel(.search)
-            .onSubmit {
-                let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    saveRecentSearch(trimmed)
-                    searchFieldFocused = false
-                    Task { await performSearch() }
-                }
-            }
+            .onSubmit { submitTypedQuery() }
 
             if !query.isEmpty {
                 Button {
@@ -463,34 +456,58 @@ struct SearchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    private var predictionContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                sectionTitle("search suggestions")
+    private func submitTypedQuery() {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        saveRecentSearch(trimmed)
+        searchFieldFocused = false
+        Task { await performSearch() }
+    }
+
+    /// Always-there first row: run the search for exactly what they typed.
+    private var searchTypedRow: some View {
+        Button {
+            submitTypedQuery()
+        } label: {
+            HStack(spacing: 12) {
+                rowIcon("magnifyingglass")
+                Text("Search for \u{201C}\(query.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}")
+                    .font(Theme.syne(15, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .lineLimit(1)
                 Spacer()
-                Text("\(liveSuggestions.count) suggestions")
-                    .font(Theme.syne(11, weight: .medium))
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(campusTheme.textMuted)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 12)
+            .frame(height: 56)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+    }
 
-            if suggestionsLoading && liveSuggestions.isEmpty {
-                ProgressView()
-                    .tint(campusTheme.primary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if liveSuggestions.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                    Text("Keep typing to search listings")
-                        .font(Theme.syne(14, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView(showsIndicators: false) {
+    private var predictionContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionTitle("search suggestions")
+                .padding(.horizontal, 20)
+
+            ScrollView(showsIndicators: false) {
                     listCard {
+                        searchTypedRow
+                        if suggestionsLoading && liveSuggestions.isEmpty {
+                            Divider()
+                                .overlay(campusTheme.border)
+                                .padding(.leading, 60)
+                            ProgressView()
+                                .tint(campusTheme.primary)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                        } else if !liveSuggestions.isEmpty {
+                            Divider()
+                                .overlay(campusTheme.border)
+                                .padding(.leading, 60)
+                        }
                         ForEach(liveSuggestions) { suggestion in
                             Button {
                                 selectPrediction(suggestion)
@@ -520,9 +537,8 @@ struct SearchView: View {
                         }
                     }
                     .padding(.bottom, 110)
-                }
-                .scrollDismissesKeyboard(.interactively)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
         .padding(.top, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

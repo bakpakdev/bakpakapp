@@ -87,7 +87,7 @@ struct SellerCashOutSetupView: View {
         if status?.needsMoreInfo == true {
             return "Stripe needs a little more info before sales can go to your bank. Pick up where you left off."
         }
-        return "Your sales wait safely in your popup balance. Set up payouts once, right here in popup, and they go to your bank from then on."
+        return "Set up payouts once, right here in popup, before your first sale. Then every sale lands in your popup balance and Cash out sends it to your bank."
     }
 
     // MARK: - Cards
@@ -125,7 +125,7 @@ struct SellerCashOutSetupView: View {
             factRow(icon: "tag", text: "You keep the full listing price. Buyers pay popup’s small service fee on top.")
             factRow(icon: "iphone", text: "The buyer pays in the app at your meetup with Apple Pay or a card. Never take cash, Venmo or Zelle.")
             factRow(icon: "hourglass", text: "Each sale shows up in your popup balance right away and takes about 2 business days to clear.")
-            factRow(icon: "building.columns", text: "After a one-time Stripe signup, tap Cash out to send cleared money to your bank or debit card. It arrives in 1–2 business days.")
+            factRow(icon: "building.columns", text: "Tap Cash out to send cleared money to your bank or debit card. It arrives in 1–2 business days.")
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

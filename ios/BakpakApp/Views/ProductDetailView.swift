@@ -124,7 +124,7 @@ struct ProductDetailView: View {
                 MeetupComposeView(
                     spots: campusTheme.meetupLocations,
                     screenTitle: "Meetup request",
-                    confirmTitle: isSendingMeetupRequest ? "Sending…" : "Request meetup",
+                    confirmTitle: isSendingMeetupRequest ? "Sending…" : "Request",
                     onSend: { spot, time in
                         guard let product, let sellerId = product.user?.id else { return }
                         Task {
@@ -308,6 +308,9 @@ struct ProductDetailView: View {
         ToolbarItem(placement: .navigationBarTrailing) {
             if let product, let seller = product.user {
                 Menu {
+                    ShareLink(item: shareText(product, seller: seller)) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
                     Button(role: .destructive) {
                         reportListing(product, seller: seller)
                     } label: {
@@ -323,6 +326,13 @@ struct ProductDetailView: View {
                 .accessibilityLabel("More")
             }
         }
+    }
+
+    /// "Levi's jacket · $38 on popup" plus the seller's closet link (listings have no web page yet).
+    private func shareText(_ product: Product, seller: User) -> String {
+        let link = ClosetShareLinks.publicURL(username: seller.username, userId: seller.id).absoluteString
+        let web = link.hasPrefix("http") ? link : "https://www.usepopupapp.com"
+        return "\(product.title) · $\(formattedPrice(product.price)) on popup\n\(web)"
     }
 
     private func reportListing(_ product: Product, seller: User) {
@@ -781,6 +791,27 @@ struct ProductDetailView: View {
                 }
                 .frame(minWidth: 64, alignment: .leading)
 
+                // Ask the seller a question first (same chat as Message on their profile).
+                Button {
+                    Motion.haptic(.light)
+                    guard let sellerId = product.user?.id else { return }
+                    appState.path.append(.conversation("", sellerId, product.id))
+                } label: {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(width: 48, height: 48)
+                        .background(campusTheme.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(campusTheme.border.opacity(1), lineWidth: 1.5)
+                        )
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                .disabled(product.user?.id == nil)
+                .accessibilityLabel("Message seller")
+
                 Button {
                     Motion.haptic(.light)
                     guard product.isSold != true else { return }
@@ -791,7 +822,7 @@ struct ProductDetailView: View {
                     Text("Offer")
                         .font(Theme.syne(14, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
-                        .frame(width: 88)
+                        .frame(width: 76)
                         .frame(height: 48)
                         .background(campusTheme.surface)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))

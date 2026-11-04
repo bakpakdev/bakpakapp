@@ -22,7 +22,7 @@ struct PopupLanding: View {
                         .font(Theme.syne(26, weight: .black))
                         .foregroundStyle(PopupBrand.textPrimary)
 
-                    Text("popup is a marketplace for college students only. You need a college email (.edu) to access the app — if you don't have one yet, you won't be able to sign in.")
+                    Text("popup is for college students. Sign in with the email you signed up with.")
                         .font(Theme.syne(14, weight: .medium))
                         .foregroundStyle(PopupBrand.textMuted)
                         .fixedSize(horizontal: false, vertical: true)
@@ -36,7 +36,7 @@ struct PopupLanding: View {
                         TextField(
                             "",
                             text: $email,
-                            prompt: Text(verbatim: "name@school.edu")
+                            prompt: Text(verbatim: "you@school.edu")
                                 .foregroundColor(PopupBrand.textMuted)
                         )
                         .textInputAutocapitalization(.never)
