@@ -98,7 +98,7 @@ struct AccountSettingsView: View {
                     .init(
                         icon: "lock.shield",
                         title: "Two-factor authentication",
-                        subtitle: twoFactorOn ? "On · required at sign in" : "Off · add in Passwords"
+                        subtitle: twoFactorOn ? "On · asked when you sign in" : "Off · required to cash out"
                     ) {
                         appState.path.append(.twoFactorAuth)
                     },
@@ -219,7 +219,7 @@ struct AccountSettingsView: View {
         if payoutStatus.needsMoreInfo {
             return "Stripe needs a bit more info"
         }
-        return "A few minutes, once"
+        return "Set up payouts before your first sale"
     }
 
     private var cashOutButtonTitle: String {

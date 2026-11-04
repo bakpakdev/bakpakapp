@@ -27,6 +27,7 @@ final class AuthViewModel: ObservableObject {
 
     private let legacyAuth = AuthService()
     private static let baseURLDefaultsKey = "popup.apiBaseURL"
+    private static let genericError = "Something went wrong. Please try again later."
     private static let onboardingRequiredPrefix = "popup.onboarding.required."
     private static let awaitingEmailKey = "popup.signup.awaitingEmail"
     private static let signupEmailKey = "popup.signup.email"
@@ -226,7 +227,8 @@ final class AuthViewModel: ObservableObject {
 
         if usesSupabase {
             guard let client = SupabaseManager.shared.client() else {
-                errorMessage = "Supabase is not configured."
+                print("Supabase client missing: check SupabaseProject.xcconfig / Secrets.xcconfig")
+                errorMessage = Self.genericError
                 return
             }
             let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -291,7 +293,8 @@ final class AuthViewModel: ObservableObject {
         defer { isLoading = false }
 
         guard usesSupabase, SupabaseManager.shared.client() != nil else {
-            errorMessage = "Email verification requires Supabase. Add your project keys and rebuild."
+            print("Email verification needs the Supabase client (project keys missing)")
+            errorMessage = Self.genericError
             return false
         }
 
@@ -328,7 +331,8 @@ final class AuthViewModel: ObservableObject {
         defer { isLoading = false }
 
         guard usesSupabase, SupabaseManager.shared.client() != nil else {
-            errorMessage = "Email verification requires Supabase. Add your project keys and rebuild."
+            print("Email verification needs the Supabase client (project keys missing)")
+            errorMessage = Self.genericError
             return false
         }
 
@@ -456,7 +460,8 @@ final class AuthViewModel: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
         guard usesSupabase, let client = SupabaseManager.shared.client() else {
-            errorMessage = "Supabase is not configured."
+            print("Supabase client missing: check SupabaseProject.xcconfig / Secrets.xcconfig")
+            errorMessage = Self.genericError
             return
         }
         do {
@@ -713,7 +718,8 @@ final class AuthViewModel: ObservableObject {
         defer { isLoading = false }
 
         guard usesSupabase, let client = SupabaseManager.shared.client() else {
-            errorMessage = "Supabase is not configured."
+            print("Supabase client missing: check SupabaseProject.xcconfig / Secrets.xcconfig")
+            errorMessage = Self.genericError
             return false
         }
         guard isAwaitingEmailVerification, emailConfirmationLinkOpened else {
@@ -776,7 +782,8 @@ final class AuthViewModel: ObservableObject {
         defer { isLoading = false }
 
         guard usesSupabase, let client = SupabaseManager.shared.client() else {
-            errorMessage = "Supabase is not configured."
+            print("Supabase client missing: check SupabaseProject.xcconfig / Secrets.xcconfig")
+            errorMessage = Self.genericError
             return
         }
 
@@ -974,7 +981,8 @@ final class AuthViewModel: ObservableObject {
 
         if usesSupabase {
             guard let client = SupabaseManager.shared.client() else {
-                errorMessage = "Supabase is not configured."
+                print("Supabase client missing: check SupabaseProject.xcconfig / Secrets.xcconfig")
+                errorMessage = Self.genericError
                 return
             }
             do {

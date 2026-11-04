@@ -36,7 +36,7 @@ struct HelpSupportView: View {
                             faqRow(
                                 id: "cashout",
                                 question: "How do I cash out?",
-                                answer: "You get the full listing price; buyers pay a small popup service fee on top. Open Settings → Getting paid: turn on two-factor, then set up payouts once inside the app (a few minutes; our payments partner Stripe verifies your details). After that every sale lands in your popup balance, and Cash out sends it to your bank or debit card, usually in about 2 business days. Sales from before you set up wait in your popup balance and move over as soon as you finish."
+                                answer: "You get the full listing price; buyers pay a small popup service fee on top. Before your first sale, open Settings → Getting paid: turn on two-factor, then set up payouts once inside the app (a few minutes; our payments partner Stripe verifies your details). After that every sale lands in your popup balance, and Cash out sends it to your bank or debit card, usually in about 2 business days."
                             )
                             faqRow(
                                 id: "meetup",
