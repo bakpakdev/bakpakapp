@@ -7,19 +7,17 @@ private struct CampusSchool: Identifiable, Hashable {
     let name: String
     let emailDomain: String
 
-    /// popup university: the simulator dev campus, also offered in App Store builds while the
-    /// API has App Review mode on (`APP_REVIEW_EMAIL`), so reviewers can sign up there.
+    /// popup university: the simulator dev campus. Students never see it; the App Review
+    /// account already exists and just signs in.
     static let popupUniversity = CampusSchool(id: "dev", name: CampusTheme.devSchoolName, emailDomain: "popupdev.test")
 
-    static func all(includeReviewCampus: Bool) -> [CampusSchool] {
+    static func all() -> [CampusSchool] {
         var schools = [
             CampusSchool(id: "uo", name: "University of Oregon", emailDomain: "uoregon.edu"),
             CampusSchool(id: "osu", name: "Oregon State University", emailDomain: "oregonstate.edu"),
         ]
         #if DEBUG && targetEnvironment(simulator)
         schools.append(popupUniversity)
-        #else
-        if includeReviewCampus { schools.append(popupUniversity) }
         #endif
         return schools
     }
@@ -30,16 +28,6 @@ private struct CampusSchool: Identifiable, Hashable {
     /// review address there).
     func allowsSignupEmail(_ email: String) -> Bool {
         email.hasSuffix(".edu") || (id == "dev" && email.hasSuffix("@\(emailDomain)"))
-    }
-}
-
-/// Asks the API whether App Review mode is on (popup university offered at signup).
-private enum ReviewCampusService {
-    struct Response: Decodable { let enabled: Bool }
-
-    static func isEnabled() async -> Bool {
-        let response: Response? = try? await APIClient.shared.request(path: "/auth/review-campus")
-        return response?.enabled ?? false
     }
 }
 
@@ -70,9 +58,8 @@ struct RegisterView: View {
     @State private var showConfirmPassword = false
     @State private var localError: String?
     @State private var statusMessage: String?
-    @State private var reviewCampusEnabled = false
 
-    private var schools: [CampusSchool] { CampusSchool.all(includeReviewCampus: reviewCampusEnabled) }
+    private var schools: [CampusSchool] { CampusSchool.all() }
 
     private var composedEmail: String {
         if AuthViewModel.isDemoBypassEmail(emailLocal) {
@@ -199,7 +186,6 @@ struct RegisterView: View {
                 .padding(.bottom, 24)
         }
         .animation(.easeInOut(duration: 0.3), value: step)
-        .task { reviewCampusEnabled = await ReviewCampusService.isEnabled() }
         .onAppear {
             if authVM.isAwaitingEmailVerification {
                 if let pending = authVM.pendingVerificationEmail,
@@ -264,7 +250,7 @@ struct RegisterView: View {
             return "Right now popup is only available for University of Oregon and Oregon State students."
         case .email:
             if let school = selectedSchool {
-                return "Just type your name — we’ll add @\(school.emailDomain) for you."
+                return "Type your school username (like jdoe). We’ll add @\(school.emailDomain)."
             }
             return "Enter your college email (.edu). We’ll send a verification link."
         case .verify:
