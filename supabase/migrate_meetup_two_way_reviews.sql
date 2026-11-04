@@ -5,7 +5,14 @@
 -- True when the signed-in user and p_other_id were the buyer and seller (either
 -- way round) of a completed order for this sold item. Orders are only written by
 -- the backend (service role), so a review can't be unlocked by a fake purchase.
-CREATE OR REPLACE FUNCTION public.can_review_sale(p_product_id uuid, p_other_id uuid)
+-- Drop the policies that use the function, then the function itself, so this also runs
+-- over an earlier version whose second parameter had a different name (Postgres won't
+-- rename a parameter with CREATE OR REPLACE). The policies are recreated below.
+DROP POLICY IF EXISTS "reviews_insert" ON public.reviews;
+DROP POLICY IF EXISTS "reviews_update_own" ON public.reviews;
+DROP FUNCTION IF EXISTS public.can_review_sale(uuid, uuid);
+
+CREATE FUNCTION public.can_review_sale(p_product_id uuid, p_other_id uuid)
 RETURNS boolean
 LANGUAGE sql
 STABLE
