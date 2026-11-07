@@ -350,9 +350,15 @@ private struct NavigationBarVisibilityBridge: UIViewControllerRepresentable {
         // Intentionally no `viewDidLayoutSubviews` apply — `setNavigationBarHidden`
         // triggers layout and used to recurse until the app froze (TestFlight watchdog).
 
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            if let nav = navigationController { InteractivePopEnabler.install(on: nav) }
+        }
+
         func applyIfNeeded() {
             guard !isApplying else { return }
             guard let nav = navigationController else { return }
+            InteractivePopEnabler.install(on: nav)
             if lastAppliedHidden == hidden, nav.isNavigationBarHidden == hidden {
                 return
             }
@@ -381,6 +387,43 @@ private struct NavigationBarVisibilityBridge: UIViewControllerRepresentable {
             bar.scrollEdgeAppearance = appearance
             bar.compactAppearance = appearance
         }
+    }
+}
+
+/// Hiding the UIKit navigation bar also turns off the edge swipe back. This keeps the
+/// swipe working on screens with their own header (chat, home, search…) whenever
+/// there is a screen to go back to.
+private final class InteractivePopEnabler: NSObject, UIGestureRecognizerDelegate {
+    private weak var nav: UINavigationController?
+    private static var key: UInt8 = 0
+
+    private init(nav: UINavigationController) {
+        self.nav = nav
+    }
+
+    static func install(on nav: UINavigationController) {
+        guard let pop = nav.interactivePopGestureRecognizer else { return }
+        let enabler: InteractivePopEnabler
+        if let existing = objc_getAssociatedObject(nav, &key) as? InteractivePopEnabler {
+            enabler = existing
+        } else {
+            enabler = InteractivePopEnabler(nav: nav)
+            objc_setAssociatedObject(nav, &key, enabler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        }
+        if pop.delegate !== enabler { pop.delegate = enabler }
+        pop.isEnabled = true
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let nav else { return false }
+        return nav.viewControllers.count > 1 && nav.transitionCoordinator == nil
+    }
+
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        false
     }
 }
 

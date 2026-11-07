@@ -51,7 +51,11 @@ struct InboxThreadView: View {
 
     private var uiMessages: [ChatMessageUI] {
         let me = authVM.user?.id ?? ""
-        return vm.messages.map { InboxChatMapping.message($0, meId: me) }
+        return vm.messages.map { m in
+            var ui = InboxChatMapping.message(m, meId: me)
+            ui.rowId = vm.rowId(for: m)
+            return ui
+        }
     }
 
     var body: some View {
@@ -161,17 +165,17 @@ struct InboxThreadView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             if showsBackButton {
                 Button(action: pop) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 19, weight: .semibold))
                         .foregroundStyle(campusTheme.textPrimary)
-                        .frame(width: 40, height: 40)
-                        .background(campusTheme.elevatedSurface)
-                        .clipShape(Circle())
+                        .frame(width: 36, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Back")
             }
 
             Button {
@@ -179,26 +183,25 @@ struct InboxThreadView: View {
                     appState.path.append(.userProfile(id))
                 }
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     AvatarView(
                         urlString: headerChat?.participant.avatar ?? "",
-                        size: 44,
+                        size: 36,
                         initials: headerChat?.participant.name ?? ""
                     )
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
-                            Text(headerChat?.participant.name ?? "Chat")
-                                .font(Theme.syne(16, weight: .bold))
-                                .foregroundStyle(campusTheme.textPrimary)
-                                .lineLimit(1)
-                            if headerChat?.participant.isVerified == true {
-                                Image(systemName: "checkmark.seal.fill")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(campusTheme.tint)
-                            }
+                    HStack(spacing: 4) {
+                        Text(headerChat?.participant.name ?? "Chat")
+                            .font(Theme.syne(16, weight: .bold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                            .lineLimit(1)
+                        if headerChat?.participant.isVerified == true {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(campusTheme.tint)
                         }
                     }
                 }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -211,22 +214,22 @@ struct InboxThreadView: View {
                 Motion.haptic(.light)
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(campusTheme.textPrimary)
-                    .frame(width: 40, height: 40)
-                    .background(campusTheme.elevatedSurface)
-                    .clipShape(Circle())
+                    .frame(width: 40, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("More")
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
+        .padding(.leading, showsBackButton ? 8 : 16)
+        .padding(.trailing, 8)
+        .padding(.vertical, 4)
         .background(campusTheme.background)
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(campusTheme.border)
-                .frame(height: 1)
+                .frame(height: 0.5)
         }
         .zIndex(showHeaderMenu ? 2 : 0)
     }
@@ -313,11 +316,12 @@ struct InboxThreadView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
                         Text("Meet in public campus spots. Don’t share numbers or payment info.")
-                            .font(Theme.syne(12, weight: .medium))
+                            .font(Theme.syne(11, weight: .medium))
                             .foregroundStyle(campusTheme.textMuted)
                             .multilineTextAlignment(.center)
-                            .frame(maxWidth: 260)
-                            .padding(.vertical, 18)
+                            .frame(maxWidth: 250)
+                            .padding(.top, 12)
+                            .padding(.bottom, 4)
                             .frame(maxWidth: .infinity)
 
                         if showMessages {
@@ -326,87 +330,157 @@ struct InboxThreadView: View {
                                     .tint(campusTheme.primary)
                                     .padding()
                             } else {
-                                let latestMine = uiMessages.last(where: \.isMe)?.id
-                                let latestTheirs = uiMessages.last(where: { !$0.isMe })?.id
-                                ForEach(uiMessages) { msg in
-                                    bubble(for: msg, latestMine: latestMine, latestTheirs: latestTheirs)
-                                        .id(msg.id)
+                                let lastId = uiMessages.last?.id
+                                ForEach(Array(uiMessages.enumerated()), id: \.element.rowId) { index, msg in
+                                    let prev = index > 0 ? uiMessages[index - 1] : nil
+                                    let next = index + 1 < uiMessages.count ? uiMessages[index + 1] : nil
+                                    VStack(spacing: 0) {
+                                        if let label = dividerLabel(for: msg, after: prev) {
+                                            Text(label)
+                                                .font(Theme.syne(11, weight: .semibold))
+                                                .foregroundStyle(campusTheme.textMuted)
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.top, 14)
+                                                .padding(.bottom, 8)
+                                        }
+                                        bubble(
+                                            for: msg,
+                                            joinsPrevious: joins(prev, msg),
+                                            joinsNext: joins(msg, next),
+                                            receipt: msg.id == lastId && msg.isMe
+                                                ? (msg.isRead && !msg.id.hasPrefix("local-") ? "Seen" : "Sent")
+                                                : nil
+                                        )
+                                    }
+                                    .id(msg.rowId)
                                 }
                             }
                         }
 
-                        Color.clear.frame(height: 20).id("thread-bottom")
+                        Color.clear.frame(height: 4).id("thread-bottom")
                     }
-                    .padding(16)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: geo.size.height, alignment: .bottom)
-                    .animation(nil, value: uiMessages.last?.id)
+                    .animation(nil, value: uiMessages.last?.rowId)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .modifier(BottomAnchoredScroll())
+                .onChange(of: geo.size.height) { _ in
+                    // Keyboard up/down or the input bar growing: keep the newest message in view.
+                    guard showMessages else { return }
+                    pinToBottom(proxy)
                 }
             }
-            .onChange(of: uiMessages.last?.id) { _ in
+            .onChange(of: uiMessages.last?.rowId) { _ in
                 guard showMessages else { return }
-                pinToBottom(proxy, lastMessageId: uiMessages.last?.id)
+                pinToBottom(proxy)
             }
             .onChange(of: showMessages) { visible in
-                if visible { pinToBottom(proxy, lastMessageId: uiMessages.last?.id) }
+                if visible { pinToBottom(proxy) }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
+                guard showMessages else { return }
+                pinToBottom(proxy)
             }
         }
     }
 
+    /// Back-to-back plain messages from the same person within a few minutes share a group.
+    private func joins(_ a: ChatMessageUI?, _ b: ChatMessageUI?) -> Bool {
+        guard let a, let b, a.senderId == b.senderId, a.isPlainText, b.isPlainText else { return false }
+        guard let t1 = a.createdAt, let t2 = b.createdAt else { return true }
+        return t2.timeIntervalSince(t1) < 5 * 60
+    }
+
+    /// A centred time label before the first message and after a quiet gap of 30+ minutes.
+    private func dividerLabel(for msg: ChatMessageUI, after prev: ChatMessageUI?) -> String? {
+        guard let date = msg.createdAt else { return nil }
+        if let prevDate = prev?.createdAt, date.timeIntervalSince(prevDate) < 30 * 60 { return nil }
+        return InboxChatMapping.formatDayDivider(date)
+    }
+
+    private var showsQuickReplies: Bool {
+        showMessages && !vm.isLoadingMessages && !uiMessages.contains { $0.isMe && $0.isPlainText }
+    }
+
     private var composer: some View {
-        VStack(spacing: 10) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    composerChip(title: "Meetup", icon: "mappin.and.ellipse") {
-                        beginMeetup()
-                    }
-                    composerChip(title: "Offer", icon: "tag") {
-                        beginOffer()
-                    }
-                    ForEach(quickActions, id: \.self) { action in
-                        Button {
-                            draft.text = action
-                        } label: {
-                            Text(action)
-                                .font(Theme.syne(12, weight: .semibold))
-                                .foregroundStyle(campusTheme.textPrimary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(campusTheme.surface)
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+        VStack(spacing: 8) {
+            if showsQuickReplies {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(quickActions, id: \.self) { action in
+                            Button {
+                                draft.text = action
+                            } label: {
+                                Text(action)
+                                    .font(Theme.syne(12, weight: .semibold))
+                                    .foregroundStyle(campusTheme.textPrimary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 7)
+                                    .background(campusTheme.surface)
+                                    .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.horizontal, 12)
                 }
-                .padding(.horizontal, 16)
             }
 
-            ChatComposerField(draft: draft, onSend: handleSendMessage)
-            .padding(.leading, 16)
-            .padding(.trailing, 6)
-            .padding(.vertical, 4)
-            .background(campusTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(campusTheme.border, lineWidth: 1)
-            )
-            .padding(.horizontal, 16)
+            HStack(alignment: .bottom, spacing: 6) {
+                composerIconButton(icon: "tag", label: "Make an offer") { beginOffer() }
+                composerIconButton(icon: "mappin.and.ellipse", label: "Suggest a meetup") { beginMeetup() }
+
+                ChatComposerField(draft: draft, onSend: handleSendMessage)
+                    .padding(.leading, 14)
+                    .padding(.trailing, 4)
+                    .padding(.vertical, 3)
+                    .background(campusTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 21, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 21, style: .continuous)
+                            .stroke(campusTheme.border, lineWidth: 1)
+                    )
+            }
+            .padding(.horizontal, 10)
         }
         .padding(.top, 8)
-        .padding(.bottom, 12)
+        .padding(.bottom, 8)
         .background(campusTheme.background)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(campusTheme.border)
-                .frame(height: 1)
+                .frame(height: 0.5)
         }
+        .keepsKeyboardOpen()
+    }
+
+    private func composerIconButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button {
+            dismissKeyboard()
+            action()
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .frame(width: 38, height: 38)
+                .background(campusTheme.elevatedSurface)
+                .clipShape(Circle())
+                .padding(.bottom, 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     @ViewBuilder
-    private func bubble(for msg: ChatMessageUI, latestMine: String?, latestTheirs: String?) -> some View {
+    private func bubble(for msg: ChatMessageUI, joinsPrevious: Bool, joinsNext: Bool, receipt: String?) -> some View {
         let meetup = MeetupMessageCodec.parse(msg.text)
         let status = meetup.map { meetupStatus(for: $0, messageId: msg.id) } ?? nil
         let effective: MeetupMessageKind? = {
@@ -416,7 +490,9 @@ struct InboxThreadView: View {
         let offerDecision = OfferMessageCodec.isOffer(msg.text) ? offerDecision(for: msg.id) : nil
         MessageBubbleView(
             message: msg,
-            showTime: msg.id == latestMine || msg.id == latestTheirs,
+            receipt: receipt,
+            joinsPrevious: joinsPrevious,
+            joinsNext: joinsNext,
             meetupStatus: status,
             canRespondToMeetup: (meetup?.kind.isProposal == true) && !msg.isMe && status == nil,
             canManageMeetup: msg.isMe
@@ -465,19 +541,6 @@ struct InboxThreadView: View {
                 appState.path.append(.productDetail(listing.productId))
             }
         )
-    }
-
-    private func composerChip(title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
-                .font(Theme.syne(12, weight: .semibold))
-                .foregroundStyle(campusTheme.tint)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(campusTheme.primary.opacity(0.1))
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
     }
 
     private func pop() {
@@ -545,14 +608,11 @@ struct InboxThreadView: View {
         }
     }
 
-    private func pinToBottom(_ proxy: ScrollViewProxy, lastMessageId: String?) {
+    private func pinToBottom(_ proxy: ScrollViewProxy) {
         DispatchQueue.main.async {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-                if let lastMessageId {
-                    proxy.scrollTo(lastMessageId, anchor: .bottom)
-                }
                 proxy.scrollTo("thread-bottom", anchor: .bottom)
             }
         }
@@ -1126,25 +1186,41 @@ private struct ChatComposerField: View {
     }
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 10) {
+        HStack(alignment: .bottom, spacing: 8) {
             TextField("Message", text: $draft.text, axis: .vertical)
                 .font(Theme.syne(15, weight: .regular))
                 .foregroundStyle(campusTheme.textPrimary)
                 .tint(campusTheme.primary)
                 .lineLimit(1 ... 5)
-                .padding(.leading, 4)
                 .padding(.vertical, 8)
 
             Button(action: onSend) {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(isEmpty ? campusTheme.textMuted : Color.white)
-                    .frame(width: 36, height: 36)
-                    .background(isEmpty ? campusTheme.elevatedSurface : campusTheme.primary)
+                    .foregroundStyle(Color.white)
+                    .frame(width: 32, height: 32)
+                    .background(campusTheme.primary)
                     .clipShape(Circle())
+                    .padding(.bottom, 2)
             }
             .buttonStyle(.plain)
+            .opacity(isEmpty ? 0.35 : 1)
             .disabled(isEmpty)
+            .accessibilityLabel("Send")
+        }
+    }
+}
+
+/// iOS 18+: the thread stays pinned to the newest message when the keyboard or the
+/// input bar changes the visible height. Older versions rely on the explicit scroll calls.
+private struct BottomAnchoredScroll: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content
+                .defaultScrollAnchor(.bottom, for: .initialOffset)
+                .defaultScrollAnchor(.bottom, for: .sizeChanges)
+        } else {
+            content
         }
     }
 }

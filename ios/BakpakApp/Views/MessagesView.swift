@@ -40,8 +40,50 @@ struct ChatMessageUI: Identifiable {
     let isRead: Bool
     var offerAmount: Double?
     var offerStatus: String?
+    var createdAt: Date? = nil
+    /// Stays the same when a just-sent bubble is swapped for the saved copy, so the row
+    /// isn't torn down and rebuilt (that swap made the newest bubble flicker).
+    var rowId: String = ""
 
     var isMe: Bool { senderId == "me" }
+
+    /// Plain text (not a meetup, offer or listing card), so it can sit in a bubble group.
+    var isPlainText: Bool {
+        MeetupMessageCodec.parse(text) == nil
+            && !OfferMessageCodec.isOffer(text)
+            && OfferMessageCodec.parseDecision(text) == nil
+            && ListingRefMessageCodec.parse(text) == nil
+    }
+}
+
+/// A bubble with its own radius per corner (iOS 16 has no `UnevenRoundedRectangle`).
+struct GroupedBubbleShape: Shape {
+    var topLeading: CGFloat
+    var topTrailing: CGFloat
+    var bottomLeading: CGFloat
+    var bottomTrailing: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let maxR = min(rect.width, rect.height) / 2
+        let tl = min(topLeading, maxR), tr = min(topTrailing, maxR)
+        let bl = min(bottomLeading, maxR), br = min(bottomTrailing, maxR)
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX + tl, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX - tr, y: rect.minY))
+        p.addArc(center: CGPoint(x: rect.maxX - tr, y: rect.minY + tr), radius: tr,
+                 startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - br))
+        p.addArc(center: CGPoint(x: rect.maxX - br, y: rect.maxY - br), radius: br,
+                 startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+        p.addLine(to: CGPoint(x: rect.minX + bl, y: rect.maxY))
+        p.addArc(center: CGPoint(x: rect.minX + bl, y: rect.maxY - bl), radius: bl,
+                 startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + tl))
+        p.addArc(center: CGPoint(x: rect.minX + tl, y: rect.minY + tl), radius: tl,
+                 startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+        p.closeSubpath()
+        return p
+    }
 }
 
 // MARK: - Corner radius helper
@@ -74,48 +116,41 @@ private struct MessagesChatRow: View {
     let onTap: () -> Void
     @Environment(\.campusTheme) private var campusTheme
 
+    private var isUnread: Bool { chat.unreadCount > 0 }
+
     var body: some View {
         Button(action: onTap) {
             HStack(alignment: .center, spacing: 12) {
-                ZStack(alignment: .bottomTrailing) {
-                    AvatarView(
-                        urlString: chat.participant.avatar,
-                        size: 52,
-                        cornerRadius: 18,
-                        initials: chat.participant.name
-                    )
+                AvatarView(
+                    urlString: chat.participant.avatar,
+                    size: 52,
+                    initials: chat.participant.name
+                )
 
-                    if chat.participant.isOnline {
-                        Circle()
-                            .fill(campusTheme.primary)
-                            .frame(width: 12, height: 12)
-                            .overlay(Circle().stroke(campusTheme.surface, lineWidth: 2))
-                            .offset(x: 3, y: 3)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(chat.participant.name)
-                            .font(Theme.syne(15, weight: .bold))
+                            .font(Theme.syne(15, weight: isUnread ? .bold : .semibold))
                             .foregroundStyle(campusTheme.textPrimary)
                             .lineLimit(1)
                         Spacer(minLength: 8)
                         Text(chat.lastTimestamp)
-                            .font(Theme.syne(11, weight: .medium))
-                            .foregroundStyle(campusTheme.textMuted)
+                            .font(Theme.syne(12, weight: .medium))
+                            .foregroundStyle(isUnread ? campusTheme.textPrimary : campusTheme.textMuted)
                     }
 
-                    Text(chat.lastMessage.isEmpty ? "Start the conversation" : chat.lastMessage)
-                        .font(Theme.syne(13, weight: chat.unreadCount > 0 ? .semibold : .regular))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .lineLimit(1)
-                }
-
-                if chat.unreadCount > 0 {
-                    Circle()
-                        .fill(campusTheme.primary)
-                        .frame(width: 9, height: 9)
+                    HStack(spacing: 8) {
+                        Text(chat.lastMessage.isEmpty ? "Start the conversation" : chat.lastMessage)
+                            .font(Theme.syne(13, weight: isUnread ? .semibold : .regular))
+                            .foregroundStyle(isUnread ? campusTheme.textPrimary : campusTheme.textMuted)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        if isUnread {
+                            Circle()
+                                .fill(campusTheme.primary)
+                                .frame(width: 9, height: 9)
+                        }
+                    }
                 }
 
                 if !chat.item.image.isEmpty {
@@ -124,17 +159,17 @@ private struct MessagesChatRow: View {
                     } placeholder: {
                         campusTheme.elevatedSurface
                     }
-                    .frame(width: 58, height: 58)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
             }
-            .padding(12)
-            .background(isSelected ? campusTheme.primary.opacity(0.12) : campusTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .stroke(isSelected ? campusTheme.primary.opacity(0.35) : campusTheme.border, lineWidth: 1)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isSelected ? campusTheme.elevatedSurface : Color.clear)
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -142,7 +177,11 @@ private struct MessagesChatRow: View {
 
 struct MessageBubbleView: View {
     let message: ChatMessageUI
-    var showTime: Bool = true
+    /// "Seen" / "Sent" under the last message, when it's mine.
+    var receipt: String? = nil
+    /// Same sender a moment before / after: tighter spacing and flatter joined corners.
+    var joinsPrevious: Bool = false
+    var joinsNext: Bool = false
     var meetupStatus: MeetupMessageKind? = nil
     var canRespondToMeetup: Bool = false
     var canManageMeetup: Bool = false
@@ -194,38 +233,54 @@ struct MessageBubbleView: View {
                 listingRefBubble(listing, isMe: message.isMe)
             } else {
                 HStack(alignment: .bottom, spacing: 0) {
-                    if message.isMe { Spacer(minLength: 64) }
+                    if message.isMe { Spacer(minLength: 56) }
                     Text(message.text)
                         .font(Theme.syne(15))
                         .foregroundStyle(message.isMe ? Color.white : campusTheme.textPrimary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(message.isMe ? campusTheme.primary : campusTheme.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .stroke(message.isMe ? Color.clear : campusTheme.border, lineWidth: 1)
-                        )
-                    if !message.isMe { Spacer(minLength: 64) }
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 8)
+                        .background(message.isMe ? campusTheme.primary : campusTheme.elevatedSurface)
+                        .clipShape(bubbleShape)
+                        .contextMenu {
+                            Button {
+                                UIPasteboard.general.string = message.text
+                            } label: {
+                                Label("Copy", systemImage: "doc.on.doc")
+                            }
+                        }
+                    if !message.isMe { Spacer(minLength: 56) }
                 }
             }
 
-            if showTime {
-                HStack(spacing: 5) {
-                    Text(message.timestamp)
-                        .font(Theme.syne(11, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                    if message.isMe {
-                        Image(systemName: message.isRead ? "checkmark.circle.fill" : "checkmark.circle")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(message.isRead ? campusTheme.primary : campusTheme.textMuted)
-                    }
-                }
-                .padding(.horizontal, 6)
+            if let receipt {
+                Text(receipt)
+                    .font(Theme.syne(11, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .padding(.horizontal, 6)
+                    .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: message.isMe ? .trailing : .leading)
-        .padding(.bottom, 8)
+        .padding(.bottom, joinsNext ? 2 : 10)
+    }
+
+    private var bubbleShape: GroupedBubbleShape {
+        let big: CGFloat = 18
+        let small: CGFloat = 5
+        if message.isMe {
+            return GroupedBubbleShape(
+                topLeading: big,
+                topTrailing: joinsPrevious ? small : big,
+                bottomLeading: big,
+                bottomTrailing: joinsNext ? small : big
+            )
+        }
+        return GroupedBubbleShape(
+            topLeading: joinsPrevious ? small : big,
+            topTrailing: big,
+            bottomLeading: joinsNext ? small : big,
+            bottomTrailing: big
+        )
     }
 
     private func offerBubble(_ text: String, isMe: Bool, decision: OfferMessageCodec.Decision?, canRespond: Bool) -> some View {
@@ -630,13 +685,14 @@ struct MessagesView: View {
                 } else if filteredChats.isEmpty {
                     emptyInboxView
                 } else {
-                    LazyVStack(spacing: 12) {
+                    LazyVStack(spacing: 2) {
                         ForEach(filteredChats) { chat in
                             MessagesChatRow(
                                 chat: chat,
                                 isSelected: selectedChatId == chat.id,
                                 onTap: { openChat(chat) }
                             )
+                            .padding(.horizontal, -12)
                         }
                     }
                 }
@@ -983,8 +1039,28 @@ enum InboxChatMapping {
             timestamp: formatMessageTime(m.createdAt),
             isRead: m.isRead ?? false,
             offerAmount: nil,
-            offerStatus: nil
+            offerStatus: nil,
+            createdAt: m.createdAt.flatMap(parseISO),
+            rowId: m.id
         )
+    }
+
+    /// "Today 3:42 PM", "Yesterday 9:10 AM", "Tue 4:05 PM", "Oct 12, 4:05 PM".
+    static func formatDayDivider(_ date: Date, now: Date = Date()) -> String {
+        let cal = Calendar.current
+        let time = DateFormatter()
+        time.dateStyle = .none
+        time.timeStyle = .short
+        let t = time.string(from: date)
+        if cal.isDateInToday(date) { return "Today \(t)" }
+        if cal.isDateInYesterday(date) { return "Yesterday \(t)" }
+        let f = DateFormatter()
+        if let days = cal.dateComponents([.day], from: date, to: now).day, days < 7 {
+            f.dateFormat = "EEE"
+        } else {
+            f.setLocalizedDateFormatFromTemplate("MMMd")
+        }
+        return "\(f.string(from: date)) \(t)"
     }
 
     private static func parseISO(_ iso: String) -> Date? {
