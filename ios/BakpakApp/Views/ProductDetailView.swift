@@ -32,23 +32,20 @@ struct ProductDetailView: View {
     @State private var showSellerPaymentSheet = false
     @State private var buyerServiceFeeCents: Int?
     @State private var isPaymentBusy = false
-    @State private var showOfferSheet = false
-    @State private var selectedOfferPercent: Int? = 15
-    @State private var customOfferText = ""
-    @State private var isSendingOffer = false
+    /// "I want this": price, spot and time on one sheet, sent into the chat.
+    @State private var showWantSheet = false
+    @State private var showLowerPriceOptions = false
+    @State private var isSendingWant = false
     @State private var isLiked = false
     @State private var isSaved = false
     @State private var reactionBusy = false
     @State private var sellerRating: ReviewSummary?
     @State private var paymentOutcome: PaymentOutcomeKind?
-    @State private var showMeetupRequestSheet = false
-    @State private var isSendingMeetupRequest = false
 
     private let productService = ProductService()
     private let socialService = SocialService()
     private let paymentService = MeetupPaymentService.shared
     private let messageService = MessageService()
-    private let offerPercents = [10, 15, 20, 25]
 
     private var pendingMeetupRequest: Meetup? {
         meetupStore.pendingOutgoing(productId: productId)
@@ -115,30 +112,24 @@ struct ProductDetailView: View {
                     .presentationDetents([.medium, .large])
                 }
             }
-            .sheet(isPresented: $showOfferSheet) {
+            .sheet(isPresented: $showWantSheet) {
                 if let product {
-                    sendOfferPopup(product)
-                }
-            }
-            .fullScreenCover(isPresented: $showMeetupRequestSheet) {
-                MeetupComposeView(
-                    spots: campusTheme.meetupLocations,
-                    screenTitle: "Meetup request",
-                    confirmTitle: isSendingMeetupRequest ? "Sending…" : "Request",
-                    onSend: { spot, time in
-                        guard let product, let sellerId = product.user?.id else { return }
-                        Task {
-                            await sendMeetupRequest(
-                                for: product,
-                                sellerId: sellerId,
-                                spot: spot,
-                                at: time
-                            )
+                    WantItSheet(
+                        title: product.title,
+                        sellerName: sellerDisplayName(product),
+                        imageURL: product.images?.first(where: { $0.isPrimary == true })?.url
+                            ?? product.images?.first?.url,
+                        listedPrice: product.price,
+                        spots: campusTheme.meetupLocations,
+                        isSending: isSendingWant,
+                        onSend: { amount, spot, time in
+                            Task { await sendWantRequest(product: product, amount: amount, spot: spot, at: time) }
                         }
-                    },
-                    onCancel: { showMeetupRequestSheet = false }
-                )
-                .environment(\.campusTheme, campusTheme)
+                    )
+                    .environment(\.campusTheme, campusTheme)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                }
             }
             .fullScreenCover(isPresented: $showPhotoViewer) {
                 ListingPhotoViewer(urls: imageURLs, index: imageIndex)
@@ -360,78 +351,211 @@ struct ProductDetailView: View {
 
     private func ownerManageScroll(_ product: Product) -> some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 26) {
-                CampusPageHeader(
-                    title: "listing",
-                    subtitle: product.isSold == true ? "sold" : "manage & sell"
-                )
+            VStack(alignment: .leading, spacing: 22) {
+                ownerHeader(product)
 
                 ownerHeroSummary(product)
 
                 statsCard
 
+                whatsNextCard(product)
+
                 if product.isSold != true {
-                    collectPaymentButton(product)
-                }
-
-                VStack(alignment: .leading, spacing: 0) {
-                    SettingsSectionTitle(title: "sell faster")
-                    VStack(spacing: 0) {
-                        SettingsNavRow(
-                            icon: "tag",
-                            title: "Send offers",
-                            subtitle: offersSubtitle
-                        ) {
-                            pushOwnerRoute(.sendOffers(productId))
+                    VStack(alignment: .leading, spacing: 0) {
+                        SettingsSectionTitle(title: "sell it faster")
+                        VStack(spacing: 0) {
+                            SettingsNavRow(
+                                icon: "arrow.down.circle",
+                                title: product.hasDiscount ? "Change the price" : "Lower the price",
+                                subtitle: product.hasDiscount ? discountSubtitle(product) : lowerPriceSubtitle,
+                                showDivider: false
+                            ) {
+                                showLowerPriceOptions = true
+                            }
                         }
-                        SettingsNavRow(
-                            icon: "percent",
-                            title: product.hasDiscount ? "Change discount" : "Set discount",
-                            subtitle: discountSubtitle(product),
-                            showDivider: false
-                        ) {
-                            pushOwnerRoute(.setDiscount(productId))
-                        }
+                        .background(CampusCardBackground())
                     }
-                    .background(CampusCardBackground())
                 }
-
-                VStack(alignment: .leading, spacing: 0) {
-                    SettingsSectionTitle(title: "listing")
-                    VStack(spacing: 0) {
-                        SettingsNavRow(
-                            icon: "square.and.pencil",
-                            title: "Edit listing",
-                            subtitle: "Title, description, brand, size"
-                        ) {
-                            pushOwnerRoute(.editListing(productId))
-                        }
-                        SettingsNavRow(
-                            icon: "doc.on.doc",
-                            title: "Copy listing",
-                            subtitle: "Relist the same item in one tap"
-                        ) {
-                            showCopyConfirm = true
-                        }
-                        SettingsNavRow(
-                            icon: product.isSold == true ? "arrow.uturn.backward" : "checkmark.seal",
-                            title: product.isSold == true ? "Mark as available" : "Mark as sold",
-                            subtitle: product.isSold == true
-                                ? "Put it back on the Grid"
-                                : "Sold for cash or outside the app",
-                            showDivider: false
-                        ) {
-                            showMarkSoldConfirm = true
-                        }
-                    }
-                    .background(CampusCardBackground())
-                }
-
-                deleteButton
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 40)
         }
+        .confirmationDialog("Lower the price", isPresented: $showLowerPriceOptions, titleVisibility: .visible) {
+            Button(product.hasDiscount ? "Change the discount for everyone" : "Discount it for everyone") {
+                pushOwnerRoute(.setDiscount(productId))
+            }
+            Button(stats.likes > 0 ? "Send a private offer to \(stats.likes == 1 ? "the 1 person" : "the \(stats.likes) people") who liked it" : "Send a private offer to people who like it") {
+                pushOwnerRoute(.sendOffers(productId))
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    private var lowerPriceSubtitle: String {
+        stats.likes > 0 ? "Discount it, or send \(offersSubtitle.lowercased())" : "Discount it, or send people who like it an offer"
+    }
+
+    /// "your listing" with Edit and a "…" menu for the rarely used actions.
+    private func ownerHeader(_ product: Product) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Text("your listing")
+                .font(Theme.syne(30, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+            Spacer(minLength: 8)
+            Button {
+                pushOwnerRoute(.editListing(productId))
+            } label: {
+                Text("Edit")
+                    .font(Theme.syne(14, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .padding(.horizontal, 16)
+                    .frame(height: 40)
+                    .background(campusTheme.surface)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            Menu {
+                Button {
+                    showCopyConfirm = true
+                } label: {
+                    Label("Copy listing", systemImage: "doc.on.doc")
+                }
+                Button {
+                    showMarkSoldConfirm = true
+                } label: {
+                    Label(
+                        product.isSold == true ? "Mark as available" : "Mark as sold",
+                        systemImage: product.isSold == true ? "arrow.uturn.backward" : "checkmark.seal"
+                    )
+                }
+                Button(role: .destructive) {
+                    showDeleteConfirm = true
+                } label: {
+                    Label("Delete listing", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .frame(width: 40, height: 40)
+                    .background(campusTheme.surface)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(campusTheme.border, lineWidth: 1))
+            }
+            .accessibilityLabel("More: copy, mark as sold, delete")
+        }
+        .padding(.top, 8)
+    }
+
+    /// Requests waiting on me for this listing (newest system: in chat; older: listing-only).
+    private var incomingRequests: [Meetup] {
+        let me = meetupStore.meId
+        return meetupStore.meetups.filter {
+            ($0.productId ?? "").lowercased() == productId.lowercased()
+                && $0.needsMyResponse(meId: me)
+                && !$0.hasEnded()
+        }
+        .sorted { $0.scheduledAt < $1.scheduledAt }
+    }
+
+    private func openOwnerMeetup(_ meetup: Meetup) {
+        if meetup.conversationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            appState.path.append(.meetupDetail(meetup.id))
+        } else {
+            appState.openInboxChat(
+                conversationId: meetup.conversationId,
+                otherUserId: meetup.otherUserId(meId: meetupStore.meId),
+                productId: meetup.productId ?? productId
+            )
+        }
+    }
+
+    /// The one thing to do next for this listing.
+    private func whatsNextCard(_ product: Product) -> some View {
+        let requests = incomingRequests
+        let confirmed = confirmedMeetupForListing.flatMap { $0.hasEnded() ? nil : $0 }
+        let title: String
+        var lines: [String] = []
+        var primary: (String, () -> Void)?
+        var secondary: (String, () -> Void)?
+
+        if product.isSold == true {
+            title = "Sold. Nice!"
+            lines = ["Relist something similar from the “…” menu with Copy listing."]
+        } else if let confirmed {
+            let peer = meetupStore.peer(for: confirmed)
+            title = "Meetup \(WantItSheet.timeLabel(confirmed.scheduledAt).lowercased())"
+            lines = ["With \(peer.name) at \(confirmed.spotName)"]
+            primary = ("Get paid", { Task { await startSellerPayment() } })
+            secondary = ("Open chat", { openOwnerMeetup(confirmed) })
+        } else if !requests.isEmpty {
+            title = requests.count == 1 ? "1 person wants this" : "\(requests.count) people want this"
+            lines = requests.prefix(3).map { meetup in
+                let peer = meetupStore.peer(for: meetup)
+                return "\(peer.name) · \(meetup.spotName), \(WantItSheet.timeLabel(meetup.scheduledAt).lowercased())"
+            }
+            if requests.count == 1, let only = requests.first {
+                primary = ("Review request", { openOwnerMeetup(only) })
+            } else {
+                primary = ("Review requests", { appState.path.append(.meetupsHub) })
+            }
+        } else {
+            title = "No requests yet"
+            lines = ["When someone taps “I want this”, you’ll see it here."]
+            secondary = ("Selling in person? Get paid", { Task { await startSellerPayment() } })
+        }
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("What’s next")
+                .font(Theme.syne(12, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.7))
+            Text(title)
+                .font(Theme.syne(20, weight: .bold))
+                .foregroundStyle(Color.white)
+            ForEach(lines, id: \.self) { line in
+                Text(line)
+                    .font(Theme.syne(14, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if primary != nil || secondary != nil {
+                HStack(spacing: 8) {
+                    if let primary {
+                        Button(action: primary.1) {
+                            Text(primary.0)
+                                .font(Theme.syne(15, weight: .bold))
+                                .foregroundStyle(Color.black)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 46)
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+                        .disabled(isPaymentBusy)
+                    }
+                    if let secondary {
+                        Button(action: secondary.1) {
+                            Text(secondary.0)
+                                .font(Theme.syne(14, weight: .bold))
+                                .foregroundStyle(Color.white)
+                                .frame(maxWidth: primary == nil ? .infinity : nil)
+                                .padding(.horizontal, 16)
+                                .frame(height: 46)
+                                .background(Color.white.opacity(0.14))
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+                        .disabled(isPaymentBusy)
+                    }
+                }
+                .padding(.top, 2)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(campusTheme.isDark ? Color(hex: "#262626") : Color(hex: "#111111"))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var offersSubtitle: String {
@@ -545,27 +669,6 @@ struct ProductDetailView: View {
                 .foregroundStyle(campusTheme.textMuted)
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private var deleteButton: some View {
-        Button {
-            showDeleteConfirm = true
-        } label: {
-            HStack {
-                Image(systemName: "trash")
-                    .font(.system(size: 15, weight: .semibold))
-                Text("Delete listing")
-                    .font(Theme.syne(15, weight: .semibold))
-            }
-            .foregroundStyle(Color(hex: "#E11D48"))
-            .frame(maxWidth: .infinity)
-            .frame(height: 56)
-            .background(campusTheme.surface)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(Color(hex: "#E11D48").opacity(0.25), lineWidth: 1))
-        }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-        .padding(.top, 4)
     }
 
     // MARK: - Buyer product layout
@@ -812,28 +915,6 @@ struct ProductDetailView: View {
                 .disabled(product.user?.id == nil)
                 .accessibilityLabel("Message seller")
 
-                Button {
-                    Motion.haptic(.light)
-                    guard product.isSold != true else { return }
-                    selectedOfferPercent = 15
-                    customOfferText = ""
-                    showOfferSheet = true
-                } label: {
-                    Text("Offer")
-                        .font(Theme.syne(14, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                        .frame(width: 76)
-                        .frame(height: 48)
-                        .background(campusTheme.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(campusTheme.border.opacity(1), lineWidth: 1.5)
-                        )
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-                .disabled(sold)
-                .opacity(sold ? 0.45 : 1)
 
                 Button {
                     Motion.haptic(.medium)
@@ -847,28 +928,37 @@ struct ProductDetailView: View {
                     }
                     // Sold listings can't start new meetup / chat threads.
                     guard product.isSold != true else { return }
-                    if hasPendingMeetupRequest {
-                        showCancelRequestConfirm = true
+                    if let pending = pendingMeetupRequest {
+                        // Chat requests are managed in the chat; old listing-only ones can be cancelled here.
+                        if !pending.conversationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            appState.openInboxChat(
+                                conversationId: pending.conversationId,
+                                otherUserId: pending.otherUserId(meId: authVM.user?.id ?? ""),
+                                productId: pending.productId ?? product.id
+                            )
+                        } else {
+                            showCancelRequestConfirm = true
+                        }
                         return
                     }
                     guard product.user?.id != nil else { return }
-                    showMeetupRequestSheet = true
+                    showWantSheet = true
                 } label: {
                     Text(meetupRequestButtonTitle)
                         .font(Theme.syne(14, weight: .bold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                         .foregroundStyle(
-                            (sold && confirmedMeetupForListing == nil) || hasPendingMeetupRequest
+                            sold && confirmedMeetupForListing == nil
                             ? campusTheme.textMuted
-                            : .white
+                            : (hasPendingMeetupRequest ? campusTheme.textPrimary : .white)
                         )
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
                         .background(
-                            (sold && confirmedMeetupForListing == nil) || hasPendingMeetupRequest
+                            sold && confirmedMeetupForListing == nil
                             ? campusTheme.elevatedSurface
-                            : campusTheme.primary
+                            : (hasPendingMeetupRequest ? campusTheme.surface : campusTheme.primary)
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay(
@@ -887,9 +977,7 @@ struct ProductDetailView: View {
                         || isCancellingRequest
                         || product.user?.id == nil
                 )
-                .opacity(
-                    (sold && confirmedMeetupForListing == nil) || hasPendingMeetupRequest ? 0.72 : 1
-                )
+                .opacity(sold && confirmedMeetupForListing == nil ? 0.72 : 1)
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
@@ -934,178 +1022,16 @@ struct ProductDetailView: View {
         )
     }
 
-    private func sendOfferPopup(_ product: Product) -> some View {
-        let listed = product.price
-        let customAmount = Double(customOfferText.replacingOccurrences(of: ",", with: ""))
-        // Quick offers are whole dollars so the chip, "Your offer", and the sent amount match.
-        let percentAmount: Double? = selectedOfferPercent.map { Self.quickOfferAmount(listed: listed, percent: $0) }
-        let offerAmount = customAmount ?? percentAmount
-        let canSend = (offerAmount ?? 0) > 0 && (offerAmount ?? 0) <= listed + 0.001
-
-        return VStack(spacing: 0) {
-            Capsule()
-                .fill(campusTheme.border)
-                .frame(width: 40, height: 4)
-                .padding(.top, 10)
-                .padding(.bottom, 14)
-
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .top, spacing: 12) {
-                    AsyncImage(url: URL(string: product.images?.first(where: { $0.isPrimary == true })?.url
-                                        ?? product.images?.first?.url
-                                        ?? "")) { img in
-                        img.resizable().scaledToFill()
-                    } placeholder: {
-                        campusTheme.elevatedSurface
-                    }
-                    .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Send an offer")
-                            .font(Theme.syne(18, weight: .bold))
-                            .foregroundStyle(campusTheme.textPrimary)
-                        Text(product.title)
-                            .font(Theme.syne(13, weight: .medium))
-                            .foregroundStyle(campusTheme.textMuted)
-                            .lineLimit(1)
-                        Text("Listed at $\(Int(listed))")
-                            .font(Theme.syne(14, weight: .bold))
-                            .foregroundStyle(campusTheme.tint)
-                    }
-                    Spacer(minLength: 0)
-                    Button {
-                        showOfferSheet = false
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundStyle(campusTheme.textMuted)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Text("Quick offers")
-                    .font(Theme.syne(13, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    ForEach(offerPercents, id: \.self) { percent in
-                        let amount = Self.quickOfferAmount(listed: listed, percent: percent)
-                        let selected = selectedOfferPercent == percent && customOfferText.isEmpty
-                        Button {
-                            Motion.haptic(.light)
-                            selectedOfferPercent = percent
-                            customOfferText = ""
-                        } label: {
-                            VStack(spacing: 4) {
-                                Text("\(percent)% off")
-                                    .font(Theme.syne(14, weight: .bold))
-                                Text("$\(amount, specifier: "%.0f")")
-                                    .font(Theme.syne(13, weight: .semibold))
-                                    .opacity(0.85)
-                            }
-                            .foregroundStyle(selected ? Color.white : campusTheme.textPrimary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(selected ? campusTheme.primary : glassFill)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(selected ? Color.clear : cardStroke, lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-                    }
-                }
-
-                Text("Or enter a custom amount")
-                    .font(Theme.syne(13, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-
-                HStack(spacing: 8) {
-                    Text("$")
-                        .font(Theme.syne(22, weight: .bold))
-                        .foregroundStyle(campusTheme.tint)
-                    MoneyCentsField(text: $customOfferText, fontSize: 22, textColor: campusTheme.textPrimary, floorAtZero: true)
-                        .frame(height: 28)
-                        .onChange(of: customOfferText) { newValue in
-                            if newValue != "0.00" && !newValue.isEmpty {
-                                selectedOfferPercent = nil
-                            } else if selectedOfferPercent == nil {
-                                selectedOfferPercent = 15
-                            }
-                        }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(glassFill)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(
-                            customOfferText.isEmpty ? cardStroke : campusTheme.primary.opacity(0.35),
-                            lineWidth: 1
-                        )
-                )
-
-                if let offerAmount, offerAmount > 0 {
-                    let savings = max(0, listed - offerAmount)
-                    HStack {
-                        Text("Your offer")
-                            .font(Theme.syne(13, weight: .medium))
-                            .foregroundStyle(campusTheme.textMuted)
-                        Spacer()
-                        Text("$\(formattedPrice(offerAmount))")
-                            .font(Theme.syne(18, weight: .bold))
-                            .foregroundStyle(campusTheme.tint)
-                        if savings > 0.5 {
-                            Text("· $\(formattedPrice(savings)) off")
-                                .font(Theme.syne(12, weight: .semibold))
-                                .foregroundStyle(campusTheme.textMuted)
-                        }
-                    }
-                    .padding(.top, 2)
-                }
-
-                Button {
-                    guard let offerAmount, let userId = product.user?.id else { return }
-                    Task { await sendOffer(amount: offerAmount, sellerId: userId, product: product) }
-                } label: {
-                    HStack(spacing: 8) {
-                        if isSendingOffer {
-                            ProgressView().tint(.white)
-                        } else {
-                            Image(systemName: "paperplane.fill")
-                                .font(.system(size: 13, weight: .semibold))
-                            Text("Send offer")
-                                .font(Theme.syne(15, weight: .bold))
-                        }
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(canSend && !isSendingOffer ? campusTheme.primary : campusTheme.primary.opacity(0.4))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-                .disabled(!canSend || isSendingOffer)
-                .padding(.top, 4)
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 24)
-        }
-        .background(campusTheme.background)
-        .presentationDetents([.height(520)])
-        .presentationDragIndicator(.hidden)
-        .environment(\.campusTheme, campusTheme)
-    }
-
     private var meetupRequestButtonTitle: String {
         if confirmedMeetupForListing != nil { return "Open chat" }
         if product?.isSold == true { return "Sold" }
         if isCancellingRequest { return "Cancelling…" }
-        if hasPendingMeetupRequest { return "Requested · tap to cancel" }
-        return "Meetup request"
+        if let pending = pendingMeetupRequest {
+            return pending.conversationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "Requested · tap to cancel"
+                : "Requested · open chat"
+        }
+        return "I want this"
     }
 
     private func cancelMeetupRequest() async {
@@ -1120,65 +1046,59 @@ struct ProductDetailView: View {
         }
     }
 
-    private func sendMeetupRequest(
-        for product: Product,
-        sellerId: String,
-        spot: CampusMeetupSpot,
-        at scheduledAt: Date
-    ) async {
-        guard !isSendingMeetupRequest else { return }
+    private func sellerDisplayName(_ product: Product) -> String {
+        let shop = product.user?.shopName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !shop.isEmpty { return shop }
+        return product.user?.username ?? "the seller"
+    }
+
+    /// One request into the chat: an offer card when the price is under the listing,
+    /// then the meetup invite (spot + time). The seller answers both from the chat.
+    private func sendWantRequest(product: Product, amount: Double, spot: CampusMeetupSpot, at time: Date) async {
+        guard !isSendingWant else { return }
         guard product.isSold != true else {
             actionError = "This listing is sold."
-            showMeetupRequestSheet = false
+            showWantSheet = false
             return
         }
-        isSendingMeetupRequest = true
-        defer { isSendingMeetupRequest = false }
+        guard let sellerId = product.user?.id else { return }
+        isSendingWant = true
+        defer { isSendingWant = false }
         do {
-            let meetup = try await MeetupService.proposeFromListing(
+            let convo = try await messageService.openOrCreate(otherUserId: sellerId, productId: product.id)
+            if amount < product.price - 0.004 {
+                let formatted = amount.rounded() == amount
+                    ? String(format: "%.0f", amount)
+                    : String(format: "%.2f", amount)
+                let imageURL = product.images?.first(where: { $0.isPrimary == true })?.url
+                    ?? product.images?.first?.url
+                _ = try await messageService.send(
+                    conversationId: convo.id,
+                    content: OfferMessageCodec.encode(
+                        amount: formatted,
+                        productId: product.id,
+                        title: product.title,
+                        price: product.price,
+                        imageURL: imageURL
+                    )
+                )
+            }
+            let meetup = try await MeetupService.propose(
+                conversationId: convo.id,
                 productId: product.id,
+                recipientId: sellerId,
                 sellerId: sellerId,
                 spot: spot,
-                at: scheduledAt,
+                at: time,
                 school: campusTheme.schoolID
             )
             meetupStore.apply(meetup)
-            showMeetupRequestSheet = false
-            Motion.haptic(.medium)
-        } catch {
-            actionError = error.localizedDescription
-        }
-    }
-
-    private func sendOffer(amount: Double, sellerId: String, product: Product) async {
-        guard product.isSold != true else {
-            actionError = "This listing is sold."
-            showOfferSheet = false
-            return
-        }
-        isSendingOffer = true
-        defer { isSendingOffer = false }
-        do {
-            let formatted: String = {
-                if amount.rounded() == amount {
-                    return String(format: "%.0f", amount)
-                }
-                return String(format: "%.2f", amount)
-            }()
-            let imageURL = product.images?.first(where: { $0.isPrimary == true })?.url
-                ?? product.images?.first?.url
-            let convo = try await messageService.openOrCreate(otherUserId: sellerId, productId: product.id)
             _ = try await messageService.send(
                 conversationId: convo.id,
-                content: OfferMessageCodec.encode(
-                    amount: formatted,
-                    productId: product.id,
-                    title: product.title,
-                    price: product.price,
-                    imageURL: imageURL
-                )
+                content: MeetupMessageCodec.encode(kind: .invite, spot: spot, proposedAt: time)
             )
-            showOfferSheet = false
+            MeetupNotificationScheduler.shared.noteUserWantsAlerts()
+            showWantSheet = false
             Motion.haptic(.medium)
             appState.path.append(.conversation(convo.id, sellerId, product.id))
         } catch {
@@ -1187,42 +1107,6 @@ struct ProductDetailView: View {
     }
 
     // MARK: - Meetup payments
-
-    private func collectPaymentButton(_ product: Product) -> some View {
-        Button {
-            Task { await startSellerPayment() }
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "iphone.and.arrow.forward")
-                    .font(.system(size: 20, weight: .semibold))
-                    .frame(width: 42, height: 42)
-                    .background(Color.white.opacity(0.18))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Receive payment")
-                        .font(Theme.syne(15, weight: .bold))
-                    Text("Buyer pays with Apple Pay on their phone")
-                        .font(Theme.syne(12, weight: .medium))
-                        .opacity(0.85)
-                }
-                Spacer()
-                if isPaymentBusy {
-                    ProgressView().tint(.white)
-                } else {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .opacity(0.8)
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(campusTheme.primary)
-            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-        .disabled(isPaymentBusy || product.isSold == true)
-    }
 
     private func copyListing() async {
         isBusy = true
@@ -1463,10 +1347,6 @@ struct ProductDetailView: View {
             chips.append(category.capitalized)
         }
         return chips
-    }
-
-    private static func quickOfferAmount(listed: Double, percent: Int) -> Double {
-        max(1, (listed * (1.0 - Double(percent) / 100.0)).rounded())
     }
 
     private func formattedPrice(_ price: Double) -> String {

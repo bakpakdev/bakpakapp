@@ -74,6 +74,14 @@ final class MessagesViewModel: ObservableObject {
     private var activeConversationId: String?
     /// Conversation currently shown in the thread (used to clear when switching).
     private var displayedConversationId: String?
+    /// Saved message id -> the temporary id its bubble was first drawn with.
+    private var rowIdBySavedId: [String: String] = [:]
+
+    /// Stable row identity for the thread list: a sent message keeps the id it was
+    /// drawn with, so replacing it with the saved copy doesn't rebuild the bubble.
+    func rowId(for message: Message) -> String {
+        rowIdBySavedId[message.id] ?? message.id
+    }
 
     func loadConversations() async {
         isLoadingConversations = true
@@ -146,6 +154,7 @@ final class MessagesViewModel: ObservableObject {
         defer { isSending = false }
         do {
             let sent = try await service.send(conversationId: conversationId, content: trimmed)
+            rowIdBySavedId[sent.id] = tempId
             if let idx = messages.firstIndex(where: { $0.id == tempId }) {
                 messages[idx] = sent
             } else {
@@ -258,6 +267,15 @@ final class MessagesViewModel: ObservableObject {
                         && ($0.senderId ?? "").lowercased() == (local.senderId ?? "").lowercased()
                 }
         }
+        for local in messages where local.id.hasPrefix("local-") {
+            if let saved = fetched.first(where: {
+                rowIdBySavedId[$0.id] == nil
+                    && $0.content == local.content
+                    && ($0.senderId ?? "").lowercased() == (local.senderId ?? "").lowercased()
+            }) {
+                rowIdBySavedId[saved.id] = local.id
+            }
+        }
         let merged = (fetched + locals).sorted { ($0.createdAt ?? "") < ($1.createdAt ?? "") }
         // The 2-second poll usually finds nothing new; republishing an identical list
         // re-renders the whole thread and makes typing stutter on slower phones.
@@ -274,6 +292,7 @@ final class MessagesViewModel: ObservableObject {
                 && $0.content == message.content
                 && ($0.senderId ?? "").lowercased() == (message.senderId ?? "").lowercased()
         }) {
+            rowIdBySavedId[message.id] = messages[idx].id
             messages[idx] = message
             return
         }

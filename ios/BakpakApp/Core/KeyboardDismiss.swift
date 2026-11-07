@@ -1,3 +1,4 @@
+import SwiftUI
 import UIKit
 
 /// Tapping anywhere outside a text field closes the keyboard, app-wide.
@@ -29,7 +30,17 @@ final class KeyboardDismiss: NSObject, UIGestureRecognizerDelegate {
         tap.view?.endEditing(true)
     }
 
+    /// Window-space areas (e.g. a chat's input bar) where a tap keeps the keyboard up,
+    /// so tapping send leaves the keyboard open like Messages does.
+    private var keepOpenFrames: [UUID: CGRect] = [:]
+
+    func setKeepOpenFrame(_ frame: CGRect?, for id: UUID) {
+        keepOpenFrames[id] = frame
+    }
+
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        let point = touch.location(in: nil)
+        if keepOpenFrames.values.contains(where: { $0.contains(point) }) { return false }
         var view = touch.view
         while let v = view {
             if v is UITextField || v is UITextView || v is UISearchBar { return false }
@@ -46,4 +57,28 @@ final class KeyboardDismiss: NSObject, UIGestureRecognizerDelegate {
     }
 
     private static let recognizerName = "popup.keyboardDismiss"
+}
+
+private struct KeepsKeyboardOpen: ViewModifier {
+    @State private var id = UUID()
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                GeometryReader { geo in
+                    let frame = geo.frame(in: .global)
+                    Color.clear
+                        .onAppear { KeyboardDismiss.shared.setKeepOpenFrame(frame, for: id) }
+                        .onChange(of: frame) { KeyboardDismiss.shared.setKeepOpenFrame($0, for: id) }
+                }
+            )
+            .onDisappear { KeyboardDismiss.shared.setKeepOpenFrame(nil, for: id) }
+    }
+}
+
+extension View {
+    /// Taps inside this view don't close the keyboard (the app closes it on any other tap).
+    func keepsKeyboardOpen() -> some View {
+        modifier(KeepsKeyboardOpen())
+    }
 }

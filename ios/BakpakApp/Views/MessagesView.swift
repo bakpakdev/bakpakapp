@@ -40,8 +40,50 @@ struct ChatMessageUI: Identifiable {
     let isRead: Bool
     var offerAmount: Double?
     var offerStatus: String?
+    var createdAt: Date? = nil
+    /// Stays the same when a just-sent bubble is swapped for the saved copy, so the row
+    /// isn't torn down and rebuilt (that swap made the newest bubble flicker).
+    var rowId: String = ""
 
     var isMe: Bool { senderId == "me" }
+
+    /// Plain text (not a meetup, offer or listing card), so it can sit in a bubble group.
+    var isPlainText: Bool {
+        MeetupMessageCodec.parse(text) == nil
+            && !OfferMessageCodec.isOffer(text)
+            && OfferMessageCodec.parseDecision(text) == nil
+            && ListingRefMessageCodec.parse(text) == nil
+    }
+}
+
+/// A bubble with its own radius per corner (iOS 16 has no `UnevenRoundedRectangle`).
+struct GroupedBubbleShape: Shape {
+    var topLeading: CGFloat
+    var topTrailing: CGFloat
+    var bottomLeading: CGFloat
+    var bottomTrailing: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let maxR = min(rect.width, rect.height) / 2
+        let tl = min(topLeading, maxR), tr = min(topTrailing, maxR)
+        let bl = min(bottomLeading, maxR), br = min(bottomTrailing, maxR)
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX + tl, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX - tr, y: rect.minY))
+        p.addArc(center: CGPoint(x: rect.maxX - tr, y: rect.minY + tr), radius: tr,
+                 startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - br))
+        p.addArc(center: CGPoint(x: rect.maxX - br, y: rect.maxY - br), radius: br,
+                 startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+        p.addLine(to: CGPoint(x: rect.minX + bl, y: rect.maxY))
+        p.addArc(center: CGPoint(x: rect.minX + bl, y: rect.maxY - bl), radius: bl,
+                 startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + tl))
+        p.addArc(center: CGPoint(x: rect.minX + tl, y: rect.minY + tl), radius: tl,
+                 startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+        p.closeSubpath()
+        return p
+    }
 }
 
 // MARK: - Corner radius helper
@@ -70,52 +112,52 @@ private extension View {
 
 private struct MessagesChatRow: View {
     let chat: Chat
+    var stage: String? = nil
     let isSelected: Bool
     let onTap: () -> Void
     @Environment(\.campusTheme) private var campusTheme
 
+    private var isUnread: Bool { chat.unreadCount > 0 }
+
     var body: some View {
         Button(action: onTap) {
             HStack(alignment: .center, spacing: 12) {
-                ZStack(alignment: .bottomTrailing) {
-                    AvatarView(
-                        urlString: chat.participant.avatar,
-                        size: 52,
-                        cornerRadius: 18,
-                        initials: chat.participant.name
-                    )
+                AvatarView(
+                    urlString: chat.participant.avatar,
+                    size: 52,
+                    initials: chat.participant.name
+                )
 
-                    if chat.participant.isOnline {
-                        Circle()
-                            .fill(campusTheme.primary)
-                            .frame(width: 12, height: 12)
-                            .overlay(Circle().stroke(campusTheme.surface, lineWidth: 2))
-                            .offset(x: 3, y: 3)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(chat.participant.name)
-                            .font(Theme.syne(15, weight: .bold))
+                            .font(Theme.syne(15, weight: isUnread ? .bold : .semibold))
                             .foregroundStyle(campusTheme.textPrimary)
                             .lineLimit(1)
                         Spacer(minLength: 8)
                         Text(chat.lastTimestamp)
-                            .font(Theme.syne(11, weight: .medium))
-                            .foregroundStyle(campusTheme.textMuted)
+                            .font(Theme.syne(12, weight: .medium))
+                            .foregroundStyle(isUnread ? campusTheme.textPrimary : campusTheme.textMuted)
                     }
 
-                    Text(chat.lastMessage.isEmpty ? "Start the conversation" : chat.lastMessage)
-                        .font(Theme.syne(13, weight: chat.unreadCount > 0 ? .semibold : .regular))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .lineLimit(1)
-                }
+                    HStack(spacing: 8) {
+                        Text(chat.lastMessage.isEmpty ? "Start the conversation" : chat.lastMessage)
+                            .font(Theme.syne(13, weight: isUnread ? .semibold : .regular))
+                            .foregroundStyle(isUnread ? campusTheme.textPrimary : campusTheme.textMuted)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        if isUnread {
+                            Circle()
+                                .fill(campusTheme.primary)
+                                .frame(width: 9, height: 9)
+                        }
+                    }
 
-                if chat.unreadCount > 0 {
-                    Circle()
-                        .fill(campusTheme.primary)
-                        .frame(width: 9, height: 9)
+                    HStack(spacing: 6) {
+                        tag(chat.isMyListing ? "Selling" : "Buying", strong: true)
+                        if let stage { tag(stage, strong: false) }
+                    }
+                    .padding(.top, 2)
                 }
 
                 if !chat.item.image.isEmpty {
@@ -124,25 +166,43 @@ private struct MessagesChatRow: View {
                     } placeholder: {
                         campusTheme.elevatedSurface
                     }
-                    .frame(width: 58, height: 58)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .frame(width: 44, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
             }
-            .padding(12)
-            .background(isSelected ? campusTheme.primary.opacity(0.12) : campusTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .stroke(isSelected ? campusTheme.primary.opacity(0.35) : campusTheme.border, lineWidth: 1)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isSelected ? campusTheme.elevatedSurface : Color.clear)
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func tag(_ text: String, strong: Bool) -> some View {
+        Text(text)
+            .font(Theme.syne(11, weight: strong ? .bold : .semibold))
+            .foregroundStyle(strong ? campusTheme.textPrimary : campusTheme.textMuted)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(campusTheme.elevatedSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
 struct MessageBubbleView: View {
     let message: ChatMessageUI
-    var showTime: Bool = true
+    /// Offers and meetups show as one-line notes; the chat's deal bar carries the buttons.
+    var compactDeals: Bool = false
+    /// Who "they" are in one-line deal notes.
+    var otherName: String = "They"
+    /// "Seen" / "Sent" under the last message, when it's mine.
+    var receipt: String? = nil
+    /// Same sender a moment before / after: tighter spacing and flatter joined corners.
+    var joinsPrevious: Bool = false
+    var joinsNext: Bool = false
     var meetupStatus: MeetupMessageKind? = nil
     var canRespondToMeetup: Bool = false
     var canManageMeetup: Bool = false
@@ -162,7 +222,14 @@ struct MessageBubbleView: View {
 
     var body: some View {
         VStack(alignment: message.isMe ? .trailing : .leading, spacing: 4) {
-            if let meetup = MeetupMessageCodec.parse(message.text) {
+            if compactDeals, let note = dealNote {
+                Text(note)
+                    .font(Theme.syne(12, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+            } else if let meetup = MeetupMessageCodec.parse(message.text) {
                 let display: MeetupMessagePayload = {
                     if meetup.kind.isProposal, let meetupStatus {
                         return MeetupMessagePayload(
@@ -194,38 +261,100 @@ struct MessageBubbleView: View {
                 listingRefBubble(listing, isMe: message.isMe)
             } else {
                 HStack(alignment: .bottom, spacing: 0) {
-                    if message.isMe { Spacer(minLength: 64) }
+                    if message.isMe { Spacer(minLength: 56) }
                     Text(message.text)
                         .font(Theme.syne(15))
                         .foregroundStyle(message.isMe ? Color.white : campusTheme.textPrimary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(message.isMe ? campusTheme.primary : campusTheme.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .stroke(message.isMe ? Color.clear : campusTheme.border, lineWidth: 1)
-                        )
-                    if !message.isMe { Spacer(minLength: 64) }
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 8)
+                        .background(message.isMe ? campusTheme.primary : campusTheme.elevatedSurface)
+                        .clipShape(bubbleShape)
+                        .contextMenu {
+                            Button {
+                                UIPasteboard.general.string = message.text
+                            } label: {
+                                Label("Copy", systemImage: "doc.on.doc")
+                            }
+                        }
+                    if !message.isMe { Spacer(minLength: 56) }
                 }
             }
 
-            if showTime {
-                HStack(spacing: 5) {
-                    Text(message.timestamp)
-                        .font(Theme.syne(11, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                    if message.isMe {
-                        Image(systemName: message.isRead ? "checkmark.circle.fill" : "checkmark.circle")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(message.isRead ? campusTheme.primary : campusTheme.textMuted)
-                    }
-                }
-                .padding(.horizontal, 6)
+            if let receipt {
+                Text(receipt)
+                    .font(Theme.syne(11, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .padding(.horizontal, 6)
+                    .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: message.isMe ? .trailing : .leading)
-        .padding(.bottom, 8)
+        .padding(.bottom, joinsNext ? 2 : 10)
+    }
+
+    /// One line for an offer or meetup message, e.g. "You offered $34 · Levi's jacket · accepted".
+    private var dealNote: String? {
+        let who = message.isMe ? "You" : otherName
+        if let meetup = MeetupMessageCodec.parse(message.text) {
+            let when = meetup.proposedAt.map(WantItSheet.timeLabel)
+            let place = [meetup.spotName, when].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+            switch meetup.kind {
+            case .invite, .rescheduled:
+                let verb = meetup.kind == .rescheduled ? "changed the meetup to" : "suggested meeting at"
+                var line = "\(who) \(verb) \(place)"
+                if let meetupStatus, meetupStatus != meetup.kind {
+                    switch meetupStatus {
+                    case .accepted: line += " · accepted"
+                    case .declined: line += " · declined"
+                    case .cancelled: line += " · no longer active"
+                    default: break
+                    }
+                } else if let at = meetup.proposedAt, at < Date() {
+                    line += " · expired"
+                }
+                return line
+            case .accepted:
+                return "\(who) accepted the meetup · \(place)"
+            case .declined:
+                return "\(who) declined the meetup"
+            case .cancelled:
+                return "\(who) cancelled the meetup"
+            }
+        }
+        if let decision = OfferMessageCodec.parseDecision(message.text) {
+            return decision.0 == .accepted
+                ? "\(who) accepted the \(decision.1) offer"
+                : "\(who) declined the \(decision.1) offer"
+        }
+        if OfferMessageCodec.isOffer(message.text) {
+            let amount = OfferMessageCodec.displayAmount(message.text)
+            var line = "\(who) offered \(amount)"
+            if let title = OfferMessageCodec.listing(from: message.text)?.title, !title.isEmpty {
+                line += " · \(title)"
+            }
+            if offerDecision == .replaced { line += " · replaced" }
+            return line
+        }
+        return nil
+    }
+
+    private var bubbleShape: GroupedBubbleShape {
+        let big: CGFloat = 18
+        let small: CGFloat = 5
+        if message.isMe {
+            return GroupedBubbleShape(
+                topLeading: big,
+                topTrailing: joinsPrevious ? small : big,
+                bottomLeading: big,
+                bottomTrailing: joinsNext ? small : big
+            )
+        }
+        return GroupedBubbleShape(
+            topLeading: joinsPrevious ? small : big,
+            topTrailing: big,
+            bottomLeading: joinsNext ? small : big,
+            bottomTrailing: big
+        )
     }
 
     private func offerBubble(_ text: String, isMe: Bool, decision: OfferMessageCodec.Decision?, canRespond: Bool) -> some View {
@@ -408,10 +537,8 @@ struct MessagesView: View {
     @Environment(\.campusTheme) private var campusTheme
 
     @State private var selectedChatId: String?
-    @State private var activeTab: String = "buying"
     @State private var searchTerm: String = ""
     @State private var showPastMeetups = false
-    @State private var heroPage = 0
 
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -423,17 +550,7 @@ struct MessagesView: View {
 
     private var filteredChats: [Chat] {
         let _ = blockStore.revision
-        let roleFiltered: [Chat] = {
-            switch activeTab {
-            case "selling":
-                return chats.filter(\.isMyListing)
-            case "buying":
-                return chats.filter { !$0.isMyListing }
-            default:
-                return chats
-            }
-        }()
-        let visible = roleFiltered.filter { !blockStore.isHidden($0.participant.id) }
+        let visible = chats.filter { !blockStore.isHidden($0.participant.id) }
         guard !searchTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return visible
         }
@@ -538,89 +655,50 @@ struct MessagesView: View {
     private var sidebarView: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("inbox")
-                        .font(Theme.syne(36, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                    Text("buying & selling chats")
-                        .font(Theme.syne(28, weight: .semibold))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-                .padding(.top, 76)
-                .padding(.bottom, 22)
+                Text("inbox")
+                    .font(Theme.syne(34, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .padding(.top, 76)
+                    .padding(.bottom, 14)
 
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(campusTheme.textPrimary)
                         .padding(.leading, 6)
-                    TextField("Search thrift chats…", text: $searchTerm)
+                    TextField("Search people or items", text: $searchTerm)
                         .font(Theme.syne(15, weight: .regular))
                         .foregroundStyle(campusTheme.textPrimary)
                         .tint(campusTheme.primary)
                 }
-                .padding(.horizontal, 16)
-                .frame(height: 62)
+                .padding(.horizontal, 14)
+                .frame(height: 46)
                 .background(campusTheme.surface)
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
-                .padding(.bottom, 22)
+                .padding(.bottom, 18)
 
-                HStack(spacing: 8) {
-                    ForEach(["buying", "selling"], id: \.self) { tab in
-                        let isActive = activeTab == tab
-                        let badge = tab == "buying" ? appState.inboxUnreadBuying : appState.inboxUnreadSelling
+                needsYouSection
+
+                HStack {
+                    Text("All chats")
+                        .font(Theme.syne(13, weight: .bold))
+                        .foregroundStyle(campusTheme.textMuted)
+                    Spacer()
+                    if !meetupStore.past.isEmpty {
                         Button {
-                            withAnimation(Motion.snappy) { activeTab = tab }
                             Motion.haptic(.light)
+                            showPastMeetups = true
                         } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: tab == "buying" ? "bag" : "tag")
-                                    .font(.system(size: 15, weight: .medium))
-                                    .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
-                                    .frame(width: 42, height: 42)
-                                    .background(
-                                        Circle().fill(isActive ? Color.white.opacity(0.18) : campusTheme.surface)
-                                    )
-                                    .overlay(
-                                        Circle().stroke(isActive ? Color.white.opacity(0.35) : Color.clear, lineWidth: 1)
-                                    )
-                                Text(tab == "buying" ? "Buying" : "Selling")
-                                    .font(Theme.syne(14, weight: .semibold))
-                                    .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
-                                Spacer(minLength: 0)
-                                if badge > 0 {
-                                    Text(badge > 9 ? "9+" : "\(badge)")
-                                        .font(Theme.syne(11, weight: .bold))
-                                        .foregroundStyle(isActive ? campusTheme.primary : .white)
-                                        .padding(.horizontal, 7)
-                                        .frame(minWidth: 22, minHeight: 22)
-                                        .background(isActive ? Color.white : campusTheme.primary)
-                                        .clipShape(Capsule())
-                                }
-                            }
-                            .padding(.leading, 5)
-                            .padding(.trailing, 14)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 52)
-                            .background(isActive ? campusTheme.primary : campusTheme.elevatedSurface)
-                            .clipShape(Capsule())
+                            Text("Past meetups")
+                                .font(Theme.syne(13, weight: .bold))
+                                .foregroundStyle(campusTheme.textPrimary)
                         }
-                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+                        .buttonStyle(.plain)
                     }
                 }
-                .padding(.bottom, 16)
-
-                meetupInboxSection
-
-                Text("chats")
-                    .font(Theme.syne(18, weight: .semibold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 8)
-                    .padding(.bottom, 12)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
 
                 if vm.isLoadingConversations && vm.conversations.isEmpty {
                     ProgressView()
@@ -630,13 +708,15 @@ struct MessagesView: View {
                 } else if filteredChats.isEmpty {
                     emptyInboxView
                 } else {
-                    LazyVStack(spacing: 12) {
+                    LazyVStack(spacing: 2) {
                         ForEach(filteredChats) { chat in
                             MessagesChatRow(
                                 chat: chat,
+                                stage: stage(for: chat),
                                 isSelected: selectedChatId == chat.id,
                                 onTap: { openChat(chat) }
                             )
+                            .padding(.horizontal, -12)
                         }
                     }
                 }
@@ -655,9 +735,7 @@ struct MessagesView: View {
                 .font(Theme.syne(17, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text(searchTerm.isEmpty
-                 ? (activeTab == "selling"
-                    ? "When a buyer messages you about a listing, it’ll show up here."
-                    : "Message a seller about a find and it’ll show up here.")
+                 ? "Message a seller about a find, or list something, and chats show up here."
                  : "Try another name or listing.")
                 .font(Theme.syne(14))
                 .foregroundStyle(campusTheme.textMuted)
@@ -669,127 +747,165 @@ struct MessagesView: View {
         .padding(.bottom, 24)
     }
 
+    // MARK: Needs you
+
+    private struct NeedsYouItem: Identifiable {
+        let id: String
+        let title: String
+        let detail: String
+        let imageURL: String?
+        let actionTitle: String
+        let isPrimary: Bool
+        let action: () -> Void
+    }
+
+    /// Things waiting on you: meetup requests to answer, meetups happening soon,
+    /// and unread offers. Everything else is just a chat in the list below.
+    private var needsYouItems: [NeedsYouItem] {
+        let _ = blockStore.revision
+        let me = meetupStore.meId
+        var items: [NeedsYouItem] = []
+        var coveredChats = Set<String>()
+        for meetup in meetupStore.heroMeetups {
+            let peer = meetupStore.peer(for: meetup)
+            let listing = meetupStore.listing(for: meetup)
+            let role = meetup.amISeller(meId: me) ? "Selling" : "Buying"
+            let place = [WantItSheet.timeLabel(meetup.scheduledAt), meetup.spotName].joined(separator: " · ")
+            let itemName = listing?.title ?? ""
+            if meetup.needsMyResponse(meId: me) {
+                items.append(NeedsYouItem(
+                    id: "m-" + meetup.id,
+                    title: "\(peer.name) wants to meet",
+                    detail: [role, itemName, place].filter { !$0.isEmpty }.joined(separator: " · "),
+                    imageURL: listing?.imageURL,
+                    actionTitle: "Reply",
+                    isPrimary: true,
+                    action: { openMeetup(meetup) }
+                ))
+            } else if meetup.status == .confirmed, meetup.isLive || meetup.isToday {
+                items.append(NeedsYouItem(
+                    id: "m-" + meetup.id,
+                    title: meetup.isLive ? "Meetup now" : "Meetup \(WantItSheet.timeLabel(meetup.scheduledAt).lowercased())",
+                    detail: [role, itemName, meetup.spotName].filter { !$0.isEmpty }.joined(separator: " · "),
+                    imageURL: listing?.imageURL,
+                    actionTitle: meetup.canShowPayment() ? (meetup.amISeller(meId: me) ? "Get paid" : "Pay") : "Open",
+                    isPrimary: meetup.canShowPayment(),
+                    action: {
+                        if meetup.canShowPayment() {
+                            appState.path.append(.meetupPay(meetup.id))
+                        } else {
+                            openMeetup(meetup)
+                        }
+                    }
+                ))
+            } else {
+                continue
+            }
+            if !meetup.conversationId.isEmpty { coveredChats.insert(meetup.conversationId.lowercased()) }
+        }
+        for chat in filteredChats where chat.unreadCount > 0 && chat.lastMessage.hasPrefix("Offer ·") {
+            guard !coveredChats.contains(chat.id.lowercased()) else { continue }
+            items.append(NeedsYouItem(
+                id: "c-" + chat.id,
+                title: "\(chat.participant.name) made an offer",
+                detail: chat.lastMessage.replacingOccurrences(of: "Offer · ", with: ""),
+                imageURL: chat.item.image.isEmpty ? nil : chat.item.image,
+                actionTitle: "Reply",
+                isPrimary: true,
+                action: { openChat(chat) }
+            ))
+        }
+        return items
+    }
+
+    private func openMeetup(_ meetup: Meetup) {
+        Motion.haptic(.light)
+        if meetup.conversationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Listing-only request (no chat yet): answer it on the meetup screen.
+            appState.path.append(.meetupDetail(meetup.id))
+        } else {
+            appState.openInboxChat(
+                conversationId: meetup.conversationId,
+                otherUserId: meetup.otherUserId(meId: meetupStore.meId),
+                productId: meetup.productId
+            )
+        }
+    }
+
     @ViewBuilder
-    private var meetupInboxSection: some View {
-        let open = meetupStore.heroMeetups
-        if !open.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+    private var needsYouSection: some View {
+        let items = needsYouItems
+        if !items.isEmpty && searchTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text(open.count == 1 ? "next meetup" : "your meetups")
-                        .font(Theme.syne(18, weight: .semibold))
-                        .foregroundStyle(campusTheme.textPrimary)
+                    Text("Needs you · \(items.count)")
+                        .font(Theme.syne(13, weight: .bold))
+                        .foregroundStyle(campusTheme.textMuted)
                     Spacer()
                     Button {
                         Motion.haptic(.light)
                         appState.path.append(.meetupsHub)
                     } label: {
-                        Text("see all")
+                        Text("All meetups")
                             .font(Theme.syne(13, weight: .bold))
-                            .foregroundStyle(campusTheme.tint)
+                            .foregroundStyle(campusTheme.textPrimary)
                     }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+                    .buttonStyle(.plain)
                 }
+                .padding(.bottom, 2)
 
-                TabView(selection: $heroPage) {
-                    ForEach(Array(open.enumerated()), id: \.element.id) { index, meetup in
-                        MeetupCard(
-                            meetup: meetup,
-                            onTap: {
-                                appState.path.append(.meetupDetail(meetup.id))
-                            },
-                            onAccept: { Task { await respondToStoredMeetup(meetup, accept: true) } },
-                            onDeny: { Task { await respondToStoredMeetup(meetup, accept: false) } },
-                            onPayOrReceive: {
-                                appState.path.append(.meetupPay(meetup.id))
-                            }
-                        )
-                        .padding(.horizontal, 2)
-                        .tag(index)
-                    }
-                }
-                // Built-in page dots draw on top of the card, so we show our own below it.
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: open.contains(where: {
-                    $0.needsMyResponse(meId: meetupStore.meId) || $0.canShowPayment()
-                }) ? 270 : 210)
-                .onChange(of: open.map(\.id)) { _ in
-                    if heroPage >= open.count { heroPage = max(0, open.count - 1) }
-                }
-
-                if open.count > 1 {
-                    HStack(spacing: 7) {
-                        ForEach(open.indices, id: \.self) { index in
-                            Circle()
-                                .fill(index == heroPage ? campusTheme.textPrimary : campusTheme.textPrimary.opacity(0.25))
-                                .frame(width: 7, height: 7)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .animation(.easeInOut(duration: 0.2), value: heroPage)
-                    .accessibilityHidden(true)
-                }
-            }
-            .padding(.bottom, 8)
-        } else if !meetupStore.past.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("meetups")
-                    .font(Theme.syne(18, weight: .semibold))
-                    .foregroundStyle(campusTheme.textPrimary)
-
-                Button {
-                    Motion.haptic(.light)
-                    showPastMeetups = true
-                } label: {
+                ForEach(items) { item in
                     HStack(spacing: 12) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(campusTheme.tint)
-                            .frame(width: 42, height: 42)
-                            .background(campusTheme.primary.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        AsyncImage(url: URL(string: item.imageURL ?? "")) { img in
+                            img.resizable().scaledToFill()
+                        } placeholder: {
+                            campusTheme.elevatedSurface
+                        }
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Past meetups")
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(item.title)
                                 .font(Theme.syne(15, weight: .bold))
                                 .foregroundStyle(campusTheme.textPrimary)
-                            Text("See completed, paid, or canceled pickups")
+                                .lineLimit(1)
+                            Text(item.detail)
                                 .font(Theme.syne(12, weight: .medium))
                                 .foregroundStyle(campusTheme.textMuted)
+                                .lineLimit(1)
                         }
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(campusTheme.textMuted)
+                        Spacer(minLength: 6)
+                        Button(action: item.action) {
+                            Text(item.actionTitle)
+                                .font(Theme.syne(13, weight: .bold))
+                                .foregroundStyle(item.isPrimary ? Color.white : campusTheme.textPrimary)
+                                .padding(.horizontal, 14)
+                                .frame(height: 36)
+                                .background(item.isPrimary ? campusTheme.primary : campusTheme.elevatedSurface)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .padding(14)
-                    .background(CampusCardBackground())
+                    .padding(10)
+                    .background(campusTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: item.action)
                 }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
             }
-            .padding(.bottom, 8)
+            .padding(.bottom, 16)
         }
     }
 
-    private func respondToStoredMeetup(_ meetup: Meetup, accept: Bool) async {
-        do {
-            let hadChat = MeetupService.shouldPostChatStatus(for: meetup)
-            let updated = try await MeetupService.respond(id: meetup.id, accept: accept)
-            meetupStore.apply(updated)
-            if hadChat {
-                await MeetupChatActions.send(
-                    accept ? .accepted : .declined,
-                    meetup: updated,
-                    spots: campusTheme.meetupLocations
-                )
-            } else if accept, !updated.conversationId.isEmpty {
-                appState.openInboxChat(
-                    conversationId: updated.conversationId,
-                    otherUserId: updated.otherUserId(meId: meetupStore.meId),
-                    productId: updated.productId
-                )
-            }
-            Motion.haptic(.medium)
-        } catch {}
+    /// "Buying" / "Selling" plus where the deal is, for the chat row's tags.
+    private func stage(for chat: Chat) -> String? {
+        if chat.item.status == "sold" { return "Sold" }
+        if let meetup = meetupStore.openMeetup(conversationId: chat.id), !meetup.hasEnded() {
+            if meetup.status == .confirmed { return "Meetup set" }
+            return meetup.needsMyResponse(meId: meetupStore.meId) ? "Needs your answer" : "Meetup requested"
+        }
+        if chat.lastMessage.hasPrefix("Offer ·") { return "Offer" }
+        return nil
     }
 
     private var emptyChatView: some View {
@@ -916,10 +1032,10 @@ enum InboxChatMapping {
         let preview: String = {
             let raw = last?.content ?? ""
             if let meetup = MeetupMessageCodec.parse(raw) {
-                let timeSuffix = meetup.formattedProposedTime.map { " · \($0)" } ?? ""
+                let timeSuffix = meetup.proposedAt.map { " · \(WantItSheet.timeLabel($0))" } ?? ""
                 switch meetup.kind {
-                case .invite: return "Meetup invite · \(meetup.spotName)\(timeSuffix)"
-                case .rescheduled: return "Meetup reschedule · \(meetup.spotName)\(timeSuffix)"
+                case .invite: return "Meetup request · \(meetup.spotName)\(timeSuffix)"
+                case .rescheduled: return "New meetup time · \(meetup.spotName)\(timeSuffix)"
                 case .accepted: return "Meetup accepted · \(meetup.spotName)\(timeSuffix)"
                 case .declined: return "Meetup declined · \(meetup.spotName)"
                 case .cancelled: return "Meetup cancelled · \(meetup.spotName)"
@@ -983,8 +1099,28 @@ enum InboxChatMapping {
             timestamp: formatMessageTime(m.createdAt),
             isRead: m.isRead ?? false,
             offerAmount: nil,
-            offerStatus: nil
+            offerStatus: nil,
+            createdAt: m.createdAt.flatMap(parseISO),
+            rowId: m.id
         )
+    }
+
+    /// "Today 3:42 PM", "Yesterday 9:10 AM", "Tue 4:05 PM", "Oct 12, 4:05 PM".
+    static func formatDayDivider(_ date: Date, now: Date = Date()) -> String {
+        let cal = Calendar.current
+        let time = DateFormatter()
+        time.dateStyle = .none
+        time.timeStyle = .short
+        let t = time.string(from: date)
+        if cal.isDateInToday(date) { return "Today \(t)" }
+        if cal.isDateInYesterday(date) { return "Yesterday \(t)" }
+        let f = DateFormatter()
+        if let days = cal.dateComponents([.day], from: date, to: now).day, days < 7 {
+            f.dateFormat = "EEE"
+        } else {
+            f.setLocalizedDateFormatFromTemplate("MMMd")
+        }
+        return "\(f.string(from: date)) \(t)"
     }
 
     private static func parseISO(_ iso: String) -> Date? {
