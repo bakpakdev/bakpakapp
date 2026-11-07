@@ -61,6 +61,7 @@ struct InboxThreadView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            dealBar
             messageList
             composer
         }
@@ -387,6 +388,247 @@ struct InboxThreadView: View {
         }
     }
 
+    // MARK: - Deal bar
+
+    /// Where the deal in this chat stands, so the one thing to do next sits at the top.
+    private enum DealState {
+        /// They asked (offer and/or meetup); I answer.
+        case incoming(offer: Message?, meetup: MeetupMessagePayload?)
+        /// I asked; waiting on them.
+        case waiting(offer: Message?, meetup: MeetupMessagePayload?)
+        /// Offer accepted but no meetup set yet.
+        case offerAccepted(amount: String, listing: ListingRefPayload?)
+        /// Meetup is on.
+        case confirmed(meetup: Meetup?, payload: MeetupMessagePayload)
+    }
+
+    private var meLower: String { (authVM.user?.id ?? "").lowercased() }
+
+    private func isMine(_ m: Message) -> Bool {
+        !meLower.isEmpty && (m.senderId ?? m.sender?.id ?? "").lowercased() == meLower
+    }
+
+    private var dealState: DealState? {
+        let messages = vm.messages
+        // Latest offer still waiting for an answer.
+        let openOffer = messages.last(where: { OfferMessageCodec.isOffer($0.content) })
+            .flatMap { offerDecision(for: $0.id) == nil ? $0 : nil }
+        // Latest meetup proposal still waiting for an answer and not in the past.
+        var openMeetup: (Message, MeetupMessagePayload)?
+        if let msg = messages.last(where: { MeetupMessageCodec.parse($0.content)?.kind.isProposal == true }),
+           let payload = MeetupMessageCodec.parse(msg.content),
+           meetupStatus(for: payload, messageId: msg.id) == nil,
+           payload.proposedAt.map({ $0 > Date() }) ?? true {
+            openMeetup = (msg, payload)
+        }
+
+        let theirOffer = openOffer.flatMap { isMine($0) ? nil : $0 }
+        let theirMeetup = openMeetup.flatMap { isMine($0.0) ? nil : $0.1 }
+        if theirOffer != nil || theirMeetup != nil {
+            return .incoming(offer: theirOffer, meetup: theirMeetup)
+        }
+        let myOffer = openOffer.flatMap { isMine($0) ? $0 : nil }
+        let myMeetup = openMeetup.flatMap { isMine($0.0) ? $0.1 : nil }
+        if myOffer != nil || myMeetup != nil {
+            return .waiting(offer: myOffer, meetup: myMeetup)
+        }
+
+        // A confirmed meetup (from the store, else from the last "accepted" message).
+        let stored = meetupStore.openMeetup(conversationId: threadId)
+            .flatMap { $0.status == .confirmed && !$0.hasEnded() ? $0 : nil }
+        if let stored {
+            let payload = MeetupMessagePayload(
+                kind: .accepted,
+                spotId: stored.spotId,
+                spotName: stored.spotName,
+                proposedAt: stored.scheduledAt
+            )
+            return .confirmed(meetup: stored, payload: payload)
+        }
+        if let last = messages.last(where: { MeetupMessageCodec.parse($0.content) != nil }),
+           let payload = MeetupMessageCodec.parse(last.content),
+           payload.kind == .accepted,
+           let at = payload.proposedAt, at.addingTimeInterval(30 * 60) > Date() {
+            return .confirmed(meetup: nil, payload: payload)
+        }
+
+        // Offer accepted with no meetup after it yet.
+        if let idx = messages.lastIndex(where: { OfferMessageCodec.parseDecision($0.content)?.0 == .accepted }),
+           !messages[idx...].contains(where: { MeetupMessageCodec.parse($0.content) != nil }),
+           let decision = OfferMessageCodec.parseDecision(messages[idx].content) {
+            let offerMsg = messages[..<idx].last(where: { OfferMessageCodec.isOffer($0.content) })
+            return .offerAccepted(
+                amount: decision.1,
+                listing: offerMsg.flatMap { OfferMessageCodec.listing(from: $0.content) }
+            )
+        }
+        return nil
+    }
+
+    private var otherFirstName: String {
+        let name = headerChat?.participant.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return name.isEmpty ? "They" : name
+    }
+
+    private func dealSummary(offer: Message?, meetup: MeetupMessagePayload?) -> String {
+        var parts: [String] = []
+        if let offer { parts.append("\(OfferMessageCodec.displayAmount(offer.content)) offer") }
+        if let meetup {
+            parts.append(meetup.spotName)
+            if let at = meetup.proposedAt { parts.append(WantItSheet.timeLabel(at)) }
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private var dealBar: some View {
+        if showMessages, let state = dealState {
+            Group {
+                switch state {
+                case let .incoming(offer, meetup):
+                    dealCard(
+                        status: offer != nil && meetup == nil
+                            ? "\(otherFirstName) made an offer"
+                            : "\(otherFirstName) wants to meet",
+                        detail: dealSummary(offer: offer, meetup: meetup),
+                        primary: ("Accept", { Task { await acceptIncoming(offer: offer, meetup: meetup) } }),
+                        secondary: ("Decline", { Task { await declineIncoming(offer: offer, meetup: meetup) } })
+                    )
+                case let .waiting(offer, meetup):
+                    dealCard(
+                        status: "Waiting for \(otherFirstName)",
+                        detail: dealSummary(offer: offer, meetup: meetup),
+                        primary: meetup.map { payload in
+                            ("Change", {
+                                meetupDraft = .reschedule(
+                                    spotId: payload.spotId,
+                                    proposedAt: payload.proposedAt,
+                                    conversationId: threadId,
+                                    previousSpotId: payload.spotId
+                                )
+                                showMeetupPicker = true
+                            })
+                        },
+                        secondary: meetup.map { payload in
+                            ("Cancel", {
+                                pendingCancelMeetup = payload
+                                showCancelMeetupConfirm = true
+                            })
+                        },
+                        primaryIsQuiet: true
+                    )
+                case let .offerAccepted(amount, listing):
+                    dealCard(
+                        status: "Offer accepted · \(amount)",
+                        detail: "Pick a spot and time to meet.",
+                        primary: ("Set up meetup", { beginMeetup(for: listing) }),
+                        secondary: nil
+                    )
+                case let .confirmed(meetup, payload):
+                    let when = payload.proposedAt.map(WantItSheet.timeLabel) ?? ""
+                    let canPay = meetup?.canShowPayment() == true
+                    let isSeller = meetup?.amISeller(meId: authVM.user?.id ?? "") == true
+                    dealCard(
+                        status: meetup?.isLive == true ? "Meetup is now" : "Meetup confirmed",
+                        detail: [when, payload.spotName].filter { !$0.isEmpty }.joined(separator: " · "),
+                        primary: canPay
+                            ? (isSeller ? "Get paid" : "Pay", {
+                                if let id = meetup?.id { appState.path.append(.meetupPay(id)) }
+                            })
+                            : ("Directions", {
+                                MeetupMaps.open(spotId: payload.spotId, spotName: payload.spotName, theme: campusTheme)
+                            }),
+                        secondary: meetup.map { m in ("Details", { appState.path.append(.meetupDetail(m.id)) }) }
+                    )
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            .background(campusTheme.background)
+            .transition(.opacity)
+        }
+    }
+
+    private func dealCard(
+        status: String,
+        detail: String,
+        primary: (String, () -> Void)?,
+        secondary: (String, () -> Void)?,
+        primaryIsQuiet: Bool = false
+    ) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(status)
+                    .font(Theme.syne(14, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !detail.isEmpty {
+                    Text(detail)
+                        .font(Theme.syne(12, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .lineLimit(2)
+                }
+            }
+            Spacer(minLength: 4)
+            if let secondary {
+                Button(action: secondary.1) {
+                    Text(secondary.0)
+                        .font(Theme.syne(13, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .padding(.horizontal, 12)
+                        .frame(height: 36)
+                        .background(campusTheme.elevatedSurface)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            if let primary {
+                Button(action: primary.1) {
+                    Text(primary.0)
+                        .font(Theme.syne(13, weight: .bold))
+                        .foregroundStyle(primaryIsQuiet ? campusTheme.textPrimary : Color.white)
+                        .padding(.horizontal, 14)
+                        .frame(height: 36)
+                        .background(primaryIsQuiet ? campusTheme.elevatedSurface : campusTheme.primary)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(12)
+        .background(campusTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(campusTheme.border, lineWidth: 1)
+        )
+    }
+
+    private func acceptIncoming(offer: Message?, meetup: MeetupMessagePayload?) async {
+        Motion.haptic(.medium)
+        if let offer {
+            await respondToOffer(offer.content, accepted: true)
+        }
+        if let meetup {
+            await respondToMeetup(meetup, accepted: true)
+        } else if let offer {
+            // Offer alone: pick where and when right away.
+            beginMeetup(for: OfferMessageCodec.listing(from: offer.content))
+        }
+    }
+
+    private func declineIncoming(offer: Message?, meetup: MeetupMessagePayload?) async {
+        Motion.haptic(.light)
+        if let offer {
+            await respondToOffer(offer.content, accepted: false)
+        }
+        if let meetup {
+            await respondToMeetup(meetup, accepted: false)
+        }
+    }
+
     /// Back-to-back plain messages from the same person within a few minutes share a group.
     private func joins(_ a: ChatMessageUI?, _ b: ChatMessageUI?) -> Bool {
         guard let a, let b, a.senderId == b.senderId, a.isPlainText, b.isPlainText else { return false }
@@ -490,6 +732,8 @@ struct InboxThreadView: View {
         let offerDecision = OfferMessageCodec.isOffer(msg.text) ? offerDecision(for: msg.id) : nil
         MessageBubbleView(
             message: msg,
+            compactDeals: true,
+            otherName: otherFirstName,
             receipt: receipt,
             joinsPrevious: joinsPrevious,
             joinsNext: joinsNext,

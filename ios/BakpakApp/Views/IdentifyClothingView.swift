@@ -164,8 +164,12 @@ struct IdentifyClothingView: View {
         }
     }
 
-    private func pageHeader(title: String, subtitle: String, caption: String?) -> some View {
+    private func pageHeader(title: String, subtitle: String, caption: String?, step: Int? = nil) -> some View {
         VStack(alignment: .leading, spacing: 2) {
+            if let step {
+                SellStepProgress(step: step)
+                    .padding(.bottom, 12)
+            }
             Text(title)
                 .font(Theme.syne(36, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
@@ -210,7 +214,8 @@ struct IdentifyClothingView: View {
                 subtitle: "scan your piece",
                 caption: photos.isEmpty
                     ? "Take a photo of your item. We’ll identify it for you."
-                    : "Add up to 5 photos. We’ll use all of them to identify the listing."
+                    : "Add up to 5 photos. We’ll use all of them to identify the listing.",
+                step: 1
             )
 
             ScrollView(showsIndicators: false) {
@@ -413,7 +418,7 @@ struct IdentifyClothingView: View {
 
     private var confirmationScroll: some View {
         VStack(spacing: 0) {
-            pageHeader(title: "review", subtitle: "is this the item?", caption: nil)
+            pageHeader(title: "review", subtitle: "is this the item?", caption: nil, step: 2)
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
@@ -820,5 +825,28 @@ private extension String {
     var nilIfEmpty: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+/// "Step 2 of 3" with a three-part bar, shared by the scan, review and post screens.
+struct SellStepProgress: View {
+    let step: Int
+    var detail: String? = nil
+    @Environment(\.campusTheme) private var campusTheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                ForEach(1...3, id: \.self) { index in
+                    Capsule()
+                        .fill(index <= step ? campusTheme.primary : campusTheme.border)
+                        .frame(height: 4)
+                }
+            }
+            Text(detail.map { "Step \(step) of 3 · \($0)" } ?? "Step \(step) of 3")
+                .font(Theme.syne(12, weight: .bold))
+                .foregroundStyle(campusTheme.textMuted)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
