@@ -138,47 +138,29 @@ struct MainTabView: View {
         campusTheme.background.opacity(campusTheme.isDark ? 0.55 : 0.22)
     }
 
-    /// Two glass pills with a round sell button between them. On iOS 26 the pieces
-    /// are real Liquid Glass and melt into each other where they meet.
+    /// One connected glass bar. The sell button sits in line with the tabs as a solid
+    /// circle in the app's text color, so it reads as the main action.
     private var customTabBar: some View {
-        glassGroup {
-            HStack(spacing: 6) {
-                HStack(spacing: 0) {
-                    tabItem(tab: .home, title: "Home", systemImage: "house", activeImage: "house.fill")
-                    tabItem(tab: .search, title: "Search", systemImage: "magnifyingglass", activeImage: "magnifyingglass")
-                }
-                .padding(4)
-                .glassSurface(Capsule(), tint: glassTint, isDark: campusTheme.isDark)
-
-                sellButton
-
-                HStack(spacing: 0) {
-                    tabItem(
-                        tab: .messages,
-                        title: "Inbox",
-                        systemImage: "bubble.left.and.bubble.right",
-                        activeImage: "bubble.left.and.bubble.right.fill",
-                        badge: appState.inboxUnreadTotal > 0
-                    )
-                    tabItem(tab: .profile, title: "Profile", systemImage: "person", activeImage: "person.fill")
-                }
-                .padding(4)
-                .glassSurface(Capsule(), tint: glassTint, isDark: campusTheme.isDark)
-            }
+        HStack(spacing: 0) {
+            tabItem(tab: .home, title: "Home", systemImage: "house", activeImage: "house.fill")
+            tabItem(tab: .search, title: "Search", systemImage: "magnifyingglass", activeImage: "magnifyingglass")
+            sellButton
+                .frame(maxWidth: .infinity)
+            tabItem(
+                tab: .messages,
+                title: "Inbox",
+                systemImage: "bubble.left.and.bubble.right",
+                activeImage: "bubble.left.and.bubble.right.fill",
+                badge: appState.inboxUnreadTotal > 0
+            )
+            tabItem(tab: .profile, title: "Profile", systemImage: "person", activeImage: "person.fill")
         }
+        .padding(5)
+        .glassSurface(Capsule(), tint: glassTint, isDark: campusTheme.isDark)
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity)
         .padding(.top, 6)
         .padding(.bottom, 6)
-    }
-
-    @ViewBuilder
-    private func glassGroup<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: 14) { content() }
-        } else {
-            content()
-        }
     }
 
     private var sellButton: some View {
@@ -189,13 +171,14 @@ struct MainTabView: View {
             }
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(campusTheme.textPrimary)
-                .frame(width: 62, height: 62)
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundStyle(campusTheme.background)
+                .frame(width: 52, height: 52)
+                .background(Circle().fill(campusTheme.textPrimary))
+                .shadow(color: Color.black.opacity(campusTheme.isDark ? 0.4 : 0.18), radius: 8, y: 3)
                 .contentShape(Circle())
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
-        .glassSurface(Circle(), tint: glassTint, isDark: campusTheme.isDark)
         .accessibilityLabel("Sell")
     }
 
