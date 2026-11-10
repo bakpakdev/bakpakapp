@@ -250,6 +250,7 @@ struct ProfileView: View {
                 reviewAverage: ReviewSummary(reviews: reviews).average,
                 reviewCount: reviews.count
             )
+            .environment(\.campusTheme, campusTheme)
         }
     }
 

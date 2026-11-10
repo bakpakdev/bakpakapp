@@ -13,8 +13,33 @@ struct ClosetSharePalette: Identifiable, Equatable {
     let line: Color
     let swatch: Color
 
-    /// School-neutral monochrome cards: ink, paper, concrete, chrome.
-    static let options: [ClosetSharePalette] = [
+    /// The school's card first (UO green, OSU orange, ink on the dev campus), then
+    /// ink, paper, concrete and chrome.
+    static func options(campus: CampusTheme) -> [ClosetSharePalette] {
+        [schoolCard(campus)] + neutrals.filter { !(campus.isDev && $0.id == "ink") }
+    }
+
+    private static func schoolCard(_ campus: CampusTheme) -> ClosetSharePalette {
+        if campus.isDev {
+            return neutrals[0]
+        }
+        if campus.shortName == "OSU" {
+            return ClosetSharePalette(
+                id: "school", name: "Beavers",
+                top: Color(hex: "#E2531D"), bottom: Color(hex: "#3A1406"),
+                text: .white, muted: Color.white.opacity(0.68),
+                line: Color.white.opacity(0.2), swatch: Theme.osuOrange
+            )
+        }
+        return ClosetSharePalette(
+            id: "school", name: "Ducks",
+            top: Color(hex: "#1D5C43"), bottom: Color(hex: "#0A241C"),
+            text: .white, muted: Theme.uoYellow.opacity(0.8),
+            line: Theme.uoYellow.opacity(0.3), swatch: Theme.uoGreen
+        )
+    }
+
+    private static let neutrals: [ClosetSharePalette] = [
         ClosetSharePalette(
             id: "ink", name: "Ink",
             top: Color(hex: "#1C1C1C"), bottom: Color(hex: "#050505"),
@@ -54,6 +79,7 @@ struct ShareClosetSheet: View {
     let reviewCount: Int
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.campusTheme) private var campusTheme
 
     @State private var paletteIndex = 0
     @State private var avatarImage: UIImage?
@@ -66,7 +92,7 @@ struct ShareClosetSheet: View {
     @State private var missingAppTitle = ""
     @State private var missingAppStoreURL: URL?
 
-    private let palettes = ClosetSharePalette.options
+    private var palettes: [ClosetSharePalette] { ClosetSharePalette.options(campus: campusTheme) }
     private var palette: ClosetSharePalette { palettes[paletteIndex] }
 
     private var shareURL: URL {
@@ -85,7 +111,12 @@ struct ShareClosetSheet: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            PopupBrand.background.ignoresSafeArea()
+            LinearGradient(
+                colors: [campusTheme.barFill, PopupBrand.background],
+                startPoint: .top,
+                endPoint: .center
+            )
+            .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 header
@@ -239,10 +270,10 @@ struct ShareClosetSheet: View {
                     Text(showCopied ? "Copied" : "Copy")
                         .font(Theme.syne(14, weight: .bold))
                 }
-                .foregroundStyle(PopupBrand.buttonText)
+                .foregroundStyle(campusTheme.barAccentText)
                 .padding(.horizontal, 18)
                 .frame(height: 54)
-                .background(Capsule().fill(PopupBrand.button))
+                .background(Capsule().fill(campusTheme.barAccent))
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
             .accessibilityLabel("Copy closet link")

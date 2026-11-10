@@ -130,8 +130,8 @@ struct MainTabView: View {
         }
     }
 
-    /// Ink pill in every campus theme, so the bar reads the same black/white everywhere.
-    private let barInk = Color(hex: "#0B0B0B")
+    /// The bar takes the school's colors: deep school tone, school accent for + and the active tab.
+    private var barInk: Color { campusTheme.barFill }
 
     private var customTabBar: some View {
         HStack(spacing: 4) {
@@ -169,11 +169,11 @@ struct MainTabView: View {
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(barInk)
+                .foregroundStyle(campusTheme.barAccentText)
                 .frame(width: 50, height: 50)
                 .background(
                     RoundedRectangle(cornerRadius: 17, style: .continuous)
-                        .fill(Color.white)
+                        .fill(campusTheme.barAccent)
                 )
                 .padding(.horizontal, 2)
         }
@@ -202,7 +202,7 @@ struct MainTabView: View {
                         .frame(width: 26, height: 22)
                     if badge {
                         Circle()
-                            .fill(Color.white)
+                            .fill(campusTheme.barAccent)
                             .frame(width: 8, height: 8)
                             .overlay(Circle().stroke(barInk, lineWidth: 2))
                             .offset(x: 4, y: -2)
@@ -213,7 +213,7 @@ struct MainTabView: View {
                     .font(Theme.syne(10, weight: isActive ? .bold : .medium))
                     .lineLimit(1)
                 Capsule()
-                    .fill(Color.white)
+                    .fill(campusTheme.barAccent)
                     .frame(width: isActive ? 14 : 0, height: 2)
                     .opacity(isActive ? 1 : 0)
             }

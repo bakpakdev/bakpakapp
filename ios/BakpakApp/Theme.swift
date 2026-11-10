@@ -107,6 +107,29 @@ struct CampusTheme: Equatable {
         )
     }
 
+    // MARK: Brand chrome (tab bar, share card)
+
+    /// Deep school tone behind the floating tab bar.
+    var barFill: Color {
+        if isDev { return Color(hex: "#0B0B0B") }
+        if shortName == "OSU" { return Color(hex: "#141414") }
+        return Color(hex: "#0F3326")
+    }
+
+    /// School accent for the sell button, active underline and share actions.
+    var barAccent: Color {
+        if isDev { return Color.white }
+        if shortName == "OSU" { return Theme.osuOrange }
+        return Theme.uoYellow
+    }
+
+    /// Glyph / text color on top of `barAccent`.
+    var barAccentText: Color {
+        if isDev { return Color(hex: "#0B0B0B") }
+        if shortName == "OSU" { return Color.white }
+        return Theme.uoGreen
+    }
+
     var background: Color {
         if isDev { return isDark ? PopupBrand.background : Color(hex: "#F7F7F7") }
         return isDark ? Color(hex: "#0C100E") : Color(hex: "#F7F8F7")
