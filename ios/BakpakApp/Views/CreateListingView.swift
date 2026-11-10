@@ -468,6 +468,7 @@ struct CreateListingView: View {
             && !selectedCategoryID.isEmpty
             && !selectedGroupID.isEmpty
             && !selectedGenderID.isEmpty
+            && !selectedBrand.isEmpty
             && !selectedConditionID.isEmpty
             && !selectedSizeID.isEmpty
             && !photos.isEmpty
@@ -483,6 +484,7 @@ struct CreateListingView: View {
         if selectedCategoryID.isEmpty || selectedGroupID.isEmpty || selectedGenderID.isEmpty {
             missing.append("category")
         }
+        if selectedBrand.isEmpty { missing.append("brand") }
         if selectedConditionID.isEmpty { missing.append("condition") }
         if selectedSizeID.isEmpty { missing.append("size") }
         if price.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing.append("price") }
@@ -780,7 +782,8 @@ struct CreateListingView: View {
 
                     if showsField(.condition) {
                     VStack(alignment: .leading, spacing: 8) {
-                        RequiredFieldLabel(title: "Condition", isMissing: selectedConditionID.isEmpty)
+                        Text("Condition")
+                            .font(Theme.syne(13, weight: .bold))
 
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) {
@@ -1481,6 +1484,7 @@ struct CreateListingView: View {
         if selectedCategoryID.isEmpty || selectedGroupID.isEmpty || selectedGenderID.isEmpty {
             missing.insert(.category)
         }
+        if selectedBrand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing.insert(.brand) }
         if selectedConditionID.isEmpty { missing.insert(.condition) }
         if selectedSizeID.isEmpty { missing.insert(.size) }
         scanMissing = missing

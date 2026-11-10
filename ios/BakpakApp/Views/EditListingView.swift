@@ -55,7 +55,10 @@ struct EditListingView: View {
 
     private var isFormValid: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !selectedBrand.isEmpty
             && !selectedConditionID.isEmpty
+            && !size.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !category.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && Double(price.replacingOccurrences(of: ",", with: ".")) != nil
     }
 
@@ -226,7 +229,8 @@ struct EditListingView: View {
 
     private var conditionBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            RequiredFieldLabel(title: "Condition", isMissing: selectedConditionID.isEmpty)
+            Text("Condition")
+                .font(Theme.syne(13, weight: .bold))
 
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) { showConditionPicker.toggle() }
