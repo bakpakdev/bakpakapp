@@ -38,12 +38,6 @@
     .cta:active { transform: scale(0.98); }
     .hint { margin-top: 14px; font-size: 13px; color: var(--mute); }
     .hint a { color: var(--ink); }
-    /* School colors, matching the app's campus theme. */
-    body.uo { --bg: #0A241C; --line: #1F4636; --tile: #12352A; --accent: #FEE11A; --accent-ink: #154733; }
-    body.osu { --bg: #140804; --line: #3A1A0E; --tile: #22100A; --accent: #D73F09; --accent-ink: #ffffff; }
-    body.uo, body.osu { background: radial-gradient(ellipse 90% 45% at 50% -10%, rgba(255,255,255,0.08), transparent 60%), var(--bg); }
-    body.uo .cta, body.osu .cta { background: var(--accent); color: var(--accent-ink); }
-    body.uo .tag, body.osu .tag { color: var(--accent); border-color: var(--line); }
   </style>
 </head>
 <body>
@@ -70,7 +64,6 @@
         data.id = new URLSearchParams(window.location.search || "").get("id") || "";
       }
       var $ = function (id) { return document.getElementById(id); };
-      if (data.school === "uo" || data.school === "osu") document.body.classList.add(data.school);
       var name = data.shopName || (data.username ? "@" + data.username : "Shop this closet");
       $("name").textContent = name;
       $("handle").textContent = data.username ? "@" + data.username + " · on popup" : "on popup";
