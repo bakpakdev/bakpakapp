@@ -32,7 +32,7 @@ async function loadCloset({ username, id }) {
 
   let query = supabase
     .from('profiles')
-    .select('id, username, shop_name, first_name, avatar_url, privacy');
+    .select('id, username, shop_name, first_name, avatar_url, privacy, country');
   if (id && UUID_RE.test(id)) {
     query = query.eq('id', id.toLowerCase());
   } else if (username) {
@@ -68,6 +68,7 @@ async function loadCloset({ username, id }) {
   const privacy = profile.privacy || {};
 
   return {
+    school: schoolKey(profile.country),
     id: profile.id,
     username: profile.username,
     shopName: (profile.shop_name || '').trim() || (profile.first_name || '').trim() || profile.username,
@@ -78,6 +79,14 @@ async function loadCloset({ username, id }) {
     reviewAverage: avg,
     photos,
   };
+}
+
+// Same mapping as CampusTheme.from(schoolName:) in the app.
+function schoolKey(raw) {
+  const school = String(raw || '').toLowerCase();
+  if (!school || school.includes('popup dev')) return '';
+  if (school.includes('oregon state') || school.includes('osu') || school.includes('beaver')) return 'osu';
+  return 'uo';
 }
 
 function describe(closet) {
@@ -134,6 +143,7 @@ async function renderClosetSharePage(req) {
         reviewCount: closet.reviewCount,
         reviewAverage: Number(closet.reviewAverage.toFixed(1)),
         photos: closet.photos,
+        school: closet.school,
       }
     : { username: handle, id };
 
