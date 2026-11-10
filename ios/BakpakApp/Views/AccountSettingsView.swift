@@ -10,6 +10,7 @@ struct AccountSettingsView: View {
     @State private var soldBalance: Double = 0
     @State private var comingSoonMessage: String?
     @State private var payoutStatus: PayoutAccountStatus?
+    @State private var choosingCashOutSpeed = false
     @State private var isLoadingPayouts = false
     @State private var showLogoutModal = false
     @State private var isLoggingOut = false
@@ -38,6 +39,9 @@ struct AccountSettingsView: View {
         .task {
             twoFactorOn = await PayoutMFA.isEnrolled()
             await loadPayoutStatus()
+        }
+        .cashOutSpeedChoice(isPresented: $choosingCashOutSpeed, status: payoutStatus) { speed in
+            Task { await cashOut(speed: speed) }
         }
         .alert("Settings", isPresented: Binding(
             get: { comingSoonMessage != nil },
@@ -198,6 +202,9 @@ struct AccountSettingsView: View {
         let available = payoutStatus?.availableCents ?? 0
         let clearing = payoutStatus?.clearingCents ?? 0
         if clearing > 0 {
+            if payoutStatus?.canCashOutInstantly == true {
+                return String(format: "$%.2f still clearing · cash out instantly to your debit card now", Double(clearing) / 100)
+            }
             return String(format: "$%.2f still clearing · ready to cash out in about 2 business days", Double(clearing) / 100)
         }
         if available > 0 {
@@ -225,7 +232,7 @@ struct AccountSettingsView: View {
     private var cashOutButtonTitle: String {
         let available = payoutStatus?.availableCents ?? 0
         if payoutStatus?.onboardingComplete == true {
-            return available >= 100 ? "Cash out" : "Payout details"
+            return payoutStatus?.canCashOut == true ? "Cash out" : "Payout details"
         }
         return available > 0 ? "Set up payouts & cash out" : "Set up cash out"
     }
@@ -307,8 +314,7 @@ struct AccountSettingsView: View {
     }
 
     private func cashOutTapped() async {
-        let available = payoutStatus?.availableCents ?? 0
-        guard payoutStatus?.onboardingComplete == true, available >= 100 else {
+        guard let status = payoutStatus, status.canCashOut else {
             appState.path.append(.sellerCashOutSetup)
             return
         }
@@ -322,11 +328,19 @@ struct AccountSettingsView: View {
             return
         }
 
+        if status.canCashOutInstantly {
+            choosingCashOutSpeed = true
+            return
+        }
+        await cashOut(speed: .standard)
+    }
+
+    private func cashOut(speed: CashOutSpeed) async {
         isLoadingPayouts = true
         defer { isLoadingPayouts = false }
 
         do {
-            let response = try await stripeConnect.cashOut()
+            let response = try await stripeConnect.cashOut(speed: speed)
             if let updated = response.status {
                 payoutStatus = updated
                 soldBalance = updated.availableDollars

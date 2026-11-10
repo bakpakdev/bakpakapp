@@ -13,6 +13,7 @@ struct SellerCashOutSetupView: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var infoMessage: String?
+    @State private var choosingCashOutSpeed = false
     /// Payout changes need two-factor; shown as step 1 until it's on.
     @State private var twoFactorOn = true
 
@@ -21,6 +22,8 @@ struct SellerCashOutSetupView: View {
     private var isReady: Bool { status?.onboardingComplete == true }
     private var availableCents: Int { status?.availableCents ?? 0 }
     private var clearingCents: Int { status?.clearingCents ?? 0 }
+    private var instantCents: Int { status?.instantCents ?? 0 }
+    private var canInstant: Bool { status?.canCashOutInstantly == true }
 
     var body: some View {
         ZStack {
@@ -73,6 +76,9 @@ struct SellerCashOutSetupView: View {
         } message: {
             Text(errorMessage ?? infoMessage ?? "")
         }
+        .cashOutSpeedChoice(isPresented: $choosingCashOutSpeed, status: status) { speed in
+            Task { await cashOut(speed: speed) }
+        }
         .task { await loadStatus() }
         .onAppear {
             // Coming back from the two-factor screen.
@@ -101,7 +107,9 @@ struct SellerCashOutSetupView: View {
                 .font(Theme.syne(32, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             if clearingCents > 0 {
-                Text("\(formattedMoney(cents: availableCents)) ready to cash out · \(formattedMoney(cents: clearingCents)) clearing (about 2 business days)")
+                Text(canInstant
+                    ? "\(formattedMoney(cents: clearingCents)) clearing (about 2 business days) · cash out instantly to your debit card now"
+                    : "\(formattedMoney(cents: availableCents)) ready to cash out · \(formattedMoney(cents: clearingCents)) clearing (about 2 business days)")
                     .font(Theme.syne(12))
                     .foregroundStyle(campusTheme.textMuted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -125,7 +133,8 @@ struct SellerCashOutSetupView: View {
             factRow(icon: "tag", text: "You keep the full listing price. Buyers pay popup’s small service fee on top.")
             factRow(icon: "iphone", text: "The buyer pays in the app at your meetup with Apple Pay or a card. Never take cash, Venmo or Zelle.")
             factRow(icon: "hourglass", text: "Each sale shows up in your popup balance right away and takes about 2 business days to clear.")
-            factRow(icon: "building.columns", text: "Tap Cash out to send cleared money to your bank or debit card. It arrives in 1–2 business days.")
+            factRow(icon: "building.columns", text: "Tap Cash out to send cleared money to your bank for free. It arrives in 1–2 business days.")
+            factRow(icon: "bolt", text: "In a hurry? Add a debit card in Payout details and pick Instant: it arrives in minutes, even before a sale clears, for a small fee.")
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -266,6 +275,7 @@ struct SellerCashOutSetupView: View {
 
     private var primaryTitle: String {
         if isReady {
+            if canInstant { return "Cash out" }
             if availableCents >= 100 { return "Cash out \(formattedMoney(cents: availableCents))" }
             return clearingCents > 0 ? "Clearing \(formattedMoney(cents: clearingCents))" : "Nothing to cash out yet"
         }
@@ -274,7 +284,7 @@ struct SellerCashOutSetupView: View {
     }
 
     private var primaryEnabled: Bool {
-        isReady ? availableCents >= 100 : true
+        isReady ? status?.canCashOut == true : true
     }
 
     // MARK: - Actions
@@ -303,6 +313,10 @@ struct SellerCashOutSetupView: View {
         defer { isWorking = false }
         do {
             if isReady {
+                if canInstant {
+                    choosingCashOutSpeed = true
+                    return
+                }
                 let response = try await stripeConnect.cashOut()
                 if response.requiresOnboarding == true {
                     try await stripeConnect.continueOnboarding(url: response.url)
@@ -320,6 +334,26 @@ struct SellerCashOutSetupView: View {
                     infoMessage = "Payouts are ready. Tap Cash out whenever you want your balance in your bank."
                 }
             }
+        } catch PayoutMFAError.cancelled {
+            return
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func cashOut(speed: CashOutSpeed) async {
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let response = try await stripeConnect.cashOut(speed: speed)
+            if response.requiresOnboarding == true {
+                try await stripeConnect.continueOnboarding(url: response.url)
+                await loadStatus()
+                return
+            }
+            if let updated = response.status { status = updated }
+            Motion.haptic(.medium)
+            infoMessage = response.message ?? "Cash out sent."
         } catch PayoutMFAError.cancelled {
             return
         } catch {
