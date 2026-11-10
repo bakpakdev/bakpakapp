@@ -130,64 +130,62 @@ struct MainTabView: View {
         }
     }
 
-    private var tabBarFill: Color {
-        campusTheme.isDark ? campusTheme.elevatedSurface : Color(hex: "#232624")
-    }
+    /// Ink pill in every campus theme, so the bar reads the same black/white everywhere.
+    private let barInk = Color(hex: "#0B0B0B")
 
     private var customTabBar: some View {
-        HStack(spacing: 8) {
-            tabItem(tab: .home, title: "Home", systemImage: "house")
-            tabItem(tab: .search, title: "Search", systemImage: "magnifyingglass")
-
-            Button {
-                Motion.haptic(.medium)
-                withAnimation(Motion.snappy) {
-                    appState.openSellCamera()
-                }
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [campusTheme.primary, campusTheme.secondary],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay(Circle().stroke(Color.white.opacity(0.9), lineWidth: 2))
-                        .frame(width: 58, height: 58)
-                        .shadow(color: campusTheme.primary.opacity(0.35), radius: 8, y: 3)
-                    Image(systemName: "plus")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
-            .accessibilityLabel("Sell")
-
+        HStack(spacing: 4) {
+            tabItem(tab: .home, title: "Home", systemImage: "house", activeImage: "house.fill")
+            tabItem(tab: .search, title: "Search", systemImage: "magnifyingglass", activeImage: "magnifyingglass")
+            sellButton
             tabItem(
                 tab: .messages,
                 title: "Inbox",
-                systemImage: "tray",
+                systemImage: "bubble.left.and.bubble.right",
+                activeImage: "bubble.left.and.bubble.right.fill",
                 badge: appState.inboxUnreadTotal > 0
             )
-            tabItem(tab: .profile, title: "Profile", systemImage: "person")
+            tabItem(tab: .profile, title: "Profile", systemImage: "person", activeImage: "person.fill")
         }
         .padding(6)
         .background(
             Capsule()
-                .fill(tabBarFill)
-                .shadow(color: Color.black.opacity(0.22), radius: 16, y: 6)
+                .fill(barInk)
+                .overlay(Capsule().stroke(Color.white.opacity(0.09), lineWidth: 1))
+                .shadow(color: Color.black.opacity(0.28), radius: 18, y: 8)
         )
+        .padding(.horizontal, 14)
         .frame(maxWidth: .infinity)
         .padding(.top, 6)
         .padding(.bottom, 6)
+    }
+
+    private var sellButton: some View {
+        Button {
+            Motion.haptic(.medium)
+            withAnimation(Motion.snappy) {
+                appState.openSellCamera()
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(barInk)
+                .frame(width: 50, height: 50)
+                .background(
+                    RoundedRectangle(cornerRadius: 17, style: .continuous)
+                        .fill(Color.white)
+                )
+                .padding(.horizontal, 2)
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+        .accessibilityLabel("Sell")
     }
 
     private func tabItem(
         tab: AppTab,
         title: String,
         systemImage: String,
+        activeImage: String,
         badge: Bool = false
     ) -> some View {
         let isActive = appState.selectedTab == tab
@@ -197,29 +195,35 @@ struct MainTabView: View {
                 appState.selectedTab = tab
             }
         } label: {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 18, weight: isActive ? .semibold : .regular))
-                    .foregroundStyle(isActive ? Color(hex: "#232624") : Color.white.opacity(0.85))
-                    .frame(width: 52, height: 52)
-                    .background(
-                        Circle().fill(isActive ? Color.white : Color.clear)
-                    )
-                    .overlay(
-                        Circle().stroke(isActive ? Color.clear : Color.white.opacity(0.14), lineWidth: 1)
-                    )
-
-                if badge {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 8, height: 8)
-                        .offset(x: -12, y: 12)
+            VStack(spacing: 3) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: isActive ? activeImage : systemImage)
+                        .font(.system(size: 18, weight: isActive ? .semibold : .regular))
+                        .frame(width: 26, height: 22)
+                    if badge {
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 8, height: 8)
+                            .overlay(Circle().stroke(barInk, lineWidth: 2))
+                            .offset(x: 4, y: -2)
+                            .accessibilityHidden(true)
+                    }
                 }
+                Text(title)
+                    .font(Theme.syne(10, weight: isActive ? .bold : .medium))
+                    .lineLimit(1)
+                Capsule()
+                    .fill(Color.white)
+                    .frame(width: isActive ? 14 : 0, height: 2)
+                    .opacity(isActive ? 1 : 0)
             }
-            // Inactive tabs have a clear circle; without this only the glyph and ring take taps.
-            .contentShape(Circle())
+            .foregroundStyle(isActive ? Color.white : Color.white.opacity(0.45))
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(title)
+        .accessibilityLabel(badge ? "\(title), unread" : title)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 }

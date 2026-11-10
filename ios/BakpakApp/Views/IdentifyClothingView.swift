@@ -524,8 +524,6 @@ struct IdentifyClothingView: View {
             divider
             summaryRow(field: .brand, label: "Brand", value: draftBrand)
             divider
-            summaryRow(field: .condition, label: "Condition", value: SellListingLookups.conditionName(id: draftConditionID) ?? "")
-            divider
             summaryRow(field: .size, label: "Size", value: SellListingLookups.sizeName(id: draftSizeID) ?? "")
             divider
             summaryRow(field: .price, label: "Price", value: draftPriceSummary)
@@ -779,7 +777,8 @@ struct IdentifyClothingView: View {
         draftColor = identified.color ?? ""
         draftType = identified.garmentType ?? ""
         draftDepartment = identified.department ?? "unisex"
-        draftConditionID = SellListingLookups.conditionID(from: identified.condition)
+        // Condition is the seller's call (wear doesn't show in photos), so the scan never fills it.
+        draftConditionID = ""
         draftSizeID = SellListingLookups.sizeID(from: identified.size)
         draftPrice = MoneyAmount.formatted(identified.suggestedPrice ?? 0)
         draftPriceMin = identified.suggestedPriceMin

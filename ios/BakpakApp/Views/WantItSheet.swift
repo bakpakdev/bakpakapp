@@ -12,6 +12,7 @@ struct WantItSheet: View {
     let onSend: (_ amount: Double, _ spot: CampusMeetupSpot, _ time: Date) -> Void
 
     @Environment(\.campusTheme) private var campusTheme
+    @ObservedObject private var serviceFee = ServiceFeeStore.shared
 
     private enum PriceChoice: Hashable {
         case listed
@@ -97,7 +98,7 @@ struct WantItSheet: View {
 
     private var summary: String {
         var parts: [String] = []
-        if let selectedAmount { parts.append(MoneyAmount.label(selectedAmount)) }
+        if let selectedAmount { parts.append("\(MoneyAmount.label(serviceFee.total(for: selectedAmount))) total") }
         if let selectedSpot { parts.append(selectedSpot.name) }
         if let selectedTime { parts.append(Self.timeLabel(selectedTime)) }
         if parts.isEmpty { return "Pick a price, a spot and a time." }
@@ -152,6 +153,9 @@ struct WantItSheet: View {
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .stroke(campusTheme.border, lineWidth: 1)
                         )
+                    }
+                    if let selectedAmount {
+                        feeBreakdown(selectedAmount)
                     }
                     Text(priceHint)
                         .font(Theme.syne(12, weight: .medium))
@@ -221,6 +225,7 @@ struct WantItSheet: View {
             .padding(.bottom, 24)
         }
         .background(campusTheme.background.ignoresSafeArea())
+        .task { await serviceFee.refreshIfNeeded() }
         .sheet(isPresented: $showSpotList) {
             spotList
                 .presentationDetents([.medium, .large])
@@ -228,6 +233,40 @@ struct WantItSheet: View {
         .sheet(isPresented: $showTimePicker) {
             timePicker
                 .presentationDetents([.medium])
+        }
+    }
+
+    /// The buyer's side of the price: offer, popup's service fee, and what they'll pay.
+    /// Sellers never see this; they always get the full offer amount.
+    private func feeBreakdown(_ amount: Double) -> some View {
+        VStack(spacing: 8) {
+            feeRow(isOffer ? "Your offer" : "Price", MoneyAmount.label(amount))
+            feeRow("Service fee", MoneyAmount.label(serviceFee.fee(for: amount)))
+            Rectangle()
+                .fill(campusTheme.border)
+                .frame(height: 1)
+            feeRow("You pay", MoneyAmount.label(serviceFee.total(for: amount)), strong: true)
+        }
+        .padding(14)
+        .background(campusTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(campusTheme.border, lineWidth: 1)
+        )
+        .animation(.easeInOut(duration: 0.15), value: amount)
+    }
+
+    private func feeRow(_ label: String, _ value: String, strong: Bool = false) -> some View {
+        HStack {
+            Text(label)
+                .font(Theme.syne(13, weight: strong ? .bold : .medium))
+                .foregroundStyle(strong ? campusTheme.textPrimary : campusTheme.textMuted)
+            Spacer()
+            Text(value)
+                .font(Theme.syne(strong ? 15 : 13, weight: strong ? .bold : .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .monospacedDigit()
         }
     }
 

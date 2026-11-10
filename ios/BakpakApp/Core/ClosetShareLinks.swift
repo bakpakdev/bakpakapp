@@ -36,9 +36,8 @@ enum ClosetShareLinks {
         let handle = username
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "@", with: "")
-        let tag = handle.isEmpty ? "" : " (@\(handle))"
         let link = publicURL(username: handle, userId: userId).absoluteString
-        return "Shop \(shopName) on popup\(tag)\n\(link)"
+        return "Shop my closet on popup\n\(link)"
     }
 
     /// Returns true when this URL is a closet/profile share link.
@@ -81,11 +80,15 @@ enum ClosetShareLinks {
         return trimmed.removingPercentEncoding ?? trimmed
     }
 
+    /// Hosted API that serves `/u/:username` with link-preview tags. Debug builds talk to a
+    /// local API, but a shared link has to open on someone else's phone, so it always uses this.
+    private static let hostedOrigin = "https://popup-api-hwbg.onrender.com"
+
     private static func publicOrigin() -> String? {
         let raw = PaymentsConfig.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: raw), let host = url.host, !host.isEmpty else { return nil }
-        let local = host == "localhost" || host == "127.0.0.1" || host.hasPrefix("192.168.")
-        if local { return nil }
+        guard let url = URL(string: raw), let host = url.host, !host.isEmpty else { return hostedOrigin }
+        let local = host == "localhost" || host == "127.0.0.1" || host.hasPrefix("192.168.") || host.hasSuffix(".local")
+        if local { return hostedOrigin }
         var origin = "\(url.scheme ?? "https")://\(host)"
         if let port = url.port, port != 80, port != 443 {
             origin += ":\(port)"

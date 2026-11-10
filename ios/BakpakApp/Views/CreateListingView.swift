@@ -780,8 +780,7 @@ struct CreateListingView: View {
 
                     if showsField(.condition) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Condition")
-                            .font(Theme.syne(13, weight: .bold))
+                        RequiredFieldLabel(title: "Condition", isMissing: selectedConditionID.isEmpty)
 
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) {

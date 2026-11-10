@@ -71,6 +71,7 @@ try {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   }));
+  app.set('trust proxy', 1); // Render sits behind a proxy; keeps share links https.
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   // Terms and Privacy live on the website (web/ in this repo); keep old API links working.
@@ -101,8 +102,15 @@ try {
   app.use('/api/leaderboard', require('./routes/leaderboard'));
   app.use('/api/reports', require('./routes/reports'));
 
-  app.get('/u/:username', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'share.html'));
+  const { renderClosetSharePage } = require('./lib/closetSharePage');
+  app.get('/u/:username', async (req, res) => {
+    try {
+      res.set('Cache-Control', 'public, max-age=300');
+      res.type('html').send(await renderClosetSharePage(req));
+    } catch (err) {
+      console.error('closet share page failed:', err);
+      res.sendFile(path.join(__dirname, 'public', 'share.html'));
+    }
   });
 
   app.get('/', (req, res) => {

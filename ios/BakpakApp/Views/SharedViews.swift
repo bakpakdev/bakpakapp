@@ -253,3 +253,28 @@ struct ListingReactionButtons: View {
         .accessibilityLabel(accessibility)
     }
 }
+
+/// Section label for a field a listing can't post without, e.g. "Condition · Required".
+struct RequiredFieldLabel: View {
+    let title: String
+    var isMissing: Bool = true
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(Theme.syne(13, weight: .bold))
+            if isMissing {
+                Text("REQUIRED")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .tracking(1.2)
+                    .foregroundStyle(Color.primary.opacity(0.7))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .overlay(Capsule().stroke(Color.primary.opacity(0.3), lineWidth: 1))
+                    .transition(.opacity)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(isMissing ? "\(title), required" : title)
+    }
+}

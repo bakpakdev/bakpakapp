@@ -4,7 +4,7 @@ const { protectSupabase } = require('../middleware/supabaseAuth');
 const { getSupabaseAdmin } = require('../lib/supabaseAdmin');
 const { fulfillMeetupPayment, fetchProduct } = require('../lib/meetupFulfill');
 const stripe = require('../lib/stripe');
-const { buyerTotal, feeLabel } = require('../lib/platformFee');
+const { buyerTotal, feeLabel, feeSettings } = require('../lib/platformFee');
 const { acceptedOfferCents, offerBuyersForListing } = require('../lib/acceptedOffer');
 
 const router = express.Router();
@@ -127,6 +127,13 @@ function serializeSession(session) {
     created_at: session.created_at,
   };
 }
+
+/** popup's buyer service fee, so the app can show an offer's total before anything is charged. */
+router.get('/fee', (_req, res) => {
+  const { percent, fixedCents, minCents } = feeSettings();
+  res.set('Cache-Control', 'public, max-age=600');
+  res.json({ percent, fixedCents, minCents, label: feeLabel() });
+});
 
 router.get('/health', (_req, res) => {
   const missing = ['STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET', 'PUBLIC_BASE_URL']

@@ -13,6 +13,7 @@ struct InboxThreadView: View {
     @EnvironmentObject private var authVM: AuthViewModel
     @EnvironmentObject private var meetupStore: MeetupStore
     @EnvironmentObject private var blockStore: BlockStore
+    @ObservedObject private var serviceFee = ServiceFeeStore.shared
     @Environment(\.campusTheme) private var campusTheme
 
     @State private var threadId = ""
@@ -92,6 +93,7 @@ struct InboxThreadView: View {
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: showHeaderMenu)
         .task { await bootstrap() }
+        .task { await serviceFee.refreshIfNeeded() }
         .onDisappear { vm.stopLiveUpdates() }
         .fullScreenCover(isPresented: $showMeetupPicker) {
             MeetupComposeView(
@@ -470,9 +472,27 @@ struct InboxThreadView: View {
         return name.isEmpty ? "They" : name
     }
 
+    /// True when the other person owns this chat's listing. Only the buyer pays popup's
+    /// service fee, so only the buyer sees it next to offer amounts.
+    private var iAmBuyer: Bool {
+        headerChat.map { !$0.isMyListing } ?? false
+    }
+
+    /// Buyer only: "You pay $31.65 with fee" for a "$30" offer. Nil for the seller.
+    private func buyerTotalNote(_ amount: String) -> String? {
+        guard iAmBuyer, let cents = OfferMessageCodec.cents(amount), cents > 0 else { return nil }
+        return "You pay \(MoneyAmount.label(serviceFee.total(for: Double(cents) / 100))) with fee"
+    }
+
+    /// "$30 offer" for the seller; "$30 offer · You pay $31.65 with fee" for the buyer.
+    private func offerLabel(_ amount: String) -> String {
+        guard let note = buyerTotalNote(amount) else { return "\(amount) offer" }
+        return "\(amount) offer · \(note)"
+    }
+
     private func dealSummary(offer: Message?, meetup: MeetupMessagePayload?) -> String {
         var parts: [String] = []
-        if let offer { parts.append("\(OfferMessageCodec.displayAmount(offer.content)) offer") }
+        if let offer { parts.append(offerLabel(OfferMessageCodec.displayAmount(offer.content))) }
         if let meetup {
             parts.append(meetup.spotName)
             if let at = meetup.proposedAt { parts.append(WantItSheet.timeLabel(at)) }
@@ -520,7 +540,8 @@ struct InboxThreadView: View {
                 case let .offerAccepted(amount, listing):
                     dealCard(
                         status: "Offer accepted · \(amount)",
-                        detail: "Pick a spot and time to meet.",
+                        detail: buyerTotalNote(amount).map { "\($0). Pick a spot and time to meet." }
+                            ?? "Pick a spot and time to meet.",
                         primary: ("Set up meetup", { beginMeetup(for: listing) }),
                         secondary: nil
                     )
@@ -1391,6 +1412,19 @@ struct InboxThreadView: View {
             .padding(16)
             .background(campusTheme.elevatedSurface)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            if iAmBuyer, let amount = MoneyAmount.parse(offerDraft), amount > 0 {
+                HStack {
+                    Text("+ \(MoneyAmount.label(serviceFee.fee(for: amount))) service fee")
+                        .foregroundStyle(campusTheme.textMuted)
+                    Spacer()
+                    Text("You pay \(MoneyAmount.label(serviceFee.total(for: amount)))")
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .monospacedDigit()
+                }
+                .font(Theme.syne(13, weight: .semibold))
+                .padding(.horizontal, 4)
+            }
 
             Button {
                 Task { await sendOfferFromComposer() }
