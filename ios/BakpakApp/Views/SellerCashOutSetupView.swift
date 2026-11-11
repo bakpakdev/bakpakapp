@@ -450,14 +450,6 @@ struct CashOutConfirmSheet: View {
         .background(campusTheme.background.ignoresSafeArea())
         .preferredColorScheme(campusTheme.isDark ? .dark : .light)
         .tint(campusTheme.tint)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { amountFocused = false }
-                    .font(Theme.syne(15, weight: .semibold))
-                    .foregroundStyle(campusTheme.textPrimary)
-            }
-        }
     }
 
     private var header: some View {
@@ -668,13 +660,19 @@ struct CashOutConfirmSheet: View {
     }
 
     private var confirmButton: some View {
-        let enabled = problem == nil
+        // While typing, the button closes the keypad first so the summary is seen before confirming.
+        let typing = amountFocused
+        let enabled = typing || problem == nil
         return Button {
+            if typing {
+                amountFocused = false
+                return
+            }
             guard enabled else { return }
             Motion.haptic(.medium)
             onConfirm(CashOutRequestChoice(amountCents: amountCents, speed: speed))
         } label: {
-            Text(enabled ? "Cash out \(CashOutCopy.money(amountCents))" : "Cash out")
+            Text(typing ? "Done" : (enabled ? "Cash out \(CashOutCopy.money(amountCents))" : "Cash out"))
                 .font(Theme.syne(15, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
@@ -687,12 +685,18 @@ struct CashOutConfirmSheet: View {
         .padding(.horizontal, 20)
         .padding(.top, 10)
         .padding(.bottom, 16)
-        // Same frosted bar as Getting paid, so content scrolling under it (keyboard up) reads as intended.
-        .background(
-            campusTheme.background.opacity(0.94)
-                .background(.ultraThinMaterial)
-                .ignoresSafeArea(edges: .bottom)
-        )
+        .background(campusTheme.background.ignoresSafeArea(edges: .bottom))
+        // Soft fade so cards scrolling under the button don't end on a hard line.
+        .overlay(alignment: .top) {
+            LinearGradient(
+                colors: [campusTheme.background.opacity(0), campusTheme.background],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 28)
+            .offset(y: -28)
+            .allowsHitTesting(false)
+        }
     }
 
     private var cardBackground: some View {
