@@ -24,11 +24,15 @@ struct PayoutAccountStatus: Decodable {
     /// they have no eligible debit card or Instant Payouts aren't on for popup.
     let instantCents: Int?
     let instantFeeCents: Int?
+    /// Cleared money a standard cash out can send right now (server 1.0 build 11+).
+    let cashOutCents: Int?
+
+    var standardCashOutCents: Int { cashOutCents ?? (availableCents ?? 0) }
 
     /// Instant cash out is offered: set up, eligible debit card, at least $1.
     var canCashOutInstantly: Bool { onboardingComplete == true && (instantCents ?? 0) >= 100 }
     /// Standard cash out to the bank: at least $1 has cleared.
-    var canCashOutStandard: Bool { onboardingComplete == true && (availableCents ?? 0) >= 100 }
+    var canCashOutStandard: Bool { onboardingComplete == true && standardCashOutCents >= 100 }
     var canCashOut: Bool { canCashOutStandard || canCashOutInstantly }
 
     var availableDollars: Double {
@@ -281,44 +285,9 @@ final class StripeConnectService {
     }
 }
 
-// MARK: - Cash out speed choice
-
-extension View {
-    /// Asks Instant or Standard before a cash out. Only shown when instant is offered;
-    /// otherwise callers go straight to standard.
-    func cashOutSpeedChoice(
-        isPresented: Binding<Bool>,
-        status: PayoutAccountStatus?,
-        onPick: @escaping (CashOutSpeed) -> Void
-    ) -> some View {
-        confirmationDialog("How fast do you want it?", isPresented: isPresented, titleVisibility: .visible) {
-            if let status, status.canCashOutInstantly {
-                Button("Instant · \(CashOutCopy.money(status.instantCents ?? 0)) in minutes") { onPick(.instant) }
-            }
-            if let status, status.canCashOutStandard {
-                Button("Standard · \(CashOutCopy.money(status.availableCents ?? 0)) in 1–2 days, free") { onPick(.standard) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(CashOutCopy.choiceMessage(status))
-        }
-    }
-}
-
 enum CashOutCopy {
     static func money(_ cents: Int) -> String {
         String(format: "$%.2f", Double(cents) / 100)
-    }
-
-    static func choiceMessage(_ status: PayoutAccountStatus?) -> String {
-        let fee = status?.instantFeeCents ?? 0
-        let instant = fee > 0
-            ? "Instant goes to your debit card, usually within 30 minutes, for a \(money(fee)) fee."
-            : "Instant goes to your debit card, usually within 30 minutes."
-        if status?.canCashOutStandard != true {
-            return instant + " Standard opens up once your recent sales clear."
-        }
-        return instant + " Standard goes to your bank for free."
     }
 }
 

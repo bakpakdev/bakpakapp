@@ -162,6 +162,8 @@ function statusPayload(account, balance, stripeBalance = null) {
   const base = serializeBalance(balance);
   base.instantCents = 0;
   base.instantFeeCents = 0;
+  // Cleared money a standard cash out can send now (popup-ledger money moves over first).
+  base.cashOutCents = stripeBalance ? stripeBalance.availableCents : 0;
   if (stripeBalance) {
     base.availableCents += stripeBalance.availableCents;
     base.pendingCents += stripeBalance.pendingCents;

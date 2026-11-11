@@ -13,7 +13,7 @@ struct SellerCashOutSetupView: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var infoMessage: String?
-    @State private var choosingCashOutSpeed = false
+    @State private var confirmingCashOut = false
     /// Payout changes need two-factor; shown as step 1 until it's on.
     @State private var twoFactorOn = true
 
@@ -76,8 +76,8 @@ struct SellerCashOutSetupView: View {
         } message: {
             Text(errorMessage ?? infoMessage ?? "")
         }
-        .cashOutSpeedChoice(isPresented: $choosingCashOutSpeed, status: status) { speed in
-            Task { await cashOut(speed: speed) }
+        .cashOutConfirmSheet(isPresented: $confirmingCashOut, status: status) { choice in
+            Task { await cashOut(choice) }
         }
         .task { await loadStatus() }
         .onAppear {
@@ -276,7 +276,7 @@ struct SellerCashOutSetupView: View {
     private var primaryTitle: String {
         if isReady {
             if canInstant { return "Cash out" }
-            if availableCents >= 100 { return "Cash out \(formattedMoney(cents: availableCents))" }
+            if (status?.standardCashOutCents ?? 0) >= 100 { return "Cash out \(formattedMoney(cents: status?.standardCashOutCents ?? 0))" }
             return clearingCents > 0 ? "Clearing \(formattedMoney(cents: clearingCents))" : "Nothing to cash out yet"
         }
         if !twoFactorOn { return "Turn on two-factor" }
@@ -313,19 +313,8 @@ struct SellerCashOutSetupView: View {
         defer { isWorking = false }
         do {
             if isReady {
-                if canInstant {
-                    choosingCashOutSpeed = true
-                    return
-                }
-                let response = try await stripeConnect.cashOut()
-                if response.requiresOnboarding == true {
-                    try await stripeConnect.continueOnboarding(url: response.url)
-                    await loadStatus()
-                    return
-                }
-                if let updated = response.status { status = updated }
-                Motion.haptic(.medium)
-                infoMessage = response.message ?? "Cash out sent."
+                // Nothing moves until the seller confirms an amount on the sheet.
+                confirmingCashOut = true
             } else {
                 try await stripeConnect.runOnboarding()
                 await loadStatus()
@@ -341,11 +330,11 @@ struct SellerCashOutSetupView: View {
         }
     }
 
-    private func cashOut(speed: CashOutSpeed) async {
+    private func cashOut(_ choice: CashOutRequestChoice) async {
         isWorking = true
         defer { isWorking = false }
         do {
-            let response = try await stripeConnect.cashOut(speed: speed)
+            let response = try await stripeConnect.cashOut(amountCents: choice.amountCents, speed: choice.speed)
             if response.requiresOnboarding == true {
                 try await stripeConnect.continueOnboarding(url: response.url)
                 await loadStatus()
@@ -377,5 +366,391 @@ struct SellerCashOutSetupView: View {
         let value = Double(cents) / 100.0
         if cents % 100 == 0 { return "$\(cents / 100)" }
         return String(format: "$%.2f", value)
+    }
+}
+
+// MARK: - Confirm cash out sheet
+
+/// What the seller confirmed on the cash out sheet.
+struct CashOutRequestChoice: Equatable {
+    let amountCents: Int
+    let speed: CashOutSpeed
+}
+
+/// "How much?" step before any money moves: amount (prefilled with everything that can go
+/// out), Instant or Standard when both are offered, and what lands where. Nothing is sent
+/// until the seller taps the confirm button; the authenticator code comes after that.
+struct CashOutConfirmSheet: View {
+    let status: PayoutAccountStatus
+    let onConfirm: (CashOutRequestChoice) -> Void
+
+    @Environment(\.campusTheme) private var campusTheme
+    @Environment(\.dismiss) private var dismiss
+    @State private var speed: CashOutSpeed
+    @State private var amountText: String
+    @FocusState private var amountFocused: Bool
+
+    init(status: PayoutAccountStatus, onConfirm: @escaping (CashOutRequestChoice) -> Void) {
+        self.status = status
+        self.onConfirm = onConfirm
+        let start: CashOutSpeed = status.canCashOutStandard ? .standard : .instant
+        _speed = State(initialValue: start)
+        let max = start == .instant ? (status.instantCents ?? 0) : status.standardCashOutCents
+        _amountText = State(initialValue: Self.editableText(max))
+    }
+
+    private var maxCents: Int {
+        speed == .instant ? (status.instantCents ?? 0) : status.standardCashOutCents
+    }
+
+    private var amountCents: Int {
+        let cleaned = amountText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces)
+        guard let value = Decimal(string: cleaned) else { return 0 }
+        var cents = value * 100
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &cents, 0, .plain)
+        return NSDecimalNumber(decimal: rounded).intValue
+    }
+
+    private var problem: String? {
+        if amountCents < 100 { return "Cash out at least $1.00." }
+        if amountCents > maxCents { return "You can cash out up to \(CashOutCopy.money(maxCents)) this way." }
+        return nil
+    }
+
+    /// Stripe's instant fee is known for the full balance; smaller amounts scale with it.
+    private var feeCents: Int {
+        guard speed == .instant else { return 0 }
+        let fullFee = status.instantFeeCents ?? 0
+        let full = max(status.instantCents ?? 0, 1)
+        if amountCents >= full { return fullFee }
+        return Int((Double(fullFee) * Double(amountCents) / Double(full)).rounded(.up))
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    amountCard
+                    if status.canCashOutInstantly && status.canCashOutStandard {
+                        speedPicker
+                    }
+                    summaryCard
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 6)
+                .padding(.bottom, 20)
+            }
+            .scrollDismissesKeyboard(.interactively)
+
+            confirmButton
+        }
+        .background(campusTheme.background.ignoresSafeArea())
+        .preferredColorScheme(campusTheme.isDark ? .dark : .light)
+        .tint(campusTheme.primary)
+    }
+
+    private var header: some View {
+        HStack {
+            Button("Cancel") { dismiss() }
+                .font(Theme.syne(15, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+            Spacer()
+            Text("Cash out")
+                .font(Theme.syne(16, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+            Spacer()
+            Color.clear.frame(width: 54, height: 1)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+        .padding(.bottom, 12)
+    }
+
+    private var amountCard: some View {
+        VStack(spacing: 10) {
+            Text("how much?")
+                .font(Theme.syne(13, weight: .semibold))
+                .foregroundStyle(campusTheme.textMuted)
+
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text("$")
+                    .font(Theme.syne(30, weight: .bold))
+                    .foregroundStyle(campusTheme.textMuted)
+                TextField("0.00", text: $amountText)
+                    .keyboardType(.decimalPad)
+                    .focused($amountFocused)
+                    .font(Theme.syne(44, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .fixedSize()
+                    .onChange(of: amountText) { newValue in
+                        let filtered = Self.sanitize(newValue)
+                        if filtered != newValue { amountText = filtered }
+                    }
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture { amountFocused = true }
+
+            Text("\(CashOutCopy.money(maxCents)) available to cash out")
+                .font(Theme.syne(12, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+
+            if let problem, !amountText.isEmpty {
+                Text(problem)
+                    .font(Theme.syne(12, weight: .semibold))
+                    .foregroundStyle(Color(hex: "#E11D48"))
+            }
+
+            HStack(spacing: 8) {
+                ForEach(quickAmounts, id: \.label) { option in
+                    Button {
+                        Motion.haptic(.light)
+                        amountText = Self.editableText(option.cents)
+                        amountFocused = false
+                    } label: {
+                        Text(option.label)
+                            .font(Theme.syne(13, weight: .semibold))
+                            .foregroundStyle(option.cents == amountCents ? campusTheme.background : campusTheme.textPrimary)
+                            .padding(.horizontal, 14)
+                            .frame(height: 34)
+                            .background(
+                                Capsule().fill(option.cents == amountCents ? campusTheme.textPrimary : campusTheme.elevatedSurface)
+                            )
+                            .overlay(Capsule().stroke(campusTheme.border, lineWidth: option.cents == amountCents ? 0 : 1))
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
+                }
+            }
+            .padding(.top, 4)
+        }
+        .padding(.vertical, 20)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
+        .background(cardBackground)
+    }
+
+    private var quickAmounts: [(label: String, cents: Int)] {
+        let total = maxCents
+        var options: [(label: String, cents: Int)] = []
+        for dollars in [10, 25] where dollars * 100 < total / 2 {
+            options.append(("$\(dollars)", dollars * 100))
+        }
+        if total >= 200 { options.append(("Half", total / 2)) }
+        options.append(("All", total))
+        return options
+    }
+
+    private var speedPicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("how fast?")
+                .font(Theme.syne(13, weight: .semibold))
+                .foregroundStyle(campusTheme.textMuted)
+            speedRow(
+                .instant,
+                icon: "bolt.fill",
+                title: "Instant",
+                detail: "To your debit card · usually within 30 min",
+                tag: (status.instantFeeCents ?? 0) > 0 ? "small fee" : "free"
+            )
+            speedRow(
+                .standard,
+                icon: "building.columns",
+                title: "Standard",
+                detail: "To your bank · 1–2 business days",
+                tag: "free"
+            )
+        }
+    }
+
+    private func speedRow(_ option: CashOutSpeed, icon: String, title: String, detail: String, tag: String) -> some View {
+        let selected = speed == option
+        return Button {
+            Motion.haptic(.light)
+            let wasMax = amountCents == maxCents
+            speed = option
+            // Keep "everything" meaning everything, and never leave more than this way allows.
+            if wasMax || amountCents > maxCents { amountText = Self.editableText(maxCents) }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(campusTheme.elevatedSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(title)
+                            .font(Theme.syne(15, weight: .semibold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                        Text(tag)
+                            .font(Theme.syne(11, weight: .semibold))
+                            .foregroundStyle(campusTheme.textMuted)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(campusTheme.elevatedSurface))
+                    }
+                    Text(detail)
+                        .font(Theme.syne(12))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(selected ? campusTheme.primary : campusTheme.border)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(campusTheme.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(selected ? campusTheme.primary : campusTheme.border, lineWidth: selected ? 2 : 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+    }
+
+    private var summaryCard: some View {
+        VStack(spacing: 10) {
+            summaryRow("Goes to", speed == .instant ? "Your debit card" : "Your bank")
+            summaryRow("Arrives", speed == .instant ? "Usually within 30 minutes" : "In 1–2 business days")
+            if speed == .instant && feeCents > 0 {
+                summaryRow("Instant fee", "\(amountCents >= (status.instantCents ?? 0) ? "" : "about ")\(CashOutCopy.money(feeCents))")
+            } else {
+                summaryRow("Fee", "Free")
+            }
+            Divider().overlay(campusTheme.border)
+            HStack {
+                Text("You get")
+                    .font(Theme.syne(15, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                Spacer()
+                Text(CashOutCopy.money(max(amountCents, 0)))
+                    .font(Theme.syne(17, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+            }
+            if speed == .instant && feeCents > 0 {
+                Text("The fee comes out of what's left in your popup balance.")
+                    .font(Theme.syne(11, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(16)
+        .background(cardBackground)
+    }
+
+    private func summaryRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(Theme.syne(13, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+            Spacer()
+            Text(value)
+                .font(Theme.syne(13, weight: .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+        }
+    }
+
+    private var confirmButton: some View {
+        let enabled = problem == nil
+        return Button {
+            guard enabled else { return }
+            Motion.haptic(.medium)
+            onConfirm(CashOutRequestChoice(amountCents: amountCents, speed: speed))
+        } label: {
+            Text(enabled ? "Cash out \(CashOutCopy.money(amountCents))" : "Cash out")
+                .font(Theme.syne(15, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(enabled ? campusTheme.primary : campusTheme.primary.opacity(0.4))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+        .disabled(!enabled)
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 16)
+    }
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(campusTheme.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(campusTheme.border, lineWidth: 1)
+            )
+    }
+
+    private static func editableText(_ cents: Int) -> String {
+        String(format: "%.2f", Double(max(cents, 0)) / 100)
+    }
+
+    /// Digits and one decimal point, at most two decimals.
+    private static func sanitize(_ text: String) -> String {
+        var result = ""
+        var seenDot = false
+        var decimals = 0
+        for ch in text {
+            if ch.isNumber {
+                if seenDot {
+                    guard decimals < 2 else { continue }
+                    decimals += 1
+                }
+                result.append(ch)
+            } else if ch == "." && !seenDot {
+                seenDot = true
+                result.append(ch)
+            }
+        }
+        return result
+    }
+}
+
+extension View {
+    /// Shows the confirm sheet, and runs the cash out only after the sheet has closed so the
+    /// authenticator code prompt (presented from the root) can appear.
+    func cashOutConfirmSheet(
+        isPresented: Binding<Bool>,
+        status: PayoutAccountStatus?,
+        perform: @escaping (CashOutRequestChoice) -> Void
+    ) -> some View {
+        modifier(CashOutConfirmSheetModifier(isPresented: isPresented, status: status, perform: perform))
+    }
+}
+
+private struct CashOutConfirmSheetModifier: ViewModifier {
+    @Binding var isPresented: Bool
+    let status: PayoutAccountStatus?
+    let perform: (CashOutRequestChoice) -> Void
+
+    @Environment(\.campusTheme) private var campusTheme
+    @State private var confirmed: CashOutRequestChoice?
+
+    func body(content: Content) -> some View {
+        content.sheet(isPresented: $isPresented, onDismiss: {
+            if let choice = confirmed {
+                confirmed = nil
+                perform(choice)
+            }
+        }) {
+            if let status {
+                CashOutConfirmSheet(status: status) { choice in
+                    confirmed = choice
+                    isPresented = false
+                }
+                .environment(\.campusTheme, campusTheme)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
+        }
     }
 }

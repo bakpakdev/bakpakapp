@@ -10,7 +10,7 @@ struct AccountSettingsView: View {
     @State private var soldBalance: Double = 0
     @State private var comingSoonMessage: String?
     @State private var payoutStatus: PayoutAccountStatus?
-    @State private var choosingCashOutSpeed = false
+    @State private var confirmingCashOut = false
     @State private var isLoadingPayouts = false
     @State private var showLogoutModal = false
     @State private var isLoggingOut = false
@@ -40,8 +40,8 @@ struct AccountSettingsView: View {
             twoFactorOn = await PayoutMFA.isEnrolled()
             await loadPayoutStatus()
         }
-        .cashOutSpeedChoice(isPresented: $choosingCashOutSpeed, status: payoutStatus) { speed in
-            Task { await cashOut(speed: speed) }
+        .cashOutConfirmSheet(isPresented: $confirmingCashOut, status: payoutStatus) { choice in
+            Task { await cashOut(choice) }
         }
         .alert("Settings", isPresented: Binding(
             get: { comingSoonMessage != nil },
@@ -328,19 +328,15 @@ struct AccountSettingsView: View {
             return
         }
 
-        if status.canCashOutInstantly {
-            choosingCashOutSpeed = true
-            return
-        }
-        await cashOut(speed: .standard)
+        confirmingCashOut = true
     }
 
-    private func cashOut(speed: CashOutSpeed) async {
+    private func cashOut(_ choice: CashOutRequestChoice) async {
         isLoadingPayouts = true
         defer { isLoadingPayouts = false }
 
         do {
-            let response = try await stripeConnect.cashOut(speed: speed)
+            let response = try await stripeConnect.cashOut(amountCents: choice.amountCents, speed: choice.speed)
             if let updated = response.status {
                 payoutStatus = updated
                 soldBalance = updated.availableDollars
