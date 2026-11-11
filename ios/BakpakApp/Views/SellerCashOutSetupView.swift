@@ -449,7 +449,15 @@ struct CashOutConfirmSheet: View {
         }
         .background(campusTheme.background.ignoresSafeArea())
         .preferredColorScheme(campusTheme.isDark ? .dark : .light)
-        .tint(campusTheme.primary)
+        .tint(campusTheme.tint)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { amountFocused = false }
+                    .font(Theme.syne(15, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+            }
+        }
     }
 
     private var header: some View {
@@ -552,7 +560,7 @@ struct CashOutConfirmSheet: View {
                 .instant,
                 icon: "bolt.fill",
                 title: "Instant",
-                detail: "To your debit card · usually within 30 min",
+                detail: "To your debit card · in minutes",
                 tag: (status.instantFeeCents ?? 0) > 0 ? "small fee" : "free"
             )
             speedRow(
@@ -600,7 +608,7 @@ struct CashOutConfirmSheet: View {
                 Spacer(minLength: 8)
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(selected ? campusTheme.primary : campusTheme.border)
+                    .foregroundStyle(selected ? campusTheme.tint : campusTheme.border)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
@@ -610,7 +618,7 @@ struct CashOutConfirmSheet: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(selected ? campusTheme.primary : campusTheme.border, lineWidth: selected ? 2 : 1)
+                    .stroke(selected ? campusTheme.tint : campusTheme.border, lineWidth: selected ? 2 : 1)
             )
             .contentShape(Rectangle())
         }
@@ -679,6 +687,12 @@ struct CashOutConfirmSheet: View {
         .padding(.horizontal, 20)
         .padding(.top, 10)
         .padding(.bottom, 16)
+        // Same frosted bar as Getting paid, so content scrolling under it (keyboard up) reads as intended.
+        .background(
+            campusTheme.background.opacity(0.94)
+                .background(.ultraThinMaterial)
+                .ignoresSafeArea(edges: .bottom)
+        )
     }
 
     private var cardBackground: some View {
