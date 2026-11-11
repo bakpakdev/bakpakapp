@@ -101,7 +101,7 @@ struct RegisterView: View {
     }
 
     var body: some View {
-        AuthScreenChrome(onBack: handleBack) {
+        AuthScreenChrome(liquidBackground: step != .password, onBack: handleBack) {
             Spacer(minLength: 28)
 
             VStack(alignment: .leading, spacing: 24) {

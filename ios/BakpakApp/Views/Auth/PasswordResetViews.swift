@@ -11,7 +11,7 @@ struct ForgotPasswordSheet: View {
 
     var body: some View {
         ZStack {
-            PopupBrand.background.ignoresSafeArea()
+            AuthPageBackground()
 
             VStack(alignment: .leading, spacing: 20) {
                 Text("Reset password")
@@ -92,7 +92,7 @@ struct SetNewPasswordView: View {
 
     var body: some View {
         ZStack {
-            PopupBrand.background.ignoresSafeArea()
+            AuthPageBackground()
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
