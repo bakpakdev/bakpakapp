@@ -17,6 +17,8 @@ const router = express.Router();
 // Smallest cash out we'll send. Stripe has no hard floor, but cents-sized
 // transfers aren't worth the per-payout fee.
 const MIN_CASHOUT_CENTS = 100;
+// Stripe's US cap for one instant payout.
+const MAX_INSTANT_CENTS = 999900;
 
 function requireStripe(_req, res, next) {
   if (!stripe.isStripeConfigured()) {
@@ -158,9 +160,18 @@ async function sweepBalanceToStripe(supabase, sellerId, account) {
  */
 function statusPayload(account, balance, stripeBalance = null) {
   const base = serializeBalance(balance);
+  base.instantCents = 0;
+  base.instantFeeCents = 0;
+  // Cleared money a standard cash out can send now (popup-ledger money moves over first).
+  base.cashOutCents = stripeBalance ? stripeBalance.availableCents : 0;
   if (stripeBalance) {
     base.availableCents += stripeBalance.availableCents;
     base.pendingCents += stripeBalance.pendingCents;
+    // Instant cash out: only when the seller has an eligible debit card and enough to send.
+    if (stripeBalance.instantCents >= MIN_CASHOUT_CENTS) {
+      base.instantCents = Math.min(stripeBalance.instantCents, MAX_INSTANT_CENTS);
+      base.instantFeeCents = Math.max(0, stripeBalance.instantGrossCents - stripeBalance.instantCents);
+    }
   }
   return {
     configured: stripe.isStripeConfigured(),
@@ -294,10 +305,20 @@ router.post('/cashout', protectSupabase, requirePayoutMfa, requireStripe, async 
     const ledger = swept || await getOrCreateSellerBalance(supabase, req.user.id);
     const inStripe = await stripe.connectedBalance(ready.id);
 
+    const instant = req.body?.method === 'instant';
+    if (instant && inStripe.instantCents < MIN_CASHOUT_CENTS) {
+      return res.status(400).json({
+        code: 'INSTANT_UNAVAILABLE',
+        message: 'Instant cash out needs a debit card on your payout account. Add one in Payout details, or use standard cash out.',
+        status: statusPayload(ready, ledger, inStripe),
+      });
+    }
+    // Instant can send card sales that are still clearing; standard only sends cleared money.
+    const maxCents = instant ? Math.min(inStripe.instantCents, MAX_INSTANT_CENTS) : inStripe.availableCents;
     const requested = Number(req.body?.amountCents);
     const amountCents = Number.isFinite(requested) && requested > 0
-      ? Math.min(Math.round(requested), inStripe.availableCents)
-      : inStripe.availableCents;
+      ? Math.min(Math.round(requested), maxCents)
+      : maxCents;
     if (amountCents < MIN_CASHOUT_CENTS) {
       const clearing = inStripe.pendingCents + (ledger.available_cents || 0);
       return res.status(400).json({
@@ -318,7 +339,10 @@ router.post('/cashout', protectSupabase, requirePayoutMfa, requireStripe, async 
 
     let payout;
     try {
-      payout = await stripe.createSellerPayout(ready.id, amountCents, `popup-bank-payout-${payoutRow.id}`);
+      payout = await stripe.createSellerPayout(ready.id, amountCents, `popup-bank-payout-${payoutRow.id}`, {
+        instant,
+        destination: instant ? inStripe.instantDestination : null,
+      });
     } catch (err) {
       await supabase
         .from('seller_payouts')
@@ -336,11 +360,20 @@ router.post('/cashout', protectSupabase, requirePayoutMfa, requireStripe, async 
       requiresOnboarding: false,
       amountCents,
       transferId: payout.id,
-      message: `$${(amountCents / 100).toFixed(2)} is on its way to your bank. It usually arrives in 1–2 business days.`,
+      method: instant ? 'instant' : 'standard',
+      message: instant
+        ? `$${(amountCents / 100).toFixed(2)} is on its way to your debit card. It usually arrives within 30 minutes.`
+        : `$${(amountCents / 100).toFixed(2)} is on its way to your bank. It usually arrives in 1–2 business days.`,
       status: statusPayload(ready, ledger, after),
     });
   } catch (error) {
     console.error('Stripe cashout error:', error);
+    if (req.body?.method === 'instant' && /instant/i.test(`${error?.code || ''} ${error?.message || ''}`)) {
+      return res.status(409).json({
+        code: 'INSTANT_UNAVAILABLE',
+        message: 'Instant cash out isn’t available right now. Your balance was not charged. Try standard cash out instead.',
+      });
+    }
     if (error?.code === 'balance_insufficient') {
       return res.status(409).json({
         code: 'FUNDS_CLEARING',

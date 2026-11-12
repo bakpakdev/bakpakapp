@@ -130,11 +130,33 @@ async function createSellerAccount({ email, firstName, lastName, userId }) {
   });
 }
 
-/** USD available (cash-out-able) and pending (still clearing) in a connected account. */
+/**
+ * USD in a connected account: available (standard cash out), pending (still clearing)
+ * and instant (card sales Stripe lets the seller take right away to an eligible debit
+ * card). `instantCents` is what reaches the seller after popup's instant fee, set in
+ * Stripe Dashboard > Connect > Platform pricing > Instant Payouts.
+ */
 async function connectedBalance(accountId) {
-  const balance = await getStripe().balance.retrieve({}, { stripeAccount: accountId });
+  const opts = { stripeAccount: accountId };
+  let balance;
+  try {
+    balance = await getStripe().balance.retrieve({ expand: ['instant_available.net_available'] }, opts);
+  } catch (err) {
+    // Platforms without Instant Payouts can refuse the expand; standard still works.
+    console.warn('Instant balance unavailable:', accountId, err.message);
+    balance = await getStripe().balance.retrieve({}, opts);
+  }
   const usd = (list) => (list || []).filter((b) => b.currency === 'usd').reduce((sum, b) => sum + b.amount, 0);
-  return { availableCents: usd(balance.available), pendingCents: usd(balance.pending) };
+  const instant = (balance.instant_available || []).find((b) => b.currency === 'usd');
+  // Best eligible destination (debit card or instant-capable bank), net of popup's fee.
+  const best = (instant?.net_available || []).reduce((top, entry) => (!top || entry.amount > top.amount ? entry : top), null);
+  return {
+    availableCents: usd(balance.available),
+    pendingCents: usd(balance.pending),
+    instantCents: best ? best.amount : 0,
+    instantGrossCents: best ? instant.amount : 0,
+    instantDestination: best ? best.destination : null,
+  };
 }
 
 /** Accounts made before manual payouts existed: switch them so money waits for Cash out. */
@@ -150,12 +172,18 @@ async function ensureManualPayouts(account) {
   }
 }
 
-/** Sends `amountCents` from the seller's Stripe balance to their bank or debit card. */
-async function createSellerPayout(accountId, amountCents, idempotencyKey) {
-  return getStripe().payouts.create(
-    { amount: amountCents, currency: 'usd', description: 'popup cash out' },
-    { stripeAccount: accountId, idempotencyKey }
-  );
+/**
+ * Sends `amountCents` from the seller's Stripe balance to their bank or debit card.
+ * `instant` pays out within minutes to `destination` (a debit card or instant-capable
+ * bank); Stripe takes popup's instant fee from the balance on top of `amountCents`.
+ */
+async function createSellerPayout(accountId, amountCents, idempotencyKey, { instant = false, destination = null } = {}) {
+  const params = { amount: amountCents, currency: 'usd', description: instant ? 'popup instant cash out' : 'popup cash out' };
+  if (instant) {
+    params.method = 'instant';
+    if (destination) params.destination = destination;
+  }
+  return getStripe().payouts.create(params, { stripeAccount: accountId, idempotencyKey });
 }
 
 async function createOnboardingLink(accountId) {
