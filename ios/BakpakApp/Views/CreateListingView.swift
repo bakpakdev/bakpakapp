@@ -417,6 +417,21 @@ struct CreateListingView: View {
     @State private var postingCoverOnScreen = false
     @State private var postError: String?
     @State private var didApplyPrefill = false
+    /// After a scan, only the fields the scan couldn't fill are shown (captured once,
+    /// so a field doesn't vanish while you're typing in it). "Edit all details" shows the rest.
+    @State private var scanMissing: Set<ListingField> = []
+    @State private var showAllFields = false
+    @State private var showDescription = false
+
+    private enum ListingField: Hashable {
+        case photos, title, category, brand, condition, size
+    }
+
+    private var isScanReview: Bool { prefill != nil && !showAllFields }
+
+    private func showsField(_ field: ListingField) -> Bool {
+        !isScanReview || scanMissing.contains(field)
+    }
 
     private var remainingPhotoSlots: Int {
         max(0, 5 - photos.count - cropQueue.count)
@@ -453,6 +468,7 @@ struct CreateListingView: View {
             && !selectedCategoryID.isEmpty
             && !selectedGroupID.isEmpty
             && !selectedGenderID.isEmpty
+            && !selectedBrand.isEmpty
             && !selectedConditionID.isEmpty
             && !selectedSizeID.isEmpty
             && !photos.isEmpty
@@ -468,6 +484,7 @@ struct CreateListingView: View {
         if selectedCategoryID.isEmpty || selectedGroupID.isEmpty || selectedGenderID.isEmpty {
             missing.append("category")
         }
+        if selectedBrand.isEmpty { missing.append("brand") }
         if selectedConditionID.isEmpty { missing.append("condition") }
         if selectedSizeID.isEmpty { missing.append("size") }
         if price.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing.append("price") }
@@ -501,7 +518,7 @@ struct CreateListingView: View {
                 .foregroundStyle(canPost ? Color.white : campusTheme.textMuted)
                 .frame(maxWidth: .infinity)
                 .frame(height: 46)
-                .background(canPost ? Color(hex: "#16A34A") : campusTheme.elevatedSurface)
+                .background(canPost ? campusTheme.primary : campusTheme.elevatedSurface)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -523,37 +540,37 @@ struct CreateListingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 12) {
                 if onPosted != nil {
                     Button {
                         onPosted?()
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "camera.viewfinder")
-                                .font(.system(size: 13, weight: .semibold))
-                            Text("Scan")
-                                .font(Theme.syne(13, weight: .bold))
-                        }
-                        .foregroundStyle(campusTheme.tint)
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                            .frame(width: 36, height: 44)
+                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Back to scan")
                 }
-                Spacer()
-                Text("Create Listing")
-                    .font(Theme.syne(17, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                Spacer()
-                if onPosted != nil {
-                    Color.clear.frame(width: 64, height: 1)
+                if prefill != nil {
+                    SellStepProgress(step: 3, detail: "price & post")
+                } else {
+                    Text("Add your listing")
+                        .font(Theme.syne(17, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.vertical, 10)
             .background(campusTheme.surface)
             .overlay(alignment: .bottom) { Divider() }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    if showsField(.photos) {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 6) {
                             Image(systemName: "camera")
@@ -601,7 +618,9 @@ struct CreateListingView: View {
                             .padding(.leading, 4)
                     }
                     .padding(.bottom, 28)
+                    }
 
+                    if showsField(.title) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 6) {
                             Image(systemName: "tag")
@@ -625,7 +644,9 @@ struct CreateListingView: View {
                             .padding(.leading, 4)
                     }
                     .padding(.bottom, 22)
+                    }
 
+                    if showsField(.category) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Category")
                             .font(Theme.syne(13, weight: .bold))
@@ -691,7 +712,9 @@ struct CreateListingView: View {
                             .padding(.leading, 4)
                     }
                     .padding(.bottom, 22)
+                    }
 
+                    if showsField(.brand) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Brand")
                             .font(Theme.syne(13, weight: .bold))
@@ -755,7 +778,9 @@ struct CreateListingView: View {
                             .padding(.leading, 4)
                     }
                     .padding(.bottom, 22)
+                    }
 
+                    if showsField(.condition) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Condition")
                             .font(Theme.syne(13, weight: .bold))
@@ -824,7 +849,9 @@ struct CreateListingView: View {
                         }
                     }
                     .padding(.bottom, 22)
+                    }
 
+                    if showsField(.size) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Size")
                             .font(Theme.syne(13, weight: .bold))
@@ -893,6 +920,13 @@ struct CreateListingView: View {
                         }
                     }
                     .padding(.bottom, 22)
+                    }
+
+                    if isScanReview {
+                        scanSummaryCard
+                            .padding(.bottom, 22)
+                    }
+
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 6) {
@@ -966,6 +1000,7 @@ struct CreateListingView: View {
                     }
                     .padding(.bottom, 22)
 
+                    if showDescription || !description.isEmpty || !isScanReview {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 6) {
                             Image(systemName: "doc.text")
@@ -1005,13 +1040,27 @@ struct CreateListingView: View {
                             .padding(.leading, 4)
                     }
                     .padding(.bottom, 24)
+                    } else {
+                        Button {
+                            withAnimation(Motion.snappy) { showDescription = true }
+                        } label: {
+                            Text("+ Add a description (optional)")
+                                .font(Theme.syne(14, weight: .bold))
+                                .foregroundStyle(campusTheme.textPrimary)
+                                .underline()
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.bottom, 24)
+                    }
 
                     postListingBar
                         .padding(.bottom, 20)
 
-                    tipsBox
-                        // Clear the floating tab bar so the card isn't hidden behind it.
-                        .padding(.bottom, 120)
+                    if !isScanReview {
+                        tipsBox
+                    }
+                    // Clear the floating tab bar so the last card isn't hidden behind it.
+                    Color.clear.frame(height: 120)
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 24)
@@ -1429,6 +1478,85 @@ struct CreateListingView: View {
         if !color.isEmpty {
             description = "Color: \(color)"
         }
+        var missing: Set<ListingField> = []
+        if photos.isEmpty { missing.insert(.photos) }
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing.insert(.title) }
+        if selectedCategoryID.isEmpty || selectedGroupID.isEmpty || selectedGenderID.isEmpty {
+            missing.insert(.category)
+        }
+        if selectedBrand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { missing.insert(.brand) }
+        if selectedConditionID.isEmpty { missing.insert(.condition) }
+        if selectedSizeID.isEmpty { missing.insert(.size) }
+        scanMissing = missing
+    }
+
+    /// What the scan filled in, as one compact card, with a way to open every field.
+    private var scanSummaryCard: some View {
+        // Fields the scan missed are already shown above as their own pickers.
+        let rows: [(String, String)] = [
+            (ListingField.title, "Title", title),
+            (.category, "Category", selectedPiece?.name ?? ""),
+            (.brand, "Brand", selectedBrand),
+            (.size, "Size", selectedSize?.name ?? ""),
+            (.condition, "Condition", selectedCondition?.name ?? ""),
+        ]
+        .filter { !scanMissing.contains($0.0) && !$0.2.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        .map { ($0.1, $0.2) }
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                if let cover = photos.first {
+                    Image(uiImage: cover.image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("From your scan")
+                        .font(Theme.syne(15, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                    Text("\(photos.count) photo\(photos.count == 1 ? "" : "s")")
+                        .font(Theme.syne(12, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+
+            ForEach(rows, id: \.0) { row in
+                Divider().padding(.leading, 14)
+                HStack {
+                    Text(row.0)
+                        .font(Theme.syne(14, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                    Spacer(minLength: 12)
+                    Text(row.1)
+                        .font(Theme.syne(14, weight: .semibold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+            }
+
+            Divider()
+            Button {
+                withAnimation(Motion.snappy) { showAllFields = true }
+            } label: {
+                Text("Edit all details")
+                    .font(Theme.syne(14, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+            }
+            .buttonStyle(.plain)
+        }
+        .background(campusTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(campusTheme.border, lineWidth: 1)
+        )
     }
 
     private func matchSellCatalog(type: String, department: String?) -> (genderID: String, groupID: String, pieceID: String)? {

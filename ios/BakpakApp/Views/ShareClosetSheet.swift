@@ -5,48 +5,65 @@ import UIKit
 
 struct ClosetSharePalette: Identifiable, Equatable {
     let id: String
+    let name: String
     let top: Color
     let bottom: Color
     let text: Color
     let muted: Color
+    let line: Color
     let swatch: Color
 
+    /// The school's card first, in muted tones that sit with the app's black and white
+    /// (soft forest green for UO, burnt orange for OSU, ink on the dev campus), then
+    /// ink, paper, concrete and chrome.
     static func options(campus: CampusTheme) -> [ClosetSharePalette] {
-        [
-            ClosetSharePalette(
-                id: "campus",
-                top: campus.primary.opacity(0.92),
-                bottom: campus.isDev ? PopupBrand.background : Color(hex: campus.shortName == "OSU" ? "#3A1406" : "#0A241C"),
-                text: .white,
-                muted: .white.opacity(0.72),
-                swatch: campus.primary
-            ),
-            ClosetSharePalette(
-                id: "cream",
-                top: Color(hex: "#E9E4DA"),
-                bottom: Color(hex: "#B7AFA3"),
-                text: Color(hex: "#161513"),
-                muted: Color(hex: "#5C574E"),
-                swatch: Color(hex: "#E9E4DA")
-            ),
-            ClosetSharePalette(
-                id: "slate",
-                top: Color(hex: "#31424C"),
-                bottom: Color(hex: "#101418"),
-                text: .white,
-                muted: .white.opacity(0.68),
-                swatch: Color(hex: "#31424C")
-            ),
-            ClosetSharePalette(
-                id: "black",
-                top: Color(hex: "#2A2A2A"),
-                bottom: Color(hex: "#000000"),
-                text: .white,
-                muted: .white.opacity(0.62),
-                swatch: Color(hex: "#111111")
-            )
-        ]
+        guard !campus.isDev else { return neutrals }
+        return [schoolCard(campus)] + neutrals
     }
+
+    private static func schoolCard(_ campus: CampusTheme) -> ClosetSharePalette {
+        if campus.shortName == "OSU" {
+            return ClosetSharePalette(
+                id: "school", name: "Beavers",
+                top: Color(hex: "#A9532F"), bottom: Color(hex: "#24130C"),
+                text: Color(hex: "#FAF6F2"), muted: Color(hex: "#F1C9B4").opacity(0.75),
+                line: Color.white.opacity(0.16), swatch: Color(hex: "#A9532F")
+            )
+        }
+        return ClosetSharePalette(
+            id: "school", name: "Ducks",
+            top: Color(hex: "#3B5E4E"), bottom: Color(hex: "#111A15"),
+            text: Color(hex: "#F6F7F2"), muted: Color(hex: "#E6DC9A").opacity(0.75),
+            line: Color.white.opacity(0.14), swatch: Color(hex: "#3B5E4E")
+        )
+    }
+
+    private static let neutrals: [ClosetSharePalette] = [
+        ClosetSharePalette(
+            id: "ink", name: "Ink",
+            top: Color(hex: "#1C1C1C"), bottom: Color(hex: "#050505"),
+            text: Color(hex: "#FAFAFA"), muted: Color(hex: "#FAFAFA").opacity(0.55),
+            line: Color.white.opacity(0.14), swatch: Color(hex: "#0A0A0A")
+        ),
+        ClosetSharePalette(
+            id: "paper", name: "Paper",
+            top: Color(hex: "#FAFAF8"), bottom: Color(hex: "#ECEBE7"),
+            text: Color(hex: "#0A0A0A"), muted: Color(hex: "#0A0A0A").opacity(0.5),
+            line: Color.black.opacity(0.1), swatch: Color(hex: "#F4F3F0")
+        ),
+        ClosetSharePalette(
+            id: "concrete", name: "Concrete",
+            top: Color(hex: "#8C8C8C"), bottom: Color(hex: "#5E5E5E"),
+            text: Color(hex: "#FAFAFA"), muted: Color(hex: "#FAFAFA").opacity(0.66),
+            line: Color.white.opacity(0.2), swatch: Color(hex: "#7A7A7A")
+        ),
+        ClosetSharePalette(
+            id: "chrome", name: "Chrome",
+            top: Color(hex: "#E6E6E6"), bottom: Color(hex: "#AFAFAF"),
+            text: Color(hex: "#0A0A0A"), muted: Color(hex: "#0A0A0A").opacity(0.55),
+            line: Color.black.opacity(0.12), swatch: Color(hex: "#C8C8C8")
+        )
+    ]
 }
 
 struct ShareClosetSheet: View {
@@ -54,16 +71,18 @@ struct ShareClosetSheet: View {
     let username: String
     let userId: String
     let avatarURL: String?
-    let campusTheme: CampusTheme
+    var photoURLs: [String] = []
     let listingCount: Int
     let soldCount: Int
     let reviewAverage: Double
     let reviewCount: Int
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.campusTheme) private var campusTheme
 
     @State private var paletteIndex = 0
     @State private var avatarImage: UIImage?
+    @State private var photos: [UIImage] = []
     @State private var showCopied = false
     @State private var showMessages = false
     @State private var showMoreShare = false
@@ -72,10 +91,20 @@ struct ShareClosetSheet: View {
     @State private var missingAppTitle = ""
     @State private var missingAppStoreURL: URL?
 
-    private var palettes: [ClosetSharePalette] {
-        ClosetSharePalette.options(campus: campusTheme)
+    private var palettes: [ClosetSharePalette] { ClosetSharePalette.options(campus: campusTheme) }
+
+    /// Muted school accent for the copy-link pill; white on the dev campus.
+    private var accent: (fill: Color, text: Color) {
+        if campusTheme.isDev { return (PopupBrand.button, PopupBrand.buttonText) }
+        if campusTheme.shortName == "OSU" { return (Color(hex: "#E9A27F"), Color(hex: "#24130C")) }
+        return (Color(hex: "#E6DC9A"), Color(hex: "#18291F"))
     }
 
+    /// A faint wash of the school color at the top of the screen.
+    private var screenTint: Color {
+        if campusTheme.isDev { return PopupBrand.background }
+        return campusTheme.shortName == "OSU" ? Color(hex: "#2A170F") : Color(hex: "#15241D")
+    }
     private var palette: ClosetSharePalette { palettes[paletteIndex] }
 
     private var shareURL: URL {
@@ -86,31 +115,35 @@ struct ShareClosetSheet: View {
         ClosetShareLinks.shareMessage(shopName: shopName, username: username, userId: userId)
     }
 
-    private var nextIndex: Int {
-        (paletteIndex + 1) % palettes.count
+    private var displayLink: String {
+        let url = shareURL
+        guard let host = url.host else { return url.absoluteString }
+        return host + url.path
     }
 
     var body: some View {
         ZStack(alignment: .top) {
-            Color(hex: "#121212").ignoresSafeArea()
+            LinearGradient(colors: [screenTint, PopupBrand.background], startPoint: .top, endPoint: .center)
+                .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 header
                     .padding(.horizontal, 12)
-                    .padding(.top, 8)
-                    .padding(.bottom, 18)
-
-                cardPager
-                    .frame(height: 400)
-                    .padding(.bottom, 22)
-
-                colorDots
-                    .padding(.bottom, 28)
-
-                shareActions
-                    .padding(.bottom, 18)
+                    .padding(.top, 4)
 
                 Spacer(minLength: 8)
+
+                cardPager
+                    .frame(height: ClosetShareCard.size.height + 24)
+
+                swatches
+                    .padding(.top, 18)
+
+                Spacer(minLength: 16)
+
+                shareActions
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 12)
             }
 
             if showCopied {
@@ -120,13 +153,10 @@ struct ShareClosetSheet: View {
             }
         }
         .preferredColorScheme(.dark)
-        .statusBarHidden(false)
         .task { await loadImages() }
-        .onChange(of: paletteIndex) { _ in
-            cardImage = nil
-        }
+        .onChange(of: paletteIndex) { _ in cardImage = nil }
         .sheet(isPresented: $showMessages) {
-            MessageShareView(bodyText: shareText, image: renderedCard())
+            MessageShareView(bodyText: messagesBody, image: messagesAttachment)
         }
         .sheet(isPresented: $showMoreShare) {
             SystemShareSheet(items: moreShareItems())
@@ -139,9 +169,7 @@ struct ShareClosetSheet: View {
             set: { if !$0 { missingAppTitle = ""; missingAppStoreURL = nil } }
         )) {
             Button("Get the app") {
-                if let missingAppStoreURL {
-                    UIApplication.shared.open(missingAppStoreURL)
-                }
+                if let missingAppStoreURL { UIApplication.shared.open(missingAppStoreURL) }
                 missingAppTitle = ""
                 missingAppStoreURL = nil
             }
@@ -154,116 +182,127 @@ struct ShareClosetSheet: View {
         }
     }
 
+    // MARK: Header
+
     private var header: some View {
-        HStack {
-            Button {
-                Motion.haptic(.light)
-                dismiss()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
-            Spacer()
-        }
-    }
-
-    private var cardPager: some View {
-        GeometryReader { geo in
-            let cardWidth = min(geo.size.width - 64, 320)
-            let lead = max((geo.size.width - cardWidth) / 2, 20)
-            HStack(alignment: .center, spacing: 14) {
-                closetCard(palette: palette)
-                    .frame(width: cardWidth, height: 390)
-                closetCard(palette: palettes[nextIndex])
-                    .frame(width: cardWidth, height: 390)
-                    .opacity(0.9)
-            }
-            .padding(.leading, lead)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 24)
-                    .onEnded { value in
-                        if value.translation.width < -40 {
-                            Motion.haptic(.light)
-                            withAnimation(Motion.snappy) {
-                                paletteIndex = nextIndex
-                            }
-                        } else if value.translation.width > 40 {
-                            Motion.haptic(.light)
-                            withAnimation(Motion.snappy) {
-                                paletteIndex = (paletteIndex + palettes.count - 1) % palettes.count
-                            }
-                        }
-                    }
-            )
-            .clipped()
-        }
-    }
-
-    private var colorDots: some View {
-        HStack(spacing: 14) {
-            ForEach(Array(palettes.enumerated()), id: \.element.id) { index, item in
+        ZStack {
+            Text("Share your closet")
+                .font(Theme.syne(17, weight: .bold))
+                .foregroundStyle(PopupBrand.textPrimary)
+            HStack {
                 Button {
                     Motion.haptic(.light)
-                    withAnimation(Motion.snappy) { paletteIndex = index }
+                    dismiss()
                 } label: {
-                    Circle()
-                        .fill(item.swatch)
-                        .frame(width: 22, height: 22)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(paletteIndex == index ? 1 : 0.18), lineWidth: paletteIndex == index ? 2.5 : 1)
-                                .frame(width: 30, height: 30)
-                        )
+                    Image(systemName: "xmark")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(PopupBrand.textPrimary)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(PopupBrand.field))
                 }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
-                .accessibilityLabel("Card color \(index + 1)")
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+                .accessibilityLabel("Close")
+                Spacer()
             }
+            .padding(.horizontal, 4)
+        }
+        .frame(height: 48)
+    }
+
+    // MARK: Card pager
+
+    private var cardPager: some View {
+        TabView(selection: $paletteIndex) {
+            ForEach(Array(palettes.enumerated()), id: \.element.id) { index, item in
+                closetCard(palette: item)
+                    .frame(width: ClosetShareCard.size.width, height: ClosetShareCard.size.height)
+                    .shadow(color: .black.opacity(0.45), radius: 22, y: 12)
+                    .tag(index)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+    }
+
+    private var swatches: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                ForEach(Array(palettes.enumerated()), id: \.element.id) { index, item in
+                    Button {
+                        Motion.haptic(.light)
+                        withAnimation(Motion.snappy) { paletteIndex = index }
+                    } label: {
+                        Circle()
+                            .fill(LinearGradient(colors: [item.top, item.bottom], startPoint: .top, endPoint: .bottom))
+                            .frame(width: 24, height: 24)
+                            .overlay(Circle().stroke(Color.white.opacity(0.22), lineWidth: 1))
+                            .padding(4)
+                            .overlay(
+                                Circle().stroke(PopupBrand.textPrimary, lineWidth: paletteIndex == index ? 1.5 : 0)
+                            )
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
+                    .accessibilityLabel("\(item.name) card")
+                }
+            }
+            Text(palette.name.uppercased())
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .tracking(1.6)
+                .foregroundStyle(PopupBrand.textMuted)
         }
     }
 
+    // MARK: Share actions
+
     private var shareActions: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .top, spacing: 18) {
-                shareButton(title: "Copy link", systemImage: "link", background: Color(hex: "#2A2A2A")) {
-                    copyLink()
-                }
-                shareButton(title: "Messages", systemImage: "message.fill", background: Color(hex: "#34C759")) {
-                    shareToMessages()
-                }
-                shareButton(title: "WhatsApp", systemImage: "phone.bubble.fill", background: Color(hex: "#25D366")) {
-                    shareToWhatsApp()
-                }
-                shareButton(title: "Stories", systemImage: "camera.fill", background: Color(hex: "#E1306C")) {
-                    shareToStories()
-                }
-                shareButton(title: "More", systemImage: "ellipsis", background: Color(hex: "#2A2A2A")) {
+        VStack(spacing: 18) {
+            HStack(spacing: 0) {
+                shareButton(title: "Messages", systemImage: "message.fill") { shareToMessages() }
+                shareButton(title: "WhatsApp", systemImage: "phone.bubble.fill") { shareToWhatsApp() }
+                shareButton(title: "Stories", systemImage: "camera.aperture") { shareToStories() }
+                shareButton(title: "More", systemImage: "square.and.arrow.up") {
                     Motion.haptic(.light)
                     cardImage = renderedCard()
                     showMoreShare = true
                 }
             }
-            .padding(.horizontal, 28)
+
+            Button { copyLink() } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: showCopied ? "checkmark" : "link")
+                        .font(.system(size: 14, weight: .bold))
+                    Text(displayLink)
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 8)
+                    Text(showCopied ? "Copied" : "Copy")
+                        .font(Theme.syne(14, weight: .bold))
+                }
+                .foregroundStyle(accent.text)
+                .padding(.horizontal, 18)
+                .frame(height: 54)
+                .background(Capsule().fill(accent.fill))
+            }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+            .accessibilityLabel("Copy closet link")
         }
     }
 
-    private func shareButton(title: String, systemImage: String, background: Color, action: @escaping () -> Void) -> some View {
+    private func shareButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 62, height: 62)
-                    .background(Circle().fill(background))
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(PopupBrand.textPrimary)
+                    .frame(width: 58, height: 58)
+                    .background(Circle().fill(PopupBrand.surface))
+                    .overlay(Circle().stroke(PopupBrand.border, lineWidth: 1))
                 Text(title)
-                    .font(Theme.syne(11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .font(Theme.syne(11, weight: .semibold))
+                    .foregroundStyle(PopupBrand.textPrimary.opacity(0.85))
                     .lineLimit(1)
             }
-            .frame(width: 72)
+            .frame(maxWidth: .infinity)
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
     }
@@ -271,22 +310,39 @@ struct ShareClosetSheet: View {
     private var copiedToast: some View {
         Text("Link copied")
             .font(Theme.syne(13, weight: .semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(PopupBrand.buttonText)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(Capsule().fill(Color.white.opacity(0.14)))
+            .background(Capsule().fill(PopupBrand.button))
     }
 
-    private func closetCard(palette: ClosetSharePalette) -> some View {
+    private func closetCard(palette: ClosetSharePalette) -> ClosetShareCard {
         ClosetShareCard(
             shopName: shopName,
+            username: username,
             avatar: avatarImage,
+            photos: photos,
             listingCount: listingCount,
             soldCount: soldCount,
             reviewAverage: reviewAverage,
             reviewCount: reviewCount,
             palette: palette
         )
+    }
+
+    // MARK: Actions
+
+    /// iMessage draws a rich preview (closet name, stats, photo) from the link alone, so
+    /// Messages gets just the link. The card image is only attached when the link can't
+    /// preview (a `popup://` fallback).
+    private var messagesBody: String {
+        let scheme = shareURL.scheme?.lowercased() ?? ""
+        return scheme.hasPrefix("http") ? shareURL.absoluteString : shareText
+    }
+
+    private var messagesAttachment: UIImage? {
+        let scheme = shareURL.scheme?.lowercased() ?? ""
+        return scheme.hasPrefix("http") ? nil : renderedCard()
     }
 
     private func copyLink() {
@@ -301,14 +357,11 @@ struct ShareClosetSheet: View {
     private func shareToMessages() {
         Motion.haptic(.light)
         if MFMessageComposeViewController.canSendText() {
-            cardImage = renderedCard()
             showMessages = true
             return
         }
-        var comps = URLComponents()
-        comps.scheme = "sms"
-        comps.queryItems = [URLQueryItem(name: "body", value: shareText)]
-        if let url = comps.url {
+        let encoded = messagesBody.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let url = URL(string: "sms:&body=\(encoded)") {
             UIApplication.shared.open(url)
         } else {
             copyLink()
@@ -341,9 +394,10 @@ struct ShareClosetSheet: View {
         }
         UIPasteboard.general.setItems(
             [[
-                "com.instagram.sharedSticker.backgroundImage": png,
-                "com.instagram.sharedSticker.backgroundTopColor": "#121212",
-                "com.instagram.sharedSticker.backgroundBottomColor": "#000000"
+                "com.instagram.sharedSticker.stickerImage": png,
+                "com.instagram.sharedSticker.backgroundTopColor": "#1C1C1C",
+                "com.instagram.sharedSticker.backgroundBottomColor": "#050505",
+                "com.instagram.sharedSticker.contentURL": shareURL.absoluteString
             ]],
             options: [.expirationDate: Date().addingTimeInterval(60 * 5)]
         )
@@ -352,7 +406,7 @@ struct ShareClosetSheet: View {
 
     private func moreShareItems() -> [Any] {
         let image = renderedCard()
-        return [image, ClosetShareActivityItem(text: shareText, url: shareURL, image: image, title: shopName)]
+        return [ClosetShareActivityItem(text: shareText, url: shareURL, image: image, title: "\(shopName) on popup")]
     }
 
     private func statusShareItems() -> [Any] {
@@ -362,16 +416,8 @@ struct ShareClosetSheet: View {
     @MainActor
     private func renderedCard() -> UIImage {
         if let cardImage { return cardImage }
-        let view = ClosetShareCard(
-            shopName: shopName,
-            avatar: avatarImage,
-            listingCount: listingCount,
-            soldCount: soldCount,
-            reviewAverage: reviewAverage,
-            reviewCount: reviewCount,
-            palette: palette
-        )
-        .frame(width: 320, height: 390)
+        let view = closetCard(palette: palette)
+            .frame(width: ClosetShareCard.size.width, height: ClosetShareCard.size.height)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 3
         let image = renderer.uiImage ?? UIImage()
@@ -381,6 +427,11 @@ struct ShareClosetSheet: View {
 
     private func loadImages() async {
         avatarImage = await Self.fetchImage(avatarURL)
+        var loaded: [UIImage] = []
+        for url in photoURLs.prefix(4) {
+            if let image = await Self.fetchImage(url) { loaded.append(image) }
+        }
+        photos = loaded
         cardImage = nil
     }
 
@@ -407,57 +458,116 @@ private final class ImageCache {
     func set(_ image: UIImage, for key: String) { map[key] = image }
 }
 
+/// The shareable closet card (also rendered to an image for Stories / More).
 struct ClosetShareCard: View {
+    static let size = CGSize(width: 300, height: 408)
+
     let shopName: String
+    let username: String
     let avatar: UIImage?
+    let photos: [UIImage]
     let listingCount: Int
     let soldCount: Int
     let reviewAverage: Double
     let reviewCount: Int
     let palette: ClosetSharePalette
 
+    private var handle: String {
+        username.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "@", with: "")
+    }
+
     var body: some View {
-        ZStack(alignment: .bottom) {
-            LinearGradient(
-                colors: [palette.top, palette.bottom],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            VStack(spacing: 0) {
-                Spacer(minLength: 28)
-
-                avatarView
-                    .padding(.bottom, 18)
-
-                Text(shopName)
-                    .font(Theme.syne(24, weight: .bold))
-                    .foregroundStyle(palette.text)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 22)
-
-                VStack(spacing: 6) {
-                    Text(countLine(listingCount, one: "listing", many: "listings"))
-                    Text(countLine(soldCount, one: "sold", many: "sold"))
-                }
-                .font(Theme.syne(15, weight: .semibold))
-                .foregroundStyle(palette.text)
-                .multilineTextAlignment(.center)
-                .padding(.bottom, 18)
-
-                reviewBlock
-
-                Spacer(minLength: 36)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("popup")
+                    .font(Theme.syne(17, weight: .heavy))
+                    .tracking(-0.6)
+                Spacer()
+                Text("CLOSET")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .tracking(1.8)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .overlay(Capsule().stroke(palette.line, lineWidth: 1))
             }
-            .frame(maxWidth: .infinity)
+            .foregroundStyle(palette.text)
+            .padding(.bottom, 14)
 
-            PopupWordmark(scale: .footer, color: palette.text.opacity(0.8))
+            photoGrid
                 .padding(.bottom, 16)
+
+            HStack(alignment: .center, spacing: 12) {
+                avatarView
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(shopName)
+                        .font(Theme.syne(22, weight: .heavy))
+                        .tracking(-0.6)
+                        .foregroundStyle(palette.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    if !handle.isEmpty {
+                        Text("@\(handle)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(palette.muted)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.bottom, 14)
+
+            HStack(spacing: 6) {
+                statPill(value: "\(listingCount)", label: listingCount == 1 ? "listing" : "listings")
+                if soldCount > 0 {
+                    statPill(value: "\(soldCount)", label: "sold")
+                }
+                if reviewCount > 0 {
+                    statPill(value: String(format: "%.1f", reviewAverage), label: "★")
+                }
+                Spacer(minLength: 0)
+            }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: .black.opacity(0.35), radius: 18, y: 10)
+        .padding(18)
+        .frame(width: Self.size.width, height: Self.size.height, alignment: .top)
+        .background(
+            LinearGradient(colors: [palette.top, palette.bottom], startPoint: .top, endPoint: .bottom)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(palette.line, lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private var photoGrid: some View {
+        let gridHeight: CGFloat = 222
+        if photos.isEmpty {
+            ZStack {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(palette.text.opacity(0.06))
+                Text(String(shopName.prefix(1)).uppercased())
+                    .font(Theme.syne(96, weight: .heavy))
+                    .foregroundStyle(palette.text.opacity(0.85))
+            }
+            .frame(height: gridHeight)
+        } else if photos.count < 4 {
+            tile(photos[0])
+                .frame(height: gridHeight)
+        } else {
+            let gap: CGFloat = 4
+            VStack(spacing: gap) {
+                HStack(spacing: gap) { tile(photos[0]); tile(photos[1]) }
+                HStack(spacing: gap) { tile(photos[2]); tile(photos[3]) }
+            }
+            .frame(height: gridHeight)
+        }
+    }
+
+    private func tile(_ image: UIImage) -> some View {
+        Color.clear
+            .overlay(Image(uiImage: image).resizable().scaledToFill())
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var avatarView: some View {
@@ -466,50 +576,27 @@ struct ClosetShareCard: View {
                 Image(uiImage: avatar).resizable().scaledToFill()
             } else {
                 ZStack {
-                    palette.text.opacity(0.12)
+                    palette.text.opacity(0.1)
                     Text(String(shopName.prefix(1)).uppercased())
-                        .font(Theme.syne(36, weight: .bold))
+                        .font(Theme.syne(18, weight: .bold))
                         .foregroundStyle(palette.text)
                 }
             }
         }
-        .frame(width: 128, height: 128)
+        .frame(width: 44, height: 44)
         .clipShape(Circle())
-        .overlay(Circle().stroke(palette.text.opacity(0.18), lineWidth: 2))
+        .overlay(Circle().stroke(palette.line, lineWidth: 1))
     }
 
-    private var reviewBlock: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 3) {
-                ForEach(1...5, id: \.self) { index in
-                    Image(systemName: starSymbol(for: index))
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(palette.text)
-                }
-            }
-            Text(reviewLabel)
-                .font(Theme.syne(13, weight: .medium))
-                .foregroundStyle(palette.muted)
+    private func statPill(value: String, label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(value).font(Theme.syne(13, weight: .bold))
+            Text(label).font(.system(size: 12, weight: .medium))
         }
-    }
-
-    private var reviewLabel: String {
-        if reviewCount == 0 { return "No reviews yet" }
-        let avg = String(format: "%.1f", reviewAverage)
-        let noun = reviewCount == 1 ? "review" : "reviews"
-        return "\(avg) · \(reviewCount) \(noun)"
-    }
-
-    private func countLine(_ count: Int, one: String, many: String) -> String {
-        "\(count) \(count == 1 ? one : many)"
-    }
-
-    private func starSymbol(for index: Int) -> String {
-        let value = reviewAverage - Double(index - 1)
-        if reviewCount == 0 { return "star" }
-        if value >= 0.75 { return "star.fill" }
-        if value >= 0.25 { return "star.leadinghalf.filled" }
-        return "star"
+        .foregroundStyle(palette.text)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .overlay(Capsule().stroke(palette.line, lineWidth: 1))
     }
 }
 
@@ -567,7 +654,7 @@ final class ClosetShareActivityItem: NSObject, UIActivityItemSource {
 
     func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
         switch activityType {
-        case .message, .mail, .postToTwitter, .postToFacebook:
+        case .mail, .postToTwitter, .postToFacebook:
             return text
         case .copyToPasteboard:
             return url

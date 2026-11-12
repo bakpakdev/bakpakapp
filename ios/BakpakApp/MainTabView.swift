@@ -130,64 +130,63 @@ struct MainTabView: View {
         }
     }
 
-    private var tabBarFill: Color {
-        campusTheme.isDark ? campusTheme.elevatedSurface : Color(hex: "#232624")
+    @Namespace private var tabBubble
+
+    /// Glass tint taken from the app background, so the bar reads as part of the page:
+    /// clear frosted glass in light mode, smoked glass in dark mode.
+    private var glassTint: Color {
+        campusTheme.background.opacity(campusTheme.isDark ? 0.55 : 0.22)
     }
 
+    /// One connected glass bar. The sell button sits in line with the tabs as a solid
+    /// circle in the app's text color, so it reads as the main action.
     private var customTabBar: some View {
-        HStack(spacing: 8) {
-            tabItem(tab: .home, title: "Home", systemImage: "house")
-            tabItem(tab: .search, title: "Search", systemImage: "magnifyingglass")
-
-            Button {
-                Motion.haptic(.medium)
-                withAnimation(Motion.snappy) {
-                    appState.openSellCamera()
-                }
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [campusTheme.primary, campusTheme.secondary],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay(Circle().stroke(Color.white.opacity(0.9), lineWidth: 2))
-                        .frame(width: 58, height: 58)
-                        .shadow(color: campusTheme.primary.opacity(0.35), radius: 8, y: 3)
-                    Image(systemName: "plus")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
-            .accessibilityLabel("Sell")
-
+        HStack(spacing: 0) {
+            tabItem(tab: .home, title: "Home", systemImage: "house", activeImage: "house.fill")
+            tabItem(tab: .search, title: "Search", systemImage: "magnifyingglass", activeImage: "magnifyingglass")
+            sellButton
+                .frame(maxWidth: .infinity)
             tabItem(
                 tab: .messages,
                 title: "Inbox",
-                systemImage: "tray",
+                systemImage: "bubble.left.and.bubble.right",
+                activeImage: "bubble.left.and.bubble.right.fill",
                 badge: appState.inboxUnreadTotal > 0
             )
-            tabItem(tab: .profile, title: "Profile", systemImage: "person")
+            tabItem(tab: .profile, title: "Profile", systemImage: "person", activeImage: "person.fill")
         }
-        .padding(6)
-        .background(
-            Capsule()
-                .fill(tabBarFill)
-                .shadow(color: Color.black.opacity(0.22), radius: 16, y: 6)
-        )
+        .padding(5)
+        .glassSurface(Capsule(), tint: glassTint, isDark: campusTheme.isDark)
+        .padding(.horizontal, 18)
         .frame(maxWidth: .infinity)
         .padding(.top, 6)
         .padding(.bottom, 6)
+    }
+
+    private var sellButton: some View {
+        Button {
+            Motion.haptic(.medium)
+            withAnimation(Motion.snappy) {
+                appState.openSellCamera()
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundStyle(campusTheme.background)
+                .frame(width: 52, height: 52)
+                .background(Circle().fill(campusTheme.textPrimary))
+                .shadow(color: Color.black.opacity(campusTheme.isDark ? 0.4 : 0.18), radius: 8, y: 3)
+                .contentShape(Circle())
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+        .accessibilityLabel("Sell")
     }
 
     private func tabItem(
         tab: AppTab,
         title: String,
         systemImage: String,
+        activeImage: String,
         badge: Bool = false
     ) -> some View {
         let isActive = appState.selectedTab == tab
@@ -197,29 +196,61 @@ struct MainTabView: View {
                 appState.selectedTab = tab
             }
         } label: {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 18, weight: isActive ? .semibold : .regular))
-                    .foregroundStyle(isActive ? Color(hex: "#232624") : Color.white.opacity(0.85))
-                    .frame(width: 52, height: 52)
-                    .background(
-                        Circle().fill(isActive ? Color.white : Color.clear)
-                    )
-                    .overlay(
-                        Circle().stroke(isActive ? Color.clear : Color.white.opacity(0.14), lineWidth: 1)
-                    )
-
+            ZStack {
+                if isActive {
+                    // Solid bubble in the app's text color: black in light mode, white in dark.
+                    Circle()
+                        .fill(campusTheme.textPrimary)
+                        .frame(width: 50, height: 50)
+                        .matchedGeometryEffect(id: "activeTab", in: tabBubble)
+                }
+                Image(systemName: isActive ? activeImage : systemImage)
+                    .font(.system(size: 19, weight: isActive ? .semibold : .regular))
+                    .foregroundStyle(isActive ? campusTheme.background : campusTheme.textPrimary.opacity(0.82))
                 if badge {
                     Circle()
-                        .fill(Color.red)
+                        .fill(campusTheme.textPrimary)
                         .frame(width: 8, height: 8)
-                        .offset(x: -12, y: 12)
+                        .overlay(Circle().stroke(campusTheme.background, lineWidth: 2))
+                        .offset(x: 10, y: -10)
+                        .accessibilityHidden(true)
                 }
             }
-            // Inactive tabs have a clear circle; without this only the glyph and ring take taps.
-            .contentShape(Circle())
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(title)
+        .accessibilityLabel(badge ? "\(title), unread" : title)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
+    }
+}
+
+private extension View {
+    /// Liquid Glass on iOS 26, frosted material with a light rim before that.
+    @ViewBuilder
+    func glassSurface<S: InsettableShape>(_ shape: S, tint: Color, isDark: Bool) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.tint(tint).interactive(), in: shape)
+        } else {
+            self
+                .background(shape.fill(.ultraThinMaterial))
+                .background(shape.fill(tint))
+                .overlay(
+                    shape.strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(isDark ? 0.28 : 0.9),
+                                Color.white.opacity(isDark ? 0.04 : 0.15),
+                                Color.white.opacity(isDark ? 0.12 : 0.5)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 1
+                    )
+                )
+                .shadow(color: Color.black.opacity(isDark ? 0.4 : 0.14), radius: 16, y: 8)
+        }
     }
 }

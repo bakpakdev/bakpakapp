@@ -306,3 +306,52 @@ private struct PayPresenceState: Codable {
         case role
     }
 }
+
+// MARK: - Buyer service fee
+
+/// popup's service fee, which only the buyer pays, on top of the price. The API owns the
+/// numbers (`GET /payments/fee`); until it answers, the app uses the same defaults.
+@MainActor
+final class ServiceFeeStore: ObservableObject {
+    static let shared = ServiceFeeStore()
+
+    struct Settings: Decodable, Equatable {
+        let percent: Double
+        let fixedCents: Int
+        let minCents: Int
+    }
+
+    @Published private(set) var settings = Settings(percent: 3.5, fixedCents: 60, minCents: 0)
+    private var loadedAt: Date?
+
+    private init() {}
+
+    func refreshIfNeeded() async {
+        if let loadedAt, Date().timeIntervalSince(loadedAt) < 600 { return }
+        if let fresh: Settings = try? await APIClient.shared.request(path: "/payments/fee") {
+            settings = fresh
+            loadedAt = Date()
+        }
+    }
+
+    /// Fee in cents for a price in cents. Mirrors `buyerTotal` in backend/lib/platformFee.js.
+    func feeCents(forPriceCents price: Int) -> Int {
+        guard price > 0 else { return 0 }
+        let percentPart = Int((Double(price) * settings.percent / 100).rounded())
+        return max(percentPart + settings.fixedCents, settings.minCents)
+    }
+
+    func fee(for amount: Double) -> Double {
+        Double(feeCents(forPriceCents: Int((amount * 100).rounded()))) / 100
+    }
+
+    func total(for amount: Double) -> Double {
+        let cents = Int((amount * 100).rounded())
+        return Double(cents + feeCents(forPriceCents: cents)) / 100
+    }
+
+    /// "$30.00 offer + $1.65 service fee = $31.65" pieces for a buyer.
+    func buyerLine(for amount: Double) -> String {
+        "+ \(MoneyAmount.label(fee(for: amount))) service fee · \(MoneyAmount.label(total(for: amount))) total"
+    }
+}

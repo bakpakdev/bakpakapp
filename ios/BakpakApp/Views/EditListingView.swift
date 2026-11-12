@@ -55,7 +55,10 @@ struct EditListingView: View {
 
     private var isFormValid: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !selectedBrand.isEmpty
             && !selectedConditionID.isEmpty
+            && !size.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !category.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && Double(price.replacingOccurrences(of: ",", with: ".")) != nil
     }
 

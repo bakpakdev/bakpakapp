@@ -242,12 +242,15 @@ struct ProfileView: View {
                 username: user?.username ?? "",
                 userId: user?.id ?? "",
                 avatarURL: user?.avatar,
-                campusTheme: campusTheme,
+                photoURLs: activeShopItems.compactMap { item in
+                    (item.images?.first(where: { $0.isPrimary == true }) ?? item.images?.first)?.url
+                },
                 listingCount: activeShopItems.count,
                 soldCount: soldCount,
                 reviewAverage: ReviewSummary(reviews: reviews).average,
                 reviewCount: reviews.count
             )
+            .environment(\.campusTheme, campusTheme)
         }
     }
 

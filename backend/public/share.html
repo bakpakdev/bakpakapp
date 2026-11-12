@@ -3,111 +3,109 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Shop on popup</title>
+  <meta name="theme-color" content="#0a0a0a" />
+  <!--META-->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Figtree:wght@400;500;600&display=swap">
   <style>
     :root {
       --bg: #0a0a0a;
-      --text: #fafafa;
-      --muted: #737373;
-      --surface: #141414;
-      --border: #2a2a2a;
-      --button: #fafafa;
-      --button-text: #0a0a0a;
+      --ink: #fafafa;
+      --mute: #8a8a8a;
+      --line: #232323;
+      --tile: #161616;
+      --display: "Syne", "Arial Black", system-ui, sans-serif;
+      --body: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      min-height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    }
-    body {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 24px;
-      background:
-        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(250, 250, 250, 0.08), transparent 55%),
-        var(--bg);
-    }
-    .card { width: 100%; max-width: 420px; text-align: center; }
-    .brand {
-      font-size: 28px;
-      font-weight: 900;
-      letter-spacing: -0.5px;
-      margin-bottom: 40px;
-    }
-    .mark {
-      width: 64px;
-      height: 64px;
-      margin: 0 auto 24px;
-      border-radius: 16px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      display: grid;
-      place-items: center;
-      font-size: 26px;
-    }
-    h1 {
-      font-size: 26px;
-      font-weight: 800;
-      letter-spacing: -0.4px;
-      margin-bottom: 12px;
-    }
-    p {
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.5;
-      margin-bottom: 28px;
-    }
-    .cta {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 220px;
-      height: 52px;
-      padding: 0 24px;
-      border-radius: 14px;
-      background: var(--button);
-      color: var(--button-text);
-      font-size: 16px;
-      font-weight: 600;
-      text-decoration: none;
-    }
-    .cta:active { transform: scale(0.97); }
-    .hint { margin-top: 20px; font-size: 12px; color: var(--muted); }
+    html, body { min-height: 100%; background: var(--bg); color: var(--ink); font-family: var(--body); -webkit-font-smoothing: antialiased; }
+    body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: max(20px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)); }
+    .top { width: 100%; max-width: 420px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 36px; }
+    .brand { font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: -0.03em; }
+    .tag { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mute); border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; }
+    main { width: 100%; max-width: 420px; text-align: center; }
+    .avatar { width: 104px; height: 104px; border-radius: 50%; margin: 0 auto 18px; background: var(--tile) center/cover no-repeat; border: 1px solid var(--line); display: grid; place-items: center; font-family: var(--display); font-weight: 800; font-size: 40px; }
+    h1 { font-family: var(--display); font-weight: 800; font-size: 32px; line-height: 1; letter-spacing: -0.03em; margin-bottom: 8px; text-wrap: balance; }
+    .handle { color: var(--mute); font-size: 15px; margin-bottom: 20px; }
+    .stats { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 26px; }
+    .stat { border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600; }
+    .stat b { font-family: var(--display); font-weight: 700; margin-right: 4px; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 28px; }
+    .grid div { aspect-ratio: 4 / 5; border-radius: 14px; background: var(--tile) center/cover no-repeat; }
+    .grid:empty { display: none; }
+    .cta { display: flex; align-items: center; justify-content: center; width: 100%; height: 54px; border-radius: 999px; background: var(--ink); color: var(--bg); font-family: var(--display); font-weight: 700; font-size: 16px; letter-spacing: -0.01em; text-decoration: none; }
+    .cta:active { transform: scale(0.98); }
+    .hint { margin-top: 14px; font-size: 13px; color: var(--mute); }
+    .hint a { color: var(--ink); }
+    /* Muted school tones, matching the app's Share your closet screen. */
+    body.uo { --bg: #0E1612; --line: #26372F; --tile: #18241E; --accent: #E6DC9A; --accent-ink: #18291F; }
+    body.osu { --bg: #140C08; --line: #3A2419; --tile: #21140E; --accent: #E9A27F; --accent-ink: #24130C; }
+    body.uo { background: radial-gradient(ellipse 90% 45% at 50% -10%, rgba(59,94,78,0.55), transparent 60%), var(--bg); }
+    body.osu { background: radial-gradient(ellipse 90% 45% at 50% -10%, rgba(169,83,47,0.45), transparent 60%), var(--bg); }
+    body.uo .cta, body.osu .cta { background: var(--accent); color: var(--accent-ink); }
+    body.uo .tag, body.osu .tag { color: var(--accent); border-color: var(--line); }
   </style>
 </head>
 <body>
-  <main class="card">
+  <div class="top">
     <div class="brand">popup</div>
-    <div class="mark" aria-hidden="true">⌂</div>
-    <h1 id="title">Open this closet in popup</h1>
-    <p id="message">This link opens a campus seller’s shop in the popup app.</p>
-    <a class="cta" id="openApp" href="popup://profile">Open in popup</a>
-    <p class="hint">If nothing happens, install popup, then tap Open in popup.</p>
+    <div class="tag">closet</div>
+  </div>
+  <main>
+    <div class="avatar" id="avatar"></div>
+    <h1 id="name">Shop this closet</h1>
+    <div class="handle" id="handle">on popup</div>
+    <div class="stats" id="stats"></div>
+    <div class="grid" id="grid"></div>
+    <a class="cta" id="openApp" href="popup://profile">Open closet in popup</a>
+    <p class="hint">Don’t have popup yet? <a href="https://www.usepopupapp.com">Get the app</a></p>
   </main>
   <script>
     (function () {
-      var parts = (window.location.pathname || "").split("/").filter(Boolean);
-      var username = decodeURIComponent(parts[parts.length - 1] || "");
-      if (username === "u" || username === "share.html") username = "";
-      var id = new URLSearchParams(window.location.search || "").get("id") || "";
-      var title = document.getElementById("title");
-      var message = document.getElementById("message");
-      var openApp = document.getElementById("openApp");
-      var handle = username.replace(/^@/, "");
-      var appUrl = id
-        ? "popup://profile/" + encodeURIComponent(id)
-        : "popup://u/" + encodeURIComponent(handle);
-      if (handle) {
-        title.textContent = "@" + handle + " on popup";
-        message.textContent = "Open popup to see their closet and meet up in person.";
-        document.title = "@" + handle + " · popup";
+      var data = /*CLOSET_DATA*/null || {};
+      if (!data.username) {
+        var parts = (window.location.pathname || "").split("/").filter(Boolean);
+        var last = decodeURIComponent(parts[parts.length - 1] || "");
+        data.username = (last === "u" || last === "share.html") ? "" : last.replace(/^@/, "");
+        data.id = new URLSearchParams(window.location.search || "").get("id") || "";
       }
-      openApp.setAttribute("href", appUrl);
-      setTimeout(function () { window.location.href = appUrl; }, 350);
+      var $ = function (id) { return document.getElementById(id); };
+      if (data.school === "uo" || data.school === "osu") document.body.classList.add(data.school);
+      var name = data.shopName || (data.username ? "@" + data.username : "Shop this closet");
+      $("name").textContent = name;
+      $("handle").textContent = data.username ? "@" + data.username + " · on popup" : "on popup";
+
+      var avatar = $("avatar");
+      if (data.avatarUrl) avatar.style.backgroundImage = "url(" + JSON.stringify(data.avatarUrl) + ")";
+      else avatar.textContent = (name.replace("@", "")[0] || "p").toUpperCase();
+
+      var stats = $("stats");
+      function stat(n, label) {
+        var el = document.createElement("div");
+        el.className = "stat";
+        var b = document.createElement("b");
+        b.textContent = n;
+        el.appendChild(b);
+        el.appendChild(document.createTextNode(label));
+        stats.appendChild(el);
+      }
+      if (typeof data.listingCount === "number") stat(data.listingCount, data.listingCount === 1 ? "listing" : "listings");
+      if (typeof data.soldCount === "number" && data.soldCount > 0) stat(data.soldCount, "sold");
+      if (data.reviewCount > 0) stat(data.reviewAverage.toFixed(1) + "★", "(" + data.reviewCount + ")");
+
+      var grid = $("grid");
+      (data.photos || []).slice(0, 4).forEach(function (url) {
+        var tile = document.createElement("div");
+        tile.style.backgroundImage = "url(" + JSON.stringify(url) + ")";
+        grid.appendChild(tile);
+      });
+
+      var appUrl = data.id
+        ? "popup://profile/" + encodeURIComponent(data.id)
+        : "popup://u/" + encodeURIComponent(data.username || "");
+      $("openApp").setAttribute("href", appUrl);
+      setTimeout(function () { window.location.href = appUrl; }, 450);
     })();
   </script>
 </body>
