@@ -6,7 +6,7 @@ struct WelcomeView: View {
 
     var body: some View {
         ZStack {
-            AuthPageBackground()
+            AuthPageBackground(liquid: true, intensity: 1)
 
             VStack(spacing: 16) {
                 Spacer()
@@ -32,10 +32,7 @@ struct WelcomeView: View {
                             .foregroundStyle(PopupBrand.buttonText)
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
-                            .background(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(PopupBrand.button)
-                            )
+                            .background(GlossyPillBackground())
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
 
@@ -45,9 +42,10 @@ struct WelcomeView: View {
                     } label: {
                         Text("I already have an account")
                             .font(Theme.syne(15, weight: .medium))
-                            .foregroundStyle(PopupBrand.textMuted)
+                            .foregroundStyle(Color(hex: "#CFCFCF"))
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
+                            .frame(height: 52)
+                            .background(FrostedGlassBackground())
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
                 }
