@@ -148,6 +148,13 @@ struct CampusTheme: Equatable {
         return isDark ? Color(hex: "#222925") : Color(hex: "#EEF1EF")
     }
 
+    /// Translucent fills for controls and cards that sit on the aurora background,
+    /// so the glow shows through instead of solid grey slabs.
+    var glass: Color { isDark ? Color.white.opacity(0.07) : Color.white.opacity(0.6) }
+    var glassStrong: Color { isDark ? Color.white.opacity(0.11) : Color.white.opacity(0.85) }
+    /// Recessed circle inside a glass chip.
+    var glassInset: Color { isDark ? Color.black.opacity(0.22) : Color.black.opacity(0.05) }
+
     var border: Color {
         isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
     }
@@ -277,8 +284,8 @@ struct CampusTheme: Equatable {
     var wash: LinearGradient {
         LinearGradient(
             colors: [
-                (isMono ? (isDark ? Color.white : Color.black) : Color(hex: "#1C7A45"))
-                    .opacity(isMono ? (isDark ? 0.08 : 0.05) : (isDark ? 0.32 : 0.13)),
+                (isMonochrome ? (isDark ? Color.white : Color.black) : Color(hex: "#1C7A45"))
+                    .opacity(isMonochrome ? (isDark ? 0.08 : 0.05) : (isDark ? 0.32 : 0.13)),
                 background,
                 background,
             ],
@@ -566,7 +573,8 @@ struct PopupWordmark: View {
 /// Shared "aurora" backdrop for the main app screens: soft blurred blobs of
 /// green, yellow and teal over a dark canvas. The colors are fixed so every
 /// school sees the same background (school colors stay in badges and chips).
-/// In black & white mode (dev campus or the Preferences switch) it turns silver.
+/// Only the Preferences "Black & white" switch turns it silver; every campus,
+/// including the dev campus, otherwise gets the same green aurora.
 struct AuroraBackground: View {
     @Environment(\.campusTheme) private var campusTheme
 
@@ -583,7 +591,14 @@ struct AuroraBackground: View {
         (campusTheme.isDark ? Color(hex: "#07080A") : campusTheme.background)
             .overlay {
                 ZStack {
-                    if campusTheme.isMono {
+                    if campusTheme.isDark && !campusTheme.isMonochrome {
+                        // Pre-rendered from the approved mockup (blobs + film grain), so the
+                        // app matches it exactly instead of approximating with SwiftUI blurs.
+                        Image("AuroraDark")
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height)
+                    } else if campusTheme.isMonochrome {
                         // Black & white mode: the same shapes as soft silver light (or soft
                         // shadow in light mode).
                         let ink: Color = campusTheme.isDark ? .white : .black

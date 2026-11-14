@@ -160,7 +160,7 @@ struct HomeProductCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .padding(12)
-        .background(campusTheme.surface)
+        .background(campusTheme.glass)
         .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 26, style: .continuous)
@@ -333,7 +333,7 @@ struct HomeView: View {
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(campusTheme.textPrimary)
                         .frame(width: 62, height: 62)
-                        .background(campusTheme.elevatedSurface)
+                        .background(campusTheme.glass)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
 
                     if notificationUnread > 0 {
@@ -368,7 +368,7 @@ struct HomeView: View {
         .padding(5)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(campusTheme.elevatedSurface)
+                .fill(campusTheme.glass)
         )
         .overlay(alignment: .top) {
             if showCampusPeople {
@@ -386,11 +386,11 @@ struct HomeView: View {
             AsyncImage(url: url) { image in
                 image.resizable().scaledToFill()
             } placeholder: {
-                campusTheme.surface
+                campusTheme.glassStrong
             }
         } else {
             ZStack {
-                campusTheme.surface
+                campusTheme.glassStrong
                 Image(systemName: "person.fill")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(campusTheme.textMuted)
@@ -418,7 +418,7 @@ struct HomeView: View {
                     .foregroundStyle(campusTheme.tint)
             }
             .frame(width: 52, height: 52)
-            .background(campusTheme.surface)
+            .background(campusTheme.glassStrong)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
@@ -506,7 +506,7 @@ struct HomeView: View {
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(campusTheme.textPrimary)
                     .frame(width: 50, height: 50)
-                    .background(campusTheme.elevatedSurface)
+                    .background(campusTheme.glassStrong)
                     .clipShape(Circle())
             }
             .accessibilityLabel("Sort")
@@ -514,7 +514,7 @@ struct HomeView: View {
         .padding(.leading, 16)
         .padding(.trailing, 6)
         .frame(height: 62)
-        .background(campusTheme.surface)
+        .background(campusTheme.glass)
         .clipShape(Capsule())
         .overlay(
             Capsule()
@@ -539,7 +539,7 @@ struct HomeView: View {
                                 .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
                                 .frame(width: 42, height: 42)
                                 .background(
-                                    Circle().fill(isActive ? Color.white.opacity(0.18) : campusTheme.surface)
+                                    Circle().fill(isActive ? Color.white.opacity(0.18) : campusTheme.glassInset)
                                 )
                                 .overlay(
                                     Circle().stroke(isActive ? Color.white.opacity(0.35) : Color.clear, lineWidth: 1)
@@ -551,7 +551,7 @@ struct HomeView: View {
                         .padding(.leading, 5)
                         .padding(.trailing, 18)
                         .frame(height: 52)
-                        .background(isActive ? campusTheme.primary : campusTheme.elevatedSurface)
+                        .background(isActive ? campusTheme.primary.opacity(campusTheme.isDark ? 0.6 : 1) : campusTheme.glass)
                         .clipShape(Capsule())
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
