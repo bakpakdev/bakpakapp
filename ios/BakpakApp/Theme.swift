@@ -90,7 +90,10 @@ struct CampusTheme: Equatable {
         monochrome: Bool = false
     ) -> CampusTheme {
         var theme = schoolTheme(schoolName: schoolName, appearance: appearance)
-        if monochrome && !theme.isDev {
+        if monochrome && theme.isDev {
+            // The dev campus is already monochrome; the switch still turns the aurora silver.
+            theme.isMonochrome = true
+        } else if monochrome {
             let isDark = appearance == .dark
             theme = CampusTheme(
                 shortName: theme.shortName,

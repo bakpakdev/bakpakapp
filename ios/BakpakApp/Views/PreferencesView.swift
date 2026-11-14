@@ -50,8 +50,8 @@ struct PreferencesView: View {
                             }
 
                             SettingsToggleRow(
-                                title: "Black & white",
-                                subtitle: "Use popup's black and white colors instead of your school colors.",
+                                title: "popup default",
+                                subtitle: "Use popup's own black and white colors instead of your school colors.",
                                 isOn: Binding(
                                     get: { appState.monochrome },
                                     set: { newValue in
