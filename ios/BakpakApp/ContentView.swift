@@ -8,31 +8,16 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var meetupNotifications = MeetupNotificationScheduler.shared
 
-    @State private var showSplash = true
-
     var body: some View {
-        ZStack {
-            // Don't mount the main app tree while the splash is playing —
-            // that was the main source of jank (tabs/auth loading underneath).
-            if !showSplash {
-                RootView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .preferredColorScheme(appState.appearance.colorScheme)
-                    .transition(.opacity)
-            }
-
-            if showSplash {
-                SplashScreen {
-                    withAnimation(.easeOut(duration: 0.28)) {
-                        showSplash = false
-                    }
-                }
-                .transition(.opacity)
-                .zIndex(1)
-            }
+        // Splash plays first ("sheet lift"), then swipes up with an arched edge to
+        // reveal the app. RootView is only mounted just before the lift so it
+        // doesn't load underneath the logo animation (that caused jank).
+        LaunchReveal {
+            RootView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .preferredColorScheme(appState.appearance.colorScheme)
         }
         .background(Color.black.ignoresSafeArea())
-        .animation(nil, value: showSplash)
         .overlay {
             if meetupNotifications.showPrePrompt {
                 ConfirmActionCard(
