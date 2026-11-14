@@ -102,21 +102,7 @@ struct ProfileView: View {
             let itemSize = usable / CGFloat(feedColumns)
 
             ZStack(alignment: .top) {
-                campusTheme.background.ignoresSafeArea()
-
-                Circle()
-                    .fill(campusTheme.primary.opacity(0.16))
-                    .frame(width: 280, height: 280)
-                    .blur(radius: 55)
-                    .offset(x: -130, y: -100)
-                    .allowsHitTesting(false)
-
-                Circle()
-                    .fill(campusTheme.secondary.opacity(0.12))
-                    .frame(width: 240, height: 240)
-                    .blur(radius: 60)
-                    .offset(x: 150, y: 60)
-                    .allowsHitTesting(false)
+                AuroraBackground()
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {

@@ -77,19 +77,7 @@ struct CampusPageBackground: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            campusTheme.background.ignoresSafeArea()
-
-            Circle()
-                .fill(campusTheme.primary.opacity(0.18))
-                .frame(width: 300, height: 300)
-                .blur(radius: 55)
-                .offset(x: -150, y: -110)
-
-            Circle()
-                .fill(campusTheme.secondary.opacity(0.14))
-                .frame(width: 260, height: 260)
-                .blur(radius: 60)
-                .offset(x: 175, y: 20)
+            AuroraBackground()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .allowsHitTesting(false)

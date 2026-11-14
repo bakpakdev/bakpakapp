@@ -14,14 +14,7 @@ struct BadgeCollectionView: View {
 
     var body: some View {
         ZStack {
-            campusTheme.background.ignoresSafeArea()
-
-            Circle()
-                .fill(campus.primary.opacity(0.16))
-                .frame(width: 260, height: 260)
-                .blur(radius: 55)
-                .offset(x: -130, y: -90)
-                .allowsHitTesting(false)
+            AuroraBackground()
 
             VStack(alignment: .leading, spacing: 14) {
                 Text("Coming soon")
