@@ -215,17 +215,23 @@ private struct TopEdgeScrim: ViewModifier {
             let total = solid + height
             if aurora {
                 AuroraBackground()
-                    .mask(alignment: .top) {
-                        LinearGradient(
-                            stops: [
-                                .init(color: .black, location: 0),
-                                .init(color: .black, location: total > 0 ? solid / total : 0),
-                                .init(color: .clear, location: 1),
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: total)
+                    .mask {
+                        // The mask is laid out inside the safe area unless told otherwise, which
+                        // pushed the band down over the header; pin it to the real screen top.
+                        VStack(spacing: 0) {
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .black, location: 0),
+                                    .init(color: .black, location: total > 0 ? solid / total : 0),
+                                    .init(color: .clear, location: 1),
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(height: total)
+                            Spacer(minLength: 0)
+                        }
+                        .ignoresSafeArea()
                     }
                     .allowsHitTesting(false)
             } else {
