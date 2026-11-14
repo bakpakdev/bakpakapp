@@ -592,7 +592,7 @@ struct AuroraBackground: View {
             .overlay {
                 ZStack {
                     if campusTheme.isDark && !campusTheme.isMonochrome {
-                        // Pre-rendered from the approved mockup (blobs + film grain), so the
+                        // Pre-rendered from the approved mockup (no grain, PNG to avoid banding), so the
                         // app matches it exactly instead of approximating with SwiftUI blurs.
                         Image("AuroraDark")
                             .resizable()
