@@ -61,6 +61,10 @@ struct PreferencesView: View {
                                 ),
                                 showDivider: false
                             )
+                            // The row pads itself 16pt; this card already does, so line it up
+                            // with the light/dark buttons above.
+                            .padding(.horizontal, -16)
+                            .padding(.bottom, -14)
                         }
                         .padding(16)
                         .background(CampusCardBackground())
