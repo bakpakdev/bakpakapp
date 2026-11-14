@@ -133,7 +133,7 @@ struct HomeProductCard: View {
                     .foregroundStyle(
                         product.isSold == true
                         ? Color(hex: "#E11D48")
-                        : (product.hasDiscount ? campusTheme.primary : campusTheme.textPrimary)
+                        : (product.hasDiscount ? campusTheme.tint : campusTheme.textPrimary)
                     )
             }
 
