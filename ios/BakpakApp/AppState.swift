@@ -24,6 +24,12 @@ final class AppState: ObservableObject {
             UserDefaults.standard.set(appearance.rawValue, forKey: Self.appearanceKey)
         }
     }
+    /// Preferences → "black & white": use popup's monochrome colors instead of school colors.
+    @Published var monochrome: Bool = UserDefaults.standard.bool(forKey: AppState.monochromeKey) {
+        didSet {
+            UserDefaults.standard.set(monochrome, forKey: Self.monochromeKey)
+        }
+    }
     /// Unread inbound messages in buying vs selling inbox tabs.
     @Published var inboxUnreadBuying: Int = 0
     @Published var inboxUnreadSelling: Int = 0
@@ -37,6 +43,7 @@ final class AppState: ObservableObject {
     var inboxUnreadTotal: Int { inboxUnreadBuying + inboxUnreadSelling }
 
     private static let appearanceKey = "popup.appearance"
+    private static let monochromeKey = "popup.monochrome"
     /// Keep last tab only for short background absences.
     private static let shortResumeSeconds: TimeInterval = 3 * 60
     private var backgroundedAt: Date?

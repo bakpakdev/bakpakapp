@@ -60,6 +60,12 @@ struct CampusTheme: Equatable {
     /// The "popup dev" campus: same UI, monochrome colors, its own community
     /// (`schoolID` "dev"). Only dev accounts land here; UO / OSU accounts never do.
     var isDev = false
+    /// The user turned on "black & white" in Preferences: same school (community,
+    /// meetup spots, listings), but the app's monochrome colors instead of school colors.
+    var isMonochrome = false
+
+    /// Draw with popup's black-and-white palette (dev campus, or the user's choice).
+    var isMono: Bool { isDev || isMonochrome }
 
     /// Profile school name (`profiles.country`) of the dev campus.
     static let devSchoolName = "popup dev"
@@ -78,7 +84,27 @@ struct CampusTheme: Equatable {
         (schoolName ?? "").lowercased().contains(devSchoolName)
     }
 
-    static func from(schoolName: String?, appearance: PopupAppearance = .light) -> CampusTheme {
+    static func from(
+        schoolName: String?,
+        appearance: PopupAppearance = .light,
+        monochrome: Bool = false
+    ) -> CampusTheme {
+        var theme = schoolTheme(schoolName: schoolName, appearance: appearance)
+        if monochrome && !theme.isDev {
+            let isDark = appearance == .dark
+            theme = CampusTheme(
+                shortName: theme.shortName,
+                // Same values as the dev campus: filled buttons put white text on `primary`.
+                primary: isDark ? Color(hex: "#3A3A3A") : Color(hex: "#111111"),
+                secondary: isDark ? Color(hex: "#A3A3A3") : Color(hex: "#737373"),
+                isDark: isDark,
+                isMonochrome: true
+            )
+        }
+        return theme
+    }
+
+    private static func schoolTheme(schoolName: String?, appearance: PopupAppearance) -> CampusTheme {
         let school = (schoolName ?? "").lowercased()
         let isDark = appearance == .dark
         if isDevSchool(schoolName) {
@@ -108,17 +134,17 @@ struct CampusTheme: Equatable {
     }
 
     var background: Color {
-        if isDev { return isDark ? PopupBrand.background : Color(hex: "#F7F7F7") }
+        if isMono { return isDark ? PopupBrand.background : Color(hex: "#F7F7F7") }
         return isDark ? Color(hex: "#0C100E") : Color(hex: "#F7F8F7")
     }
 
     var surface: Color {
-        if isDev { return isDark ? PopupBrand.surface : Color.white }
+        if isMono { return isDark ? PopupBrand.surface : Color.white }
         return isDark ? Color(hex: "#161B18") : Color.white
     }
 
     var elevatedSurface: Color {
-        if isDev { return isDark ? PopupBrand.field : Color(hex: "#EEEEEE") }
+        if isMono { return isDark ? PopupBrand.field : Color(hex: "#EEEEEE") }
         return isDark ? Color(hex: "#222925") : Color(hex: "#EEF1EF")
     }
 
@@ -127,25 +153,25 @@ struct CampusTheme: Equatable {
     }
 
     var textPrimary: Color {
-        if isDev { return isDark ? PopupBrand.textPrimary : PopupBrand.background }
+        if isMono { return isDark ? PopupBrand.textPrimary : PopupBrand.background }
         return isDark ? Color.white : Color(hex: "#151817")
     }
 
     var textMuted: Color {
-        if isDev { return isDark ? Color.white.opacity(0.62) : Color(hex: "#6B6B6B") }
+        if isMono { return isDark ? Color.white.opacity(0.62) : Color(hex: "#6B6B6B") }
         return isDark ? Color.white.opacity(0.62) : Color(hex: "#68706C")
     }
 
     /// System tint (alert buttons, toggles, links). UO green is too dark to read on
     /// the dark background, so dark mode lifts it; filled buttons keep `primary`.
     var tint: Color {
-        if isDev { return isDark ? PopupBrand.textPrimary : Color(hex: "#111111") }
+        if isMono { return isDark ? PopupBrand.textPrimary : Color(hex: "#111111") }
         return isDark && shortName == "UO" ? Color(hex: "#5FBF8F") : primary
     }
 
     /// Soft caption strip under listing thumbnails (home grid).
     var listingCaptionBackground: Color {
-        if isDev { return isDark ? Color(hex: "#1C1C1C") : Color(hex: "#ECECEC") }
+        if isMono { return isDark ? Color(hex: "#1C1C1C") : Color(hex: "#ECECEC") }
         if isDark {
             return shortName == "OSU" ? Color(hex: "#2C1C14") : Color(hex: "#1A2A22")
         }
@@ -153,7 +179,7 @@ struct CampusTheme: Equatable {
     }
 
     var listingCaptionForeground: Color {
-        if isDev { return isDark ? Color(hex: "#D4D4D4") : Color(hex: "#111111") }
+        if isMono { return isDark ? Color(hex: "#D4D4D4") : Color(hex: "#111111") }
         if isDark {
             return shortName == "OSU" ? Color(hex: "#E8D4C6") : Color(hex: "#C8D9CF")
         }
@@ -161,7 +187,7 @@ struct CampusTheme: Equatable {
     }
 
     var bannerEnd: Color {
-        if isDev { return PopupBrand.background }
+        if isMono { return PopupBrand.background }
         return shortName == "OSU" ? Color(hex: "#55200B") : Color(hex: "#0F3528")
     }
 
@@ -251,7 +277,8 @@ struct CampusTheme: Equatable {
     var wash: LinearGradient {
         LinearGradient(
             colors: [
-                Color(hex: "#1C7A45").opacity(isDark ? 0.32 : 0.13),
+                (isMono ? (isDark ? Color.white : Color.black) : Color(hex: "#1C7A45"))
+                    .opacity(isMono ? (isDark ? 0.08 : 0.05) : (isDark ? 0.32 : 0.13)),
                 background,
                 background,
             ],
@@ -539,6 +566,7 @@ struct PopupWordmark: View {
 /// Shared "aurora" backdrop for the main app screens: soft blurred blobs of
 /// green, yellow and teal over a dark canvas. The colors are fixed so every
 /// school sees the same background (school colors stay in badges and chips).
+/// In black & white mode (dev campus or the Preferences switch) it turns silver.
 struct AuroraBackground: View {
     @Environment(\.campusTheme) private var campusTheme
 
@@ -555,10 +583,21 @@ struct AuroraBackground: View {
         (campusTheme.isDark ? Color(hex: "#07080A") : campusTheme.background)
             .overlay {
                 ZStack {
-                    blob(Self.green, size: 600, x: 24, y: -186, opacity: 0.55 * k)
-                    blob(Self.yellow, size: 460, x: 244, y: -156, opacity: 0.30 * k)
-                    blob(Self.teal, size: 520, x: 204, y: -296, opacity: 0.35 * k)
-                    blob(Self.green, size: 440, x: 284, y: 414, opacity: 0.18 * k)
+                    if campusTheme.isMono {
+                        // Black & white mode: the same shapes as soft silver light (or soft
+                        // shadow in light mode).
+                        let ink: Color = campusTheme.isDark ? .white : .black
+                        let m: Double = campusTheme.isDark ? 1 : 0.5
+                        blob(ink, size: 600, x: 24, y: -186, opacity: 0.10 * m)
+                        blob(Color(hex: "#C9CDD6"), size: 460, x: 244, y: -156, opacity: 0.08 * m)
+                        blob(ink, size: 520, x: 204, y: -296, opacity: 0.07 * m)
+                        blob(ink, size: 440, x: 284, y: 414, opacity: 0.04 * m)
+                    } else {
+                        blob(Self.green, size: 600, x: 24, y: -186, opacity: 0.55 * k)
+                        blob(Self.yellow, size: 460, x: 244, y: -156, opacity: 0.30 * k)
+                        blob(Self.teal, size: 520, x: 204, y: -296, opacity: 0.35 * k)
+                        blob(Self.green, size: 440, x: 284, y: 414, opacity: 0.18 * k)
+                    }
                 }
                 .frame(width: 0, height: 0)
             }

@@ -48,6 +48,19 @@ struct PreferencesView: View {
                                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                                 }
                             }
+
+                            SettingsToggleRow(
+                                title: "Black & white",
+                                subtitle: "Use popup's black and white colors instead of your school colors.",
+                                isOn: Binding(
+                                    get: { appState.monochrome },
+                                    set: { newValue in
+                                        withAnimation(Motion.snappy) { appState.monochrome = newValue }
+                                        Motion.haptic(.light)
+                                    }
+                                ),
+                                showDivider: false
+                            )
                         }
                         .padding(16)
                         .background(CampusCardBackground())

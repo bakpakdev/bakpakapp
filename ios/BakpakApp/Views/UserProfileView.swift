@@ -70,7 +70,7 @@ struct UserProfileView: View {
     }
 
     private var sellerCampusTheme: CampusTheme {
-        CampusTheme.from(schoolName: user?.country, appearance: appState.appearance)
+        CampusTheme.from(schoolName: user?.country, appearance: appState.appearance, monochrome: appState.monochrome)
     }
 
     /// Opens the report form for this person, with their active listings to pick from.
