@@ -592,7 +592,7 @@ struct MessagesView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .ignoresSafeArea(edges: .top)
-        .topEdgeScrim()
+        .topEdgeScrim(aurora: true)
         .task {
             await vm.loadConversations()
             appState.applyInboxUnread(from: vm.conversations, meId: authVM.user?.id)

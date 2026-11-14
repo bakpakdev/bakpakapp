@@ -194,7 +194,7 @@ struct ProfileView: View {
             .preferredColorScheme(campusTheme.isDark ? .dark : .light)
             .toolbar(.hidden, for: .navigationBar)
             .ignoresSafeArea(edges: .top)
-            .topEdgeScrim()
+            .topEdgeScrim(aurora: true)
         }
         .task {
             await authVM.refreshMe()

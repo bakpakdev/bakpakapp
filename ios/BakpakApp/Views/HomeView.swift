@@ -276,7 +276,7 @@ struct HomeView: View {
         .navigationBarHidden(true)
         .hidesSystemNavigationBar(true)
         .ignoresSafeArea(edges: .top)
-        .topEdgeScrim()
+        .topEdgeScrim(aurora: true)
         .task {
             await blockStore.refreshIfNeeded()
             await reloadProducts()
