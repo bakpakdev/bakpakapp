@@ -549,15 +549,21 @@ struct AuroraBackground: View {
     var body: some View {
         // Light mode keeps the same shapes but much softer so text stays readable.
         let k: Double = campusTheme.isDark ? 1 : 0.4
-        ZStack {
-            (campusTheme.isDark ? Color(hex: "#07080A") : campusTheme.background)
-            blob(Self.green, size: 600, x: 24, y: -186, opacity: 0.55 * k)
-            blob(Self.yellow, size: 460, x: 244, y: -156, opacity: 0.30 * k)
-            blob(Self.teal, size: 520, x: 204, y: -296, opacity: 0.35 * k)
-            blob(Self.green, size: 440, x: 284, y: 414, opacity: 0.18 * k)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
+        // The blobs live in an overlay so their oversized frames never affect layout;
+        // the base color alone sizes this view (a plain ZStack would grow to 600pt wide
+        // and push the parent screen's content off the left edge).
+        (campusTheme.isDark ? Color(hex: "#07080A") : campusTheme.background)
+            .overlay {
+                ZStack {
+                    blob(Self.green, size: 600, x: 24, y: -186, opacity: 0.55 * k)
+                    blob(Self.yellow, size: 460, x: 244, y: -156, opacity: 0.30 * k)
+                    blob(Self.teal, size: 520, x: 204, y: -296, opacity: 0.35 * k)
+                    blob(Self.green, size: 440, x: 284, y: 414, opacity: 0.18 * k)
+                }
+                .frame(width: 0, height: 0)
+            }
+            .clipped()
+            .ignoresSafeArea()
         .allowsHitTesting(false)
     }
 
