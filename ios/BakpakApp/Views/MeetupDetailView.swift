@@ -46,21 +46,7 @@ struct MeetupDetailView: View {
 
     var body: some View {
         ZStack {
-            campusTheme.background.ignoresSafeArea()
-
-            Circle()
-                .fill(campusTheme.primary.opacity(0.16))
-                .frame(width: 280, height: 280)
-                .blur(radius: 55)
-                .offset(x: -140, y: -120)
-                .allowsHitTesting(false)
-
-            Circle()
-                .fill(campusTheme.secondary.opacity(0.12))
-                .frame(width: 240, height: 240)
-                .blur(radius: 60)
-                .offset(x: 160, y: 220)
-                .allowsHitTesting(false)
+            AuroraBackground()
 
             if let meetup {
                 ScrollView(showsIndicators: false) {

@@ -77,19 +77,7 @@ struct CampusPageBackground: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            campusTheme.background.ignoresSafeArea()
-
-            Circle()
-                .fill(campusTheme.primary.opacity(0.18))
-                .frame(width: 300, height: 300)
-                .blur(radius: 55)
-                .offset(x: -150, y: -110)
-
-            Circle()
-                .fill(campusTheme.secondary.opacity(0.14))
-                .frame(width: 260, height: 260)
-                .blur(radius: 60)
-                .offset(x: 175, y: 20)
+            AuroraBackground()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .allowsHitTesting(false)
@@ -208,6 +196,9 @@ struct CampusEmptyCard: View {
 private struct TopEdgeScrim: ViewModifier {
     @Environment(\.campusTheme) private var campusTheme
     let height: CGFloat
+    /// Screens drawn on `AuroraBackground`: fill the strip with the same aurora (masked to
+    /// the top) so the glow runs all the way up behind the clock instead of a solid band.
+    var aurora = false
 
     private static var statusBarHeight: CGFloat {
         let window = UIApplication.shared.connectedScenes
@@ -222,6 +213,28 @@ private struct TopEdgeScrim: ViewModifier {
             // safe area report 0 here, so size it from the window.
             let solid = Self.statusBarHeight
             let total = solid + height
+            if aurora {
+                AuroraBackground()
+                    .mask {
+                        // The mask is laid out inside the safe area unless told otherwise, which
+                        // pushed the band down over the header; pin it to the real screen top.
+                        VStack(spacing: 0) {
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .black, location: 0),
+                                    .init(color: .black, location: total > 0 ? solid / total : 0),
+                                    .init(color: .clear, location: 1),
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(height: total)
+                            Spacer(minLength: 0)
+                        }
+                        .ignoresSafeArea()
+                    }
+                    .allowsHitTesting(false)
+            } else {
             LinearGradient(
                 stops: [
                     .init(color: campusTheme.background, location: 0),
@@ -234,13 +247,14 @@ private struct TopEdgeScrim: ViewModifier {
             .frame(height: total)
             .ignoresSafeArea(edges: .top)
             .allowsHitTesting(false)
+            }
         }
     }
 }
 
 extension View {
-    func topEdgeScrim(height: CGFloat = 14) -> some View {
-        modifier(TopEdgeScrim(height: height))
+    func topEdgeScrim(height: CGFloat = 14, aurora: Bool = false) -> some View {
+        modifier(TopEdgeScrim(height: height, aurora: aurora))
     }
 }
 

@@ -48,6 +48,23 @@ struct PreferencesView: View {
                                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                                 }
                             }
+
+                            SettingsToggleRow(
+                                title: "popup default",
+                                subtitle: "Use popup's own black and white colors instead of your school colors.",
+                                isOn: Binding(
+                                    get: { appState.monochrome },
+                                    set: { newValue in
+                                        withAnimation(Motion.snappy) { appState.monochrome = newValue }
+                                        Motion.haptic(.light)
+                                    }
+                                ),
+                                showDivider: false
+                            )
+                            // The row pads itself 16pt; this card already does, so line it up
+                            // with the light/dark buttons above.
+                            .padding(.horizontal, -16)
+                            .padding(.bottom, -14)
                         }
                         .padding(16)
                         .background(CampusCardBackground())

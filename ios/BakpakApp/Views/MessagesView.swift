@@ -564,21 +564,7 @@ struct MessagesView: View {
 
     var body: some View {
         ZStack {
-            campusTheme.background.ignoresSafeArea()
-
-            Circle()
-                .fill(campusTheme.primary.opacity(0.16))
-                .frame(width: 280, height: 280)
-                .blur(radius: 55)
-                .offset(x: -140, y: -120)
-                .allowsHitTesting(false)
-
-            Circle()
-                .fill(campusTheme.secondary.opacity(0.12))
-                .frame(width: 240, height: 240)
-                .blur(radius: 60)
-                .offset(x: 160, y: 40)
-                .allowsHitTesting(false)
+            AuroraBackground()
 
             Group {
                 if isTablet {
@@ -606,7 +592,7 @@ struct MessagesView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .ignoresSafeArea(edges: .top)
-        .topEdgeScrim()
+        .topEdgeScrim(aurora: true)
         .task {
             await vm.loadConversations()
             appState.applyInboxUnread(from: vm.conversations, meId: authVM.user?.id)

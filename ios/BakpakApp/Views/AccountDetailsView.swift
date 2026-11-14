@@ -38,21 +38,7 @@ struct AccountDetailsView: View {
 
     var body: some View {
         ZStack {
-            campusTheme.wash.ignoresSafeArea()
-
-            Circle()
-                .fill(campusTheme.primary.opacity(0.14))
-                .frame(width: 260, height: 260)
-                .blur(radius: 55)
-                .offset(x: -130, y: -90)
-                .allowsHitTesting(false)
-
-            Circle()
-                .fill(campusTheme.secondary.opacity(0.12))
-                .frame(width: 220, height: 220)
-                .blur(radius: 60)
-                .offset(x: 150, y: 80)
-                .allowsHitTesting(false)
+            AuroraBackground()
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {

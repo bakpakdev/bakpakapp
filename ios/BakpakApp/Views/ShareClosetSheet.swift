@@ -17,7 +17,7 @@ struct ClosetSharePalette: Identifiable, Equatable {
     /// (soft forest green for UO, burnt orange for OSU, ink on the dev campus), then
     /// ink, paper, concrete and chrome.
     static func options(campus: CampusTheme) -> [ClosetSharePalette] {
-        guard !campus.isDev else { return neutrals }
+        guard !campus.isMono else { return neutrals }
         return [schoolCard(campus)] + neutrals
     }
 
@@ -95,14 +95,14 @@ struct ShareClosetSheet: View {
 
     /// Muted school accent for the copy-link pill; white on the dev campus.
     private var accent: (fill: Color, text: Color) {
-        if campusTheme.isDev { return (PopupBrand.button, PopupBrand.buttonText) }
+        if campusTheme.isMono { return (PopupBrand.button, PopupBrand.buttonText) }
         if campusTheme.shortName == "OSU" { return (Color(hex: "#E9A27F"), Color(hex: "#24130C")) }
         return (Color(hex: "#E6DC9A"), Color(hex: "#18291F"))
     }
 
     /// A faint wash of the school color at the top of the screen.
     private var screenTint: Color {
-        if campusTheme.isDev { return PopupBrand.background }
+        if campusTheme.isMono { return PopupBrand.background }
         return campusTheme.shortName == "OSU" ? Color(hex: "#2A170F") : Color(hex: "#15241D")
     }
     private var palette: ClosetSharePalette { palettes[paletteIndex] }

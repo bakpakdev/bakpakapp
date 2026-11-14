@@ -90,21 +90,7 @@ struct SearchView: View {
 
     var body: some View {
         ZStack {
-            campusTheme.background.ignoresSafeArea()
-
-            Circle()
-                .fill(campusTheme.primary.opacity(0.16))
-                .frame(width: 288, height: 288)
-                .blur(radius: 55)
-                .offset(x: -150, y: -120)
-                .allowsHitTesting(false)
-
-            Circle()
-                .fill(campusTheme.secondary.opacity(0.14))
-                .frame(width: 256, height: 256)
-                .blur(radius: 55)
-                .offset(x: 170, y: 40)
-                .allowsHitTesting(false)
+            AuroraBackground()
 
             VStack(alignment: .leading, spacing: 0) {
                 if !searchFieldFocused {
@@ -145,7 +131,7 @@ struct SearchView: View {
         .background(campusTheme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .ignoresSafeArea(edges: .top)
-        .topEdgeScrim()
+        .topEdgeScrim(aurora: true)
         .onAppear {
             loadRecentSearches()
             Task {

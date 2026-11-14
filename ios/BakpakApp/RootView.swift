@@ -8,7 +8,11 @@ struct RootView: View {
     @State private var themeEnterCover: Double = 0
 
     private var campusTheme: CampusTheme {
-        CampusTheme.from(schoolName: authVM.user?.country, appearance: appState.appearance)
+        CampusTheme.from(
+            schoolName: authVM.user?.country,
+            appearance: appState.appearance,
+            monochrome: appState.monochrome
+        )
     }
 
     var body: some View {
@@ -112,6 +116,9 @@ struct RootView: View {
         .tint(authVM.isAuthenticated ? campusTheme.tint : PopupBrand.textPrimary)
         .preferredColorScheme(appState.appearance.colorScheme)
         .onChange(of: appState.appearance) { _ in
+            CampusAppearance.apply(campusTheme)
+        }
+        .onChange(of: appState.monochrome) { _ in
             CampusAppearance.apply(campusTheme)
         }
     }
