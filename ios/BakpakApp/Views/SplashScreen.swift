@@ -1,263 +1,318 @@
 import SwiftUI
 
-// MARK: - Tunable constants (1:1 with Figma Make prototype)
+// MARK: - "Sheet lift" launch animation
+//
+// 1. "pop" / "up" letters slide up out of an invisible line, one after another.
+// 2. A silver shine sweeps across the wordmark.
+// 3. The black sheet swipes up with an arched bottom edge (silver rim), carrying
+//    the logo off the top while Home slides up from underneath.
+//
+// Everything is a pure function of elapsed time `t` (driven by a TimelineView),
+// ported 1:1 from the approved web preview (launch-animation-ideas, idea 3).
 
-private enum SplashTiming {
-    /// Prototype uses 112 on a 360pt canvas; ~88 keeps the same proportions on phone.
+enum SheetLift {
+    // Wordmark geometry (points)
     static let fontSize: CGFloat = 88
-    static let lineHeight: CGFloat = 1.12
-    static var wordHeight: CGFloat { fontSize * lineHeight }
+    static var wordHeight: CGFloat { fontSize * 1.12 }
     static let wordGap: CGFloat = -8
-    /// Prototype final drop of assembled "pop" toward "up".
-    static let finalPopDrop: CGFloat = 22
+    static let popDrop: CGFloat = 22
+    static var tracking: CGFloat { -0.02 * fontSize }
 
-    static let ballSize: CGFloat = 44
-    static let ballStartOffsetY: CGFloat = 110
-    /// CSS scaleX / scaleY on spread.
-    static let ballSpreadScaleX: CGFloat = 2.7
-    static let ballSpreadScaleY: CGFloat = 0.78
+    // Timeline (seconds)
+    static let letterStart: Double = 0.10
+    static let letterStagger: Double = 0.11
+    static let letterDuration: Double = 0.50
+    static let shineStart: Double = 1.05
+    static let shineDuration: Double = 0.55
+    /// Home is mounted (hidden under the opaque sheet) a moment before the lift.
+    static let mountHome: Double = 1.60
+    static let liftStart: Double = 1.80
+    static let liftDuration: Double = 0.85
+    static var end: Double { liftStart + liftDuration }
 
-    // Prototype timeline (ms → s): 80, +400, +240, then letters…
-    static let tBallUp: Double = 0.08
-    static let tBallSpread: Double = 0.48
-    static let tLetters: Double = 0.72
-    static let tLetter1: Double = 0.76
-    static let tLetter2: Double = 0.86
-    static let tLetter3: Double = 0.96
-    static let tDone: Double = 1.30
-    static let tFinish: Double = 1.95
+    // Reduce Motion: fade the static wordmark in, hold, then cross-fade to Home.
+    static let rmFadeIn: Double = 0.25
+    static let rmFadeOutStart: Double = 0.65
+    static let rmFadeOut: Double = 0.28
+    static var rmEnd: Double { rmFadeOutStart + rmFadeOut }
+    static var rmMountHome: Double { rmFadeOutStart - 0.05 }
 
-    static let ballUpDuration: Double = 0.38
-    static let ballUpOpacityDuration: Double = 0.18
-    static let ballSpreadTransformDuration: Double = 0.20
-    static let ballSpreadOpacityDuration: Double = 0.16
-    static let ballSpreadOpacityDelay: Double = 0.04
-    static let upOpacityDuration: Double = 0.24
-    static let upScaleDuration: Double = 0.34
-    static let letterMoveDuration: Double = 0.30
-    static let letterOpacityDuration: Double = 0.14
-    static let finalDropDuration: Double = 0.38
+    /// Arch height of the sheet's bottom edge, on a 393pt-wide screen.
+    static let archHeight: CGFloat = 173.3
+    /// Home starts this fraction of the screen height lower and rises into place.
+    static let homeParallax: CGFloat = 0.18
+    static let homeDim: Double = 0.45
 
-    static let reduceMotionFade: Double = 0.25
-    static let reduceMotionHold: Double = 0.40
+    static let letterCurve = CubicBezier(0.2, 0.9, 0.3, 1)
+    static let liftCurve = CubicBezier(0.65, 0, 0.2, 1)
+    static let easeOut = CubicBezier(0, 0, 0.58, 1)
+
+    /// 0 → 1 progress of the sheet lift.
+    static func liftProgress(_ t: Double) -> Double {
+        liftCurve(segment(t, liftStart, liftDuration))
+    }
+
+    static func segment(_ t: Double, _ start: Double, _ duration: Double) -> Double {
+        min(1, max(0, (t - start) / duration))
+    }
 }
 
-// MARK: - Splash Screen
+/// CSS-style cubic-bezier timing curve evaluated at an arbitrary time.
+struct CubicBezier {
+    let x1, y1, x2, y2: Double
+    init(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) {
+        self.x1 = x1; self.y1 = y1; self.x2 = x2; self.y2 = y2
+    }
 
-/// Matches the Figma Make Animated Splash Prototype motion, with the main app
-/// deferred until after this finishes (keeps it smooth).
-struct SplashScreen: View {
-    var onFinish: () -> Void
+    func callAsFunction(_ t: Double) -> Double {
+        if t <= 0 { return 0 }
+        if t >= 1 { return 1 }
+        var lo = 0.0, hi = 1.0, u = 0.5
+        for _ in 0..<40 {
+            u = (lo + hi) / 2
+            let x = 3 * (1 - u) * (1 - u) * u * x1 + 3 * (1 - u) * u * u * x2 + u * u * u
+            if x < t { lo = u } else { hi = u }
+        }
+        return 3 * (1 - u) * (1 - u) * u * y1 + 3 * (1 - u) * u * u * y2 + u * u * u
+    }
+}
+
+private func lerp(_ a: CGFloat, _ b: CGFloat, _ p: Double) -> CGFloat {
+    a + (b - a) * CGFloat(p)
+}
+
+// MARK: - Launch reveal container
+
+/// Plays the splash over `content`, then lifts it away to reveal `content`.
+/// `content` keeps the same identity before and after the splash finishes.
+struct LaunchReveal<Content: View>: View {
+    @ViewBuilder var content: () -> Content
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    @State private var ballOffsetY: CGFloat = SplashTiming.ballStartOffsetY
-    @State private var ballScaleX: CGFloat = 0.01
-    @State private var ballScaleY: CGFloat = 0.01
-    @State private var ballOpacity: Double = 0
-
-    @State private var upOpacity: Double = 0
-    @State private var upScale: CGFloat = 0.82
-
-    @State private var letter1Y: CGFloat = 0
-    @State private var letter2Y: CGFloat = 0
-    @State private var letter3Y: CGFloat = 0
-    @State private var letter1Opacity: Double = 0
-    @State private var letter2Opacity: Double = 0
-    @State private var letter3Opacity: Double = 0
-
-    @State private var popDrop: CGFloat = 0
-    @State private var reduceMotionOpacity: Double = 0
+    @State private var start = Date()
+    @State private var done = false
     @State private var didStart = false
-    @State private var workItems: [DispatchWorkItem] = []
-
-    private var letterNestY: CGFloat { SplashTiming.wordHeight + SplashTiming.wordGap }
-    private let markFont = Theme.syne(SplashTiming.fontSize, weight: .heavy)
-    private let tracking: CGFloat = -0.02 * SplashTiming.fontSize
-
-    /// Prototype layout geometry.
-    private var popTop: CGFloat { 12 }
-    private var upTop: CGFloat { popTop + SplashTiming.wordHeight + SplashTiming.wordGap }
-    private var ballCenterY: CGFloat { upTop + SplashTiming.wordHeight / 2 }
-    private var stackHeight: CGFloat { upTop + SplashTiming.wordHeight + 36 }
-    private let stackWidth: CGFloat = 300
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
+        TimelineView(.animation(minimumInterval: nil, paused: done)) { context in
+            let t = done ? .infinity : context.date.timeIntervalSince(start)
+            let p = (done || reduceMotion) ? 1 : SheetLift.liftProgress(t)
+            let mountAt = reduceMotion ? SheetLift.rmMountHome : SheetLift.mountHome
+            let screenHeight = UIScreen.main.bounds.height
 
-            if reduceMotion {
-                finalWordmark
-                    .opacity(reduceMotionOpacity)
-            } else {
-                animatedWordmark
+            ZStack {
+                if done || t >= mountAt {
+                    content()
+                        .offset(y: (1 - CGFloat(p)) * screenHeight * SheetLift.homeParallax)
+                        .overlay {
+                            Color.black
+                                .opacity(SheetLift.homeDim * (1 - p))
+                                .ignoresSafeArea()
+                                .allowsHitTesting(false)
+                        }
+                }
+
+                if !done {
+                    SplashScreen(t: t)
+                        .ignoresSafeArea()
+                        .zIndex(1)
+                }
             }
         }
         .onAppear {
             guard !didStart else { return }
             didStart = true
-            start()
-        }
-        .onDisappear {
-            workItems.forEach { $0.cancel() }
-            workItems.removeAll()
-        }
-    }
-
-    // MARK: Layout (mirrors prototype absolute stack)
-
-    private var animatedWordmark: some View {
-        ZStack(alignment: .top) {
-            // Ball — sits on the vertical center of "up", then scaleX/scaleY spreads.
-            Circle()
-                .fill(Color.white)
-                .frame(width: SplashTiming.ballSize, height: SplashTiming.ballSize)
-                .shadow(color: Color.white.opacity(0.18), radius: 12)
-                .scaleEffect(x: ballScaleX, y: ballScaleY)
-                .opacity(ballOpacity)
-                .offset(y: ballOffsetY)
-                .position(x: stackWidth / 2, y: ballCenterY)
-
-            // "up"
-            Text("up")
-                .font(markFont)
-                .tracking(tracking)
-                .foregroundStyle(.white)
-                .opacity(upOpacity)
-                .scaleEffect(upScale)
-                .position(x: stackWidth / 2, y: upTop + SplashTiming.wordHeight / 2)
-
-            // "pop" letters — rise independently, then the group drops on done.
-            HStack(spacing: 0) {
-                letterView("p", offsetY: letter1Y, opacity: letter1Opacity)
-                letterView("o", offsetY: letter2Y, opacity: letter2Opacity)
-                letterView("p", offsetY: letter3Y, opacity: letter3Opacity)
+            start = Date()
+            let total = reduceMotion ? SheetLift.rmEnd : SheetLift.end
+            DispatchQueue.main.asyncAfter(deadline: .now() + total + 0.03) {
+                done = true
             }
-            .offset(y: popDrop)
-            .position(x: stackWidth / 2, y: popTop + SplashTiming.wordHeight / 2)
         }
-        .frame(width: stackWidth, height: stackHeight)
+    }
+}
+
+// MARK: - Splash (one frame at time t)
+
+struct SplashScreen: View {
+    let t: Double
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let markFont = Theme.syne(SheetLift.fontSize, weight: .heavy)
+
+    var body: some View {
+        GeometryReader { geo in
+            if reduceMotion {
+                reducedMotion(size: geo.size)
+            } else {
+                animated(size: geo.size)
+            }
+        }
     }
 
-    private var finalWordmark: some View {
-        VStack(spacing: SplashTiming.wordGap) {
-            Text("pop").font(markFont).tracking(tracking)
-            Text("up").font(markFont).tracking(tracking)
+    // MARK: Animated
+
+    private func animated(size: CGSize) -> some View {
+        let w = size.width, h = size.height
+        let p = SheetLift.liftProgress(t)
+        let arch = SheetLift.archHeight * w / 393
+        let restEdge = h + arch + 13
+        // Bottom edge of the sheet at the screen sides; the middle is `arch` higher.
+        let edgeY = lerp(restEdge, -40, p)
+        // Logo rides up with the sheet.
+        let dy = min(0, edgeY - restEdge) * 0.9
+
+        let qs = (0..<4).map { i in
+            SheetLift.letterCurve(SheetLift.segment(
+                t, SheetLift.letterStart + Double(i) * SheetLift.letterStagger, SheetLift.letterDuration))
         }
-        .foregroundStyle(.white)
-        .offset(y: SplashTiming.finalPopDrop / 2)
+        let shine = SheetLift.segment(t, SheetLift.shineStart, SheetLift.shineDuration)
+
+        return ZStack {
+            ZStack {
+                Color.black
+                wordmark(size: size, qs: qs, dy: dy, masked: true)
+                if shine > 0 && shine < 1 {
+                    shineGradient(width: w, progress: shine)
+                        .mask(wordmark(size: size, qs: [1, 1, 1, 1], dy: dy, masked: false))
+                }
+            }
+            .clipShape(SheetShape(edgeY: edgeY, arch: arch))
+
+            if p > 0 && p < 1 {
+                SheetEdge(edgeY: edgeY, arch: arch)
+                    .stroke(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color(red: 200 / 255, green: 205 / 255, blue: 212 / 255).opacity(0), location: 0),
+                                .init(color: Color(red: 201 / 255, green: 206 / 255, blue: 214 / 255), location: 0.2),
+                                .init(color: .white, location: 0.5),
+                                .init(color: Color(red: 201 / 255, green: 206 / 255, blue: 214 / 255), location: 0.8),
+                                .init(color: Color(red: 200 / 255, green: 205 / 255, blue: 212 / 255).opacity(0), location: 1),
+                            ],
+                            startPoint: .leading, endPoint: .trailing
+                        ),
+                        lineWidth: 2
+                    )
+                    .shadow(color: Color(red: 220 / 255, green: 230 / 255, blue: 240 / 255).opacity(0.9), radius: 7)
+                    .opacity(1 - min(1, max(0, (p - 0.75) / 0.25)))
+            }
+        }
+        .frame(width: w, height: h)
     }
 
-    private func letterView(_ text: String, offsetY: CGFloat, opacity: Double) -> some View {
-        Text(text)
+    /// "pop" over "up", each letter sliding up out of its own line.
+    private func wordmark(size: CGSize, qs: [Double], dy: CGFloat, masked: Bool) -> some View {
+        let wh = SheetLift.wordHeight
+        let stackHeight = 12 + wh + SheetLift.wordGap + wh + 36
+        let popTop = size.height / 2 - stackHeight / 2 + 12
+        let upTop = popTop + wh + SheetLift.wordGap
+        let popY = popTop + wh / 2 + SheetLift.popDrop
+        let upY = upTop + wh / 2
+
+        return ZStack {
+            line(masked: masked) {
+                HStack(spacing: 0) {
+                    letter("p", q: qs[0])
+                    letter("o", q: qs[1])
+                    letter("p", q: qs[2])
+                }
+            }
+            .position(x: size.width / 2, y: popY + dy)
+
+            line(masked: masked) {
+                letter("up", q: qs[3])
+            }
+            .position(x: size.width / 2, y: upY + dy)
+        }
+        .frame(width: size.width, height: size.height)
+    }
+
+    @ViewBuilder
+    private func line<V: View>(masked: Bool, @ViewBuilder _ content: () -> V) -> some View {
+        let wh = SheetLift.wordHeight
+        let base = content().frame(height: wh)
+        if masked {
+            base.mask(Rectangle().frame(height: wh + 4).offset(y: -8))
+        } else {
+            base
+        }
+    }
+
+    private func letter(_ s: String, q: Double) -> some View {
+        Text(s)
             .font(markFont)
-            .tracking(tracking)
+            .tracking(SheetLift.tracking)
             .foregroundStyle(.white)
-            .opacity(opacity)
-            .offset(y: offsetY)
+            .offset(y: SheetLift.wordHeight * CGFloat(1 - q))
     }
 
-    // MARK: Timeline (same beats as the React prototype)
-
-    private func start() {
-        if reduceMotion {
-            withAnimation(.easeOut(duration: SplashTiming.reduceMotionFade)) {
-                reduceMotionOpacity = 1
-            }
-            schedule(after: SplashTiming.reduceMotionFade + SplashTiming.reduceMotionHold) {
-                onFinish()
-            }
-            return
-        }
-
-        // Reset to init
-        ballOffsetY = SplashTiming.ballStartOffsetY
-        ballScaleX = 0.01
-        ballScaleY = 0.01
-        ballOpacity = 0
-        upOpacity = 0
-        upScale = 0.82
-        letter1Y = letterNestY
-        letter2Y = letterNestY
-        letter3Y = letterNestY
-        letter1Opacity = 0
-        letter2Opacity = 0
-        letter3Opacity = 0
-        popDrop = 0
-
-        // Prototype cubic-beziers
-        let ballUpCurve = Animation.timingCurve(0.34, 1.56, 0.64, 1, duration: SplashTiming.ballUpDuration)
-        let letterCurve = Animation.timingCurve(0.34, 1.5, 0.64, 1, duration: SplashTiming.letterMoveDuration)
-        let upScaleCurve = Animation.timingCurve(0.34, 1.5, 0.64, 1, duration: SplashTiming.upScaleDuration)
-        let doneCurve = Animation.timingCurve(0.34, 1.5, 0.64, 1, duration: SplashTiming.finalDropDuration)
-
-        // 1) ball-up — 380ms overshoot spring + faster opacity
-        schedule(after: SplashTiming.tBallUp) {
-            withAnimation(ballUpCurve) {
-                ballOffsetY = 0
-                ballScaleX = 1
-                ballScaleY = 1
-            }
-            withAnimation(.easeOut(duration: SplashTiming.ballUpOpacityDuration)) {
-                ballOpacity = 1
-            }
-        }
-
-        // 2) ball-spread — scaleX 2.7 / scaleY 0.78, then opacity fades slightly after
-        schedule(after: SplashTiming.tBallSpread) {
-            withAnimation(.easeOut(duration: SplashTiming.ballSpreadTransformDuration)) {
-                ballScaleX = SplashTiming.ballSpreadScaleX
-                ballScaleY = SplashTiming.ballSpreadScaleY
-            }
-            withAnimation(
-                .easeOut(duration: SplashTiming.ballSpreadOpacityDuration)
-                .delay(SplashTiming.ballSpreadOpacityDelay)
-            ) {
-                ballOpacity = 0
-            }
-            // "up" appears as the ball spreads into it
-            withAnimation(.easeOut(duration: SplashTiming.upOpacityDuration)) {
-                upOpacity = 1
-            }
-            withAnimation(upScaleCurve) {
-                upScale = 1
-            }
-        }
-
-        // 3) Letters fire out of "up" with 100ms stagger
-        schedule(after: SplashTiming.tLetter1) {
-            withAnimation(letterCurve) { letter1Y = 0 }
-            withAnimation(.easeOut(duration: SplashTiming.letterOpacityDuration)) { letter1Opacity = 1 }
-        }
-        schedule(after: SplashTiming.tLetter2) {
-            withAnimation(letterCurve) { letter2Y = 0 }
-            withAnimation(.easeOut(duration: SplashTiming.letterOpacityDuration)) { letter2Opacity = 1 }
-        }
-        schedule(after: SplashTiming.tLetter3) {
-            withAnimation(letterCurve) { letter3Y = 0 }
-            withAnimation(.easeOut(duration: SplashTiming.letterOpacityDuration)) { letter3Opacity = 1 }
-        }
-
-        // 4) Assembled "pop" drops closer to "up"
-        schedule(after: SplashTiming.tDone) {
-            withAnimation(doneCurve) {
-                popDrop = SplashTiming.finalPopDrop
-            }
-        }
-
-        // 5) Hold completed logo, then hand off
-        schedule(after: SplashTiming.tFinish) {
-            onFinish()
-        }
+    private func shineGradient(width: CGFloat, progress: Double) -> some View {
+        let x = lerp(-133, width + 133, SheetLift.easeOut(progress))
+        let half: CGFloat = 60
+        let silver = Color(red: 150 / 255, green: 158 / 255, blue: 170 / 255)
+        return LinearGradient(
+            stops: [
+                .init(color: silver.opacity(0), location: 0),
+                .init(color: silver.opacity(0.9), location: 0.45),
+                .init(color: .white, location: 0.5),
+                .init(color: silver.opacity(0.9), location: 0.55),
+                .init(color: silver.opacity(0), location: 1),
+            ],
+            startPoint: UnitPoint(x: (x - half) / width, y: 0.5),
+            endPoint: UnitPoint(x: (x + half) / width, y: 0.5)
+        )
     }
 
-    private func schedule(after delay: Double, _ work: @escaping () -> Void) {
-        let item = DispatchWorkItem(block: work)
-        workItems.append(item)
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+    // MARK: Reduce Motion
+
+    private func reducedMotion(size: CGSize) -> some View {
+        let fadeIn = SheetLift.easeOut(SheetLift.segment(t, 0, SheetLift.rmFadeIn))
+        let fadeOut = SheetLift.segment(t, SheetLift.rmFadeOutStart, SheetLift.rmFadeOut)
+        return ZStack {
+            Color.black
+            wordmark(size: size, qs: [1, 1, 1, 1], dy: 0, masked: false)
+                .opacity(fadeIn)
+        }
+        .opacity(1 - fadeOut)
+    }
+}
+
+// MARK: - Shapes
+
+/// The black sheet: full width from the top down to an arched bottom edge.
+private struct SheetShape: Shape {
+    var edgeY: CGFloat
+    var arch: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: -10))
+        path.addLine(to: CGPoint(x: rect.width, y: -10))
+        path.addLine(to: CGPoint(x: rect.width, y: edgeY))
+        path.addQuadCurve(to: CGPoint(x: 0, y: edgeY),
+                          control: CGPoint(x: rect.width / 2, y: edgeY - 2 * arch))
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// Just the arched bottom edge, for the silver rim.
+private struct SheetEdge: Shape {
+    var edgeY: CGFloat
+    var arch: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: edgeY))
+        path.addQuadCurve(to: CGPoint(x: rect.width, y: edgeY),
+                          control: CGPoint(x: rect.width / 2, y: edgeY - 2 * arch))
+        return path
     }
 }
 
 #Preview {
-    SplashScreen(onFinish: {})
+    LaunchReveal {
+        LinearGradient(colors: [.green, .teal], startPoint: .top, endPoint: .bottom)
+            .ignoresSafeArea()
+    }
 }
