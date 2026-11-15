@@ -241,6 +241,7 @@ struct EditProfileView: View {
 
     @State private var name = ""
     @State private var username = ""
+    @StateObject private var usernameCheck = UsernameAvailabilityChecker()
     @FocusState private var focusedField: BasicInfoField?
 
     private enum BasicInfoField { case name, username }
@@ -313,9 +314,23 @@ struct EditProfileView: View {
                                 .keyboardType(.asciiCapable)
                                 .textContentType(.username)
                                 .focused($focusedField, equals: .username)
+                                .onChange(of: username) { newValue in
+                                    usernameCheck.check(newValue)
+                                }
                         }
                         .contentShape(Rectangle())
                         .onTapGesture { focusedField = .username }
+                        if let message = usernameCheck.message {
+                            HStack(spacing: 6) {
+                                Image(systemName: usernameCheck.status == .available ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                                Text(usernameCheck.status == .available ? "@\(SupabaseProfileService.normalizeUsername(username)) is available" : message)
+                            }
+                            .font(Theme.syne(12, weight: .medium))
+                            .foregroundStyle(usernameCheck.status == .available ? Color(hex: "#2FA36B") : Color(hex: "#E5484D"))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .padding(.horizontal, 18)
+                            .padding(.bottom, 12)
+                        }
                     }
 
                     EditProfileSectionHeader(title: "Bio")
@@ -453,7 +468,8 @@ struct EditProfileView: View {
                     }
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
-                .disabled(isSaving)
+                .disabled(isSaving || usernameCheck.isTaken || usernameCheck.isChecking)
+                .opacity(usernameCheck.isTaken ? 0.5 : 1)
             }
         }
         .campusPageStyle()
@@ -725,6 +741,7 @@ struct EditProfileView: View {
 
     private func loadFromUser() {
         guard let u = authVM.user else { return }
+        usernameCheck.currentUsername = u.username
         username = u.username
         if let f = u.firstName?.trimmingCharacters(in: .whitespacesAndNewlines),
            let l = u.lastName?.trimmingCharacters(in: .whitespacesAndNewlines), !l.isEmpty {
@@ -831,6 +848,20 @@ struct EditProfileView: View {
         let trimmedBio = bio.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if authVM.usesSupabase {
+            if !userName.isEmpty {
+                switch await usernameCheck.checkNow(userName) {
+                case .taken:
+                    saveErrorMessage = "@\(userName) is taken. Pick a new one."
+                    showSaveError = true
+                    return
+                case .tooShort:
+                    saveErrorMessage = "Usernames need at least 3 characters."
+                    showSaveError = true
+                    return
+                default:
+                    break
+                }
+            }
             guard let client = await SupabaseManager.shared.clientWithValidSession() else {
                 saveErrorMessage = "You need to be signed in to save your profile."
                 showSaveError = true
