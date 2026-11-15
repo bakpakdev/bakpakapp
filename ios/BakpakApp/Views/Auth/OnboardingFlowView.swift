@@ -29,6 +29,7 @@ struct OnboardingFlowView: View {
 
     @State private var step: OnboardingStep = .campusWelcome
     @State private var username = ""
+    @StateObject private var usernameCheck = UsernameAvailabilityChecker()
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var photoImage: UIImage?
     @State private var selectedStyles: Set<String> = []
@@ -87,7 +88,8 @@ struct OnboardingFlowView: View {
             title: "Pick a username",
             subtitle: "This is how other students will find you on popup.",
             primaryTitle: "Continue",
-            canContinue: username.trimmingCharacters(in: .whitespacesAndNewlines).count >= 3,
+            canContinue: username.trimmingCharacters(in: .whitespacesAndNewlines).count >= 3
+                && !usernameCheck.isTaken && !usernameCheck.isChecking,
             onContinue: { Task { await saveUsernameAndAdvance() } },
             showSkip: false
         ) {
@@ -107,6 +109,21 @@ struct OnboardingFlowView: View {
                     .autocorrectionDisabled()
                     .foregroundColor(.white)
                     .tint(.white)
+                    .onChange(of: username) { newValue in
+                        localError = nil
+                        usernameCheck.check(newValue.lowercased())
+                    }
+                    if usernameCheck.isChecking {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(0.8)
+                    } else if usernameCheck.status == .available {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color(hex: "#6EE7A8"))
+                    } else if usernameCheck.isTaken {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(Color(hex: "#FF6B6B"))
+                    }
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 14)
@@ -116,8 +133,13 @@ struct OnboardingFlowView: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.28), lineWidth: 1)
+                        .stroke(usernameCheck.isTaken ? Color(hex: "#FF6B6B") : Color.white.opacity(0.28), lineWidth: 1)
                 )
+                if usernameCheck.isTaken, let message = usernameCheck.message {
+                    Text(message)
+                        .font(Theme.syne(12, weight: .medium))
+                        .foregroundStyle(Color(hex: "#FF6B6B"))
+                }
             }
         }
     }
@@ -312,6 +334,11 @@ struct OnboardingFlowView: View {
 
         isSaving = true
         defer { isSaving = false }
+
+        if await usernameCheck.checkNow(trimmed) == .taken {
+            localError = "@\(trimmed) is taken. Pick a new one."
+            return
+        }
 
         guard let client = await SupabaseManager.shared.clientWithValidSession() else {
             // Offline / legacy — still continue with local preference.

@@ -999,10 +999,27 @@ enum SupabaseProfileService {
     /// Turns Postgres errors from a profile save into something a student can act on.
     static func friendlySaveError(_ error: Error) -> String {
         let text = String(describing: error).lowercased() + " " + error.localizedDescription.lowercased()
-        if text.contains("profiles_username_key") || (text.contains("duplicate key") && text.contains("username")) {
-            return "That username is taken. Try another one."
+        if text.contains("profiles_username_key") || text.contains("profiles_username_lower_key")
+            || (text.contains("duplicate key") && text.contains("username")) {
+            return "That username is taken. Pick a new one."
         }
         return error.localizedDescription
+    }
+
+    /// Normalizes what someone typed into the username we store (no spaces, no "@").
+    static func normalizeUsername(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "@", with: "")
+    }
+
+    /// Asks the database whether a username is free, ignoring case.
+    /// Your own current username counts as available.
+    static func isUsernameAvailable(client: SupabaseClient, username: String) async throws -> Bool {
+        struct Params: Encodable { let p_username: String }
+        return try await client
+            .rpc("username_available", params: Params(p_username: normalizeUsername(username)))
+            .execute()
+            .value
     }
 
     struct ProfileUpdate: Encodable {
@@ -1027,5 +1044,91 @@ enum SupabaseProfileService {
             .value
         guard let r = rows.first else { throw SupabaseDataError.notFound }
         return r.asUser
+    }
+}
+
+// MARK: - Username availability
+
+/// Checks a username as the person types (debounced) so a taken name is caught
+/// before they hit Save or Continue. The database's unique index is the real guard;
+/// this is the friendly early warning.
+@MainActor
+final class UsernameAvailabilityChecker: ObservableObject {
+    enum Status: Equatable {
+        case idle
+        case tooShort
+        case checking
+        case available
+        case taken
+        /// The check couldn't run (offline, or the migration isn't applied yet).
+        /// Saving still works; the database will refuse a taken name.
+        case unknown
+    }
+
+    @Published private(set) var status: Status = .idle
+    private var task: Task<Void, Never>?
+    private var lastChecked: String?
+
+    /// Names that are already yours never need a check.
+    var currentUsername: String?
+    var minLength = 3
+
+    var isTaken: Bool { status == .taken }
+    var isChecking: Bool { status == .checking }
+
+    var message: String? {
+        switch status {
+        case .taken: return "That username is taken. Pick a new one."
+        case .available: return "Available"
+        case .tooShort: return "Usernames need at least \(minLength) characters."
+        default: return nil
+        }
+    }
+
+    func check(_ raw: String) {
+        let name = SupabaseProfileService.normalizeUsername(raw)
+        task?.cancel()
+        if name.isEmpty { status = .idle; lastChecked = nil; return }
+        if let mine = currentUsername, mine.caseInsensitiveCompare(name) == .orderedSame {
+            status = .idle
+            lastChecked = nil
+            return
+        }
+        if name.count < minLength { status = .tooShort; lastChecked = nil; return }
+        if name.lowercased() == lastChecked, status == .available || status == .taken { return }
+        status = .checking
+        task = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard !Task.isCancelled else { return }
+            let result = await Self.lookup(name)
+            guard !Task.isCancelled, let self else { return }
+            self.lastChecked = name.lowercased()
+            self.status = result
+        }
+    }
+
+    /// Runs the check right away (no debounce). Use before saving.
+    func checkNow(_ raw: String) async -> Status {
+        task?.cancel()
+        let name = SupabaseProfileService.normalizeUsername(raw)
+        if let mine = currentUsername, mine.caseInsensitiveCompare(name) == .orderedSame {
+            status = .idle
+            return status
+        }
+        if name.count < minLength { status = .tooShort; return status }
+        status = .checking
+        let result = await Self.lookup(name)
+        lastChecked = name.lowercased()
+        status = result
+        return result
+    }
+
+    private static func lookup(_ name: String) async -> Status {
+        guard let client = await SupabaseManager.shared.clientWithValidSession() else { return .unknown }
+        do {
+            return try await SupabaseProfileService.isUsernameAvailable(client: client, username: name) ? .available : .taken
+        } catch {
+            return .unknown
+        }
     }
 }

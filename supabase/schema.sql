@@ -37,6 +37,8 @@ CREATE TABLE public.profiles (
 );
 
 CREATE INDEX profiles_username_idx ON public.profiles (username);
+-- Usernames are unique ignoring case ("Hadi" and "hadi" can't both exist).
+CREATE UNIQUE INDEX profiles_username_lower_key ON public.profiles (lower(username));
 CREATE INDEX profiles_stripe_account_id_idx ON public.profiles (stripe_account_id);
 
 -- ---------------------------------------------------------------------------
@@ -407,7 +409,7 @@ BEGIN
     base_name := 'user_' || replace(substr(NEW.id::text, 1, 13), '-', '');
   END IF;
   final_name := base_name;
-  WHILE EXISTS (SELECT 1 FROM public.profiles WHERE username = final_name) LOOP
+  WHILE EXISTS (SELECT 1 FROM public.profiles WHERE lower(username) = lower(final_name)) LOOP
     final_name := base_name || '_' || substr(md5(random()::text), 1, 6);
   END LOOP;
 
@@ -420,6 +422,24 @@ $$;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- Lets the app check a username while you type. Your own current name counts as available.
+CREATE OR REPLACE FUNCTION public.username_available(p_username TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT NOT EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE lower(username) = lower(btrim(replace(p_username, '@', '')))
+      AND id IS DISTINCT FROM auth.uid()
+  );
+$$;
+REVOKE ALL ON FUNCTION public.username_available(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.username_available(TEXT) TO authenticated;
 
 -- ---------------------------------------------------------------------------
 INSERT INTO public.categories (parent_id, name, slug, sort_order) VALUES
