@@ -801,7 +801,12 @@ struct MeetupComposeView: View {
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(34)
         .preferredColorScheme(campusTheme.isDark ? .dark : .light)
-        .onDisappear { proposedAt = Self.roundedToHalfHour(proposedAt) }
+        // Half-hour steps on the wheel, matching the time chips.
+        .onAppear { UIDatePicker.appearance().minuteInterval = 30 }
+        .onDisappear {
+            UIDatePicker.appearance().minuteInterval = 1
+            proposedAt = Self.roundedToHalfHour(proposedAt)
+        }
     }
 
     // MARK: Header
@@ -1047,7 +1052,8 @@ struct MeetupComposeView: View {
                         .font(Theme.syne(13, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
                         .lineLimit(2)
-                        .minimumScaleFactor(0.75)
+                        .truncationMode(.tail)
+                        .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)
                     if spot.id == MeetupSpotMemory.lastSpotId {
                         Text("Last used")
