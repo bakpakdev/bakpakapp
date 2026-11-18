@@ -34,7 +34,7 @@ enum FirstTimeTip: String, CaseIterable {
         case .sellerGetPaid:
             return "It opens Receive. You only need it once you’re with the buyer."
         case .sellerConfirm:
-            return "Make sure the item and price are right, then tap Next."
+            return "Make sure the item and price are right, then tap Continue to receive."
         case .sellerReceive:
             return "Their Pay button unlocks once you’re waiting."
         case .sellerWaiting:
@@ -42,7 +42,7 @@ enum FirstTimeTip: String, CaseIterable {
         case .buyerPay:
             return "It opens checkout. You pay in person, never before you meet."
         case .buyerConfirm:
-            return "Make sure the item and price are right, then tap Next."
+            return "Make sure the item and price are right, then tap Continue to pay."
         case .buyerWaitForSeller:
             return "Ask them to open Receive on their phone, then tap Check again."
         case .buyerPayButton:
@@ -109,11 +109,15 @@ private struct SpotlightAnchorKey: PreferenceKey {
 
 extension View {
     /// Marks a control a first-time tip can point at.
+    /// Tapping the target itself also counts as seeing the tip.
     func spotlightTarget(_ tip: FirstTimeTip?) -> some View {
         anchorPreference(key: SpotlightAnchorKey.self, value: .bounds) { anchor in
             guard let tip else { return [:] }
             return [tip.rawValue: anchor]
         }
+        .simultaneousGesture(TapGesture().onEnded {
+            if let tip { FirstTimeTipStore.shared.markSeen(tip) }
+        })
     }
 
     /// Dims the screen around the target of `tip` (if it's on screen) and shows the tip
@@ -144,6 +148,7 @@ private struct SpotlightHost: View {
                 .id(tip.rawValue)
             }
         }
+        .ignoresSafeArea()
         .animation(.easeInOut(duration: 0.25), value: store.revision)
         .animation(.easeInOut(duration: 0.25), value: tip)
     }

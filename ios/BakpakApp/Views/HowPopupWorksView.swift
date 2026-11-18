@@ -76,8 +76,8 @@ enum PopupGuide: String, CaseIterable, Identifiable {
             return [
                 GuidePage(title: "tap Get paid", message: "When you’re with the buyer, tap Get paid at the top of the chat.",
                           mock: .dealBar(status: "Meetup is now", detail: "EMU Amphitheater", action: "Get paid")),
-                GuidePage(title: "check the details", message: "Make sure the item and price are right, then tap Next.",
-                          mock: .amount(amount: "$25", caption: "vintage broncos tee", action: "Next")),
+                GuidePage(title: "check the details", message: "Make sure the item and price are right, then tap Continue to receive.",
+                          mock: .amount(amount: "$25.00", caption: "vintage broncos tee", action: "Continue to receive")),
                 GuidePage(title: "tap Receive", message: "Keep the screen open. The buyer’s Pay button unlocks once you’re waiting.",
                           mock: .amount(amount: "$25.00", caption: "You get the full $25", action: "Receive")),
                 GuidePage(title: "cash out", message: "Sales land in your popup balance. Cash out from Settings → Getting paid.",
@@ -171,8 +171,8 @@ struct HowPopupWorksView: View {
                                 .foregroundStyle(campusTheme.textPrimary)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 54)
-                                .background(Capsule().fill(campusTheme.glass))
-                                .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+                                .background(Capsule().fill(campusTheme.glassStrong))
+                                .overlay(Capsule().stroke(campusTheme.textPrimary.opacity(0.25), lineWidth: 1))
                         }
                         .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                     }
