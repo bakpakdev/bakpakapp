@@ -84,7 +84,7 @@ struct MeetupDetailView: View {
         .tint(campusTheme.primary)
         .onAppear { centerMap() }
         .onChange(of: meetup?.spotId) { _ in centerMap() }
-        .fullScreenCover(isPresented: $showMeetupPicker) {
+        .sheet(isPresented: $showMeetupPicker) {
             MeetupComposeView(
                 spots: campusTheme.meetupLocations,
                 screenTitle: "Reschedule Meetup",

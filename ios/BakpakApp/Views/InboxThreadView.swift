@@ -96,7 +96,7 @@ struct InboxThreadView: View {
         .task { await bootstrap() }
         .task { await serviceFee.refreshIfNeeded() }
         .onDisappear { vm.stopLiveUpdates() }
-        .fullScreenCover(isPresented: $showMeetupPicker) {
+        .sheet(isPresented: $showMeetupPicker) {
             MeetupComposeView(
                 spots: campusTheme.meetupLocations,
                 screenTitle: meetupDraft.screenTitle,

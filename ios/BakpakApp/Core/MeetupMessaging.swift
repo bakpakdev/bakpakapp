@@ -629,6 +629,15 @@ enum MeetupComposeDraft: Equatable {
 
 // MARK: - Compose screen
 
+/// Remembers the last meetup spot this account sent, so new invites start there.
+enum MeetupSpotMemory {
+    private static var key: String { AccountScopedDefaults.key("popup.meetup.lastSpotId") }
+    static var lastSpotId: String? {
+        get { UserDefaults.standard.string(forKey: key) }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+}
+
 struct MeetupComposeView: View {
     let spots: [CampusMeetupSpot]
     var screenTitle: String = "Suggest Meetup"
@@ -653,43 +662,45 @@ struct MeetupComposeView: View {
         spots.first(where: { $0.id == selectedSpotId })
     }
 
-    private var spotLabel: String {
-        selectedSpot?.name ?? "Select"
-    }
-
     private var filteredSpots: [CampusMeetupSpot] {
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return spots }
         return spots.filter { $0.name.localizedCaseInsensitiveContains(q) }
     }
 
-    private var dateLabel: String {
-        let f = DateFormatter()
-        f.dateStyle = .medium
-        f.timeStyle = .none
-        return f.string(from: proposedAt)
-    }
-
-    private var timeLabel: String {
-        let f = DateFormatter()
-        f.dateStyle = .none
-        f.timeStyle = .short
-        return f.string(from: proposedAt)
-    }
-
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             headerBar
-            mapSection
+
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    whenSection
-                    Divider().opacity(0.35)
-                    whereSection
+                VStack(alignment: .leading, spacing: 0) {
+                    sectionLabel("When")
+                    dayChips
+                    timeChips
+                        .padding(.top, 8)
+
+                    sectionLabel("Where")
+                    spotCards
                 }
+                .padding(.bottom, 12)
             }
+
+            sendButton
+                .padding(.horizontal, 20)
+                .padding(.top, 6)
+                .padding(.bottom, 12)
         }
-        .background(campusTheme.background.ignoresSafeArea())
+        .padding(.top, 18)
+        .presentationDetents([.height(560), .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(34)
+        .presentationBackground {
+            ZStack {
+                Rectangle().fill(.ultraThinMaterial)
+                campusTheme.background.opacity(campusTheme.isDark ? 0.72 : 0.6)
+            }
+            .ignoresSafeArea()
+        }
         .preferredColorScheme(campusTheme.isDark ? .dark : .light)
         .onAppear {
             guard !didApplyInitial else { return }
@@ -697,9 +708,12 @@ struct MeetupComposeView: View {
             if let initialDate {
                 proposedAt = Self.roundedToHalfHour(max(initialDate, Date()))
             }
-            // Reschedule keeps the prior spot; new invites start on "Select".
+            // Reschedule keeps the prior spot; a new invite starts on the last spot used.
             if let initialSpotId,
                let spot = spots.first(where: { $0.id == initialSpotId }) {
+                select(spot, animated: false)
+            } else if let last = MeetupSpotMemory.lastSpotId,
+                      let spot = spots.first(where: { $0.id == last }) {
                 select(spot, animated: false)
             }
         }
@@ -711,247 +725,309 @@ struct MeetupComposeView: View {
         }
     }
 
+    // MARK: Header
+
     private var headerBar: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
+            Text(screenTitle.lowercased())
+                .font(Theme.syne(26, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .accessibilityAddTraits(.isHeader)
+
+            Spacer(minLength: 0)
+
             Button {
                 Motion.haptic(.light)
                 onCancel()
             } label: {
-                Text("Cancel")
-                    .font(Theme.syne(15, weight: .semibold))
-                    .foregroundStyle(campusTheme.textMuted)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 8)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-
-            Spacer(minLength: 0)
-
-            Text(screenTitle)
-                .font(Theme.syne(17, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-                .lineLimit(1)
-
-            Spacer(minLength: 0)
-
-            Button {
-                guard let spot = selectedSpot else { return }
-                Motion.haptic(.medium)
-                onSend(spot, proposedAt)
-            } label: {
-                Text(confirmTitle)
-                    .font(Theme.syne(14, weight: .bold))
-                    .lineLimit(1)
-                    .fixedSize()
-                    .foregroundStyle(selectedSpot == nil ? campusTheme.textMuted : Color.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(selectedSpot == nil ? campusTheme.elevatedSurface : campusTheme.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
-            .disabled(selectedSpot == nil)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(campusTheme.surface)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(campusTheme.border)
-                .frame(height: 1)
-        }
-    }
-
-    private var mapSection: some View {
-        ZStack(alignment: .bottomLeading) {
-            Map(coordinateRegion: $region, annotationItems: mapAnnotations) { spot in
-                MapMarker(
-                    coordinate: CLLocationCoordinate2D(latitude: spot.latitude, longitude: spot.longitude),
-                    tint: campusTheme.primary
-                )
-            }
-            .disabled(true)
-
-            HStack(spacing: 8) {
-                Image(systemName: "mappin.circle.fill")
-                    .foregroundStyle(campusTheme.tint)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(selectedSpot?.name ?? "Pick a meetup spot")
-                        .font(Theme.syne(14, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                    Text(selectedSpot == nil ? "Choose where you’ll meet" : "Pin ready for Apple Maps")
-                        .font(Theme.syne(11, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .padding(12)
-        }
-        .frame(height: 200)
-        .clipped()
-    }
-
-    private var mapAnnotations: [CampusMeetupSpot] {
-        if let selectedSpot { return [selectedSpot] }
-        return []
-    }
-
-    private var whenSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("When")
-                .font(Theme.syne(13, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-
-            Text("Tap a row to change the date or time")
-                .font(Theme.syne(12, weight: .medium))
-                .foregroundStyle(campusTheme.textMuted)
-
-            meetupDateRow(
-                title: "Date",
-                value: dateLabel,
-                systemImage: "calendar",
-                mode: .date
-            )
-            meetupDateRow(
-                title: "Time",
-                value: timeLabel,
-                systemImage: "clock",
-                mode: .time
-            )
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(campusTheme.surface.opacity(0.55))
-    }
-
-    private func meetupDateRow(
-        title: String,
-        value: String,
-        systemImage: String,
-        mode: UIDatePicker.Mode
-    ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(campusTheme.tint)
-                .frame(width: 36, height: 36)
-                .background(campusTheme.primary.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(Theme.syne(12, weight: .semibold))
-                    .foregroundStyle(campusTheme.textMuted)
-                Text(value)
-                    .font(Theme.syne(16, weight: .bold))
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(campusTheme.textPrimary)
+                    .frame(width: 38, height: 38)
+                    .background(Circle().fill(campusTheme.glass))
+                    .overlay(Circle().stroke(campusTheme.border, lineWidth: 1))
             }
-
-            Spacer(minLength: 8)
-
-            Image(systemName: "chevron.down")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(campusTheme.tint)
-                .frame(width: 32, height: 32)
-                .background(campusTheme.primary.opacity(0.12))
-                .clipShape(Circle())
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+            .accessibilityLabel("Cancel")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-        .background(campusTheme.elevatedSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(campusTheme.primary.opacity(0.28), lineWidth: 1.5)
-        )
-        .contentShape(Rectangle())
-        .overlay {
-            HalfHourDatePicker(
-                date: $proposedAt,
-                minimumDate: Date(),
-                mode: mode
-            )
+        .padding(.horizontal, 20)
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(Theme.syne(11, weight: .bold))
+            .tracking(1.4)
+            .foregroundStyle(campusTheme.textMuted)
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 8)
+    }
+
+    // MARK: When
+
+    private var calendar: Calendar { Calendar.current }
+
+    /// Today (while there's still a slot left), tomorrow, then the next 5 days.
+    private var dayOptions: [Date] {
+        let start = calendar.startOfDay(for: Date())
+        let firstOffset = Self.slots(on: start).isEmpty ? 1 : 0
+        return (firstOffset..<(firstOffset + 7)).compactMap {
+            calendar.date(byAdding: .day, value: $0, to: start)
         }
     }
 
-    private var whereSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Where")
-                .font(Theme.syne(13, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
+    private func dayTitle(_ day: Date) -> String {
+        if calendar.isDateInToday(day) { return "Today" }
+        if calendar.isDateInTomorrow(day) { return "Tomorrow" }
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("EEE d")
+        return f.string(from: day)
+    }
 
-            Text("Tap to choose a campus meetup spot")
-                .font(Theme.syne(12, weight: .medium))
-                .foregroundStyle(campusTheme.textMuted)
-
-            Button {
-                Motion.haptic(.light)
-                searchText = ""
-                showSpotPicker = true
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(campusTheme.tint)
-                        .frame(width: 36, height: 36)
-                        .background(campusTheme.primary.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Spot")
-                            .font(Theme.syne(12, weight: .semibold))
-                            .foregroundStyle(campusTheme.textMuted)
-                        Text(spotLabel)
-                            .font(Theme.syne(16, weight: .bold))
-                            .foregroundStyle(
-                                selectedSpot == nil
-                                    ? campusTheme.textMuted
-                                    : campusTheme.textPrimary
-                            )
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
+    private var dayChips: some View {
+        let selectedDay = calendar.startOfDay(for: proposedAt)
+        let options = dayOptions
+        let pickedOtherDay = !options.contains(selectedDay)
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                ForEach(options, id: \.self) { day in
+                    chip(dayTitle(day), selected: day == selectedDay) {
+                        setDay(day)
                     }
-
-                    Spacer(minLength: 8)
-
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(campusTheme.tint)
-                        .frame(width: 32, height: 32)
-                        .background(campusTheme.primary.opacity(0.12))
-                        .clipShape(Circle())
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 14)
-                .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-                .background(campusTheme.elevatedSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(campusTheme.primary.opacity(0.28), lineWidth: 1.5)
-                )
-                .contentShape(Rectangle())
+                // Any other date: the system date picker sits invisibly over this chip.
+                chipLabel(pickedOtherDay ? dayTitle(selectedDay) : "Other day", systemImage: "calendar", selected: pickedOtherDay)
+                    .overlay {
+                        HalfHourDatePicker(date: $proposedAt, minimumDate: Date(), mode: .date)
+                    }
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
+        }
+    }
 
-            if selectedSpot == nil {
-                Text("Pick a spot before you can send.")
-                    .font(Theme.syne(12, weight: .medium))
-                    .foregroundStyle(campusTheme.textMuted)
+    /// Half-hour slots 10 AM–8 PM on `day`, skipping ones that already passed.
+    static func slots(on day: Date, now: Date = Date()) -> [Date] {
+        let cal = Calendar.current
+        guard let first = cal.date(bySettingHour: 10, minute: 0, second: 0, of: day) else { return [] }
+        return (0...20).compactMap { cal.date(byAdding: .minute, value: $0 * 30, to: first) }
+            .filter { $0 > now }
+    }
+
+    private var timeOptions: [Date] {
+        var options = Self.slots(on: proposedAt)
+        // Keep a time picked with "Other time" (or carried over from a reschedule) visible.
+        if !options.contains(where: { abs($0.timeIntervalSince(proposedAt)) < 1 }) {
+            options.append(proposedAt)
+            options.sort()
+        }
+        return options
+    }
+
+    private var timeChips: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 7) {
+                    ForEach(timeOptions, id: \.self) { slot in
+                        chip(timeLabel(slot), selected: abs(slot.timeIntervalSince(proposedAt)) < 1) {
+                            proposedAt = slot
+                        }
+                        .id(slot)
+                    }
+                    chipLabel("Other time", systemImage: "clock", selected: false)
+                        .overlay {
+                            HalfHourDatePicker(date: $proposedAt, minimumDate: Date(), mode: .time)
+                        }
+                }
+                .padding(.horizontal, 20)
+            }
+            .onAppear { proxy.scrollTo(proposedAt, anchor: .center) }
+            .onChange(of: calendar.startOfDay(for: proposedAt)) { _ in
+                proxy.scrollTo(proposedAt, anchor: .center)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(campusTheme.surface.opacity(0.55))
+    }
+
+    /// Moves to `day`, keeping the time of day when that slot is still open there.
+    private func setDay(_ day: Date) {
+        let time = calendar.dateComponents([.hour, .minute], from: proposedAt)
+        let sameTime = calendar.date(bySettingHour: time.hour ?? 12, minute: time.minute ?? 0, second: 0, of: day)
+        if let sameTime, sameTime > Date() {
+            proposedAt = sameTime
+        } else if let first = Self.slots(on: day).first {
+            proposedAt = first
+        } else {
+            proposedAt = Self.roundedToHalfHour(day)
+        }
+    }
+
+    private func timeLabel(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateStyle = .none
+        f.timeStyle = .short
+        return f.string(from: date)
+    }
+
+    private func chip(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            Motion.haptic(.light)
+            withAnimation(.easeOut(duration: 0.18)) { action() }
+        } label: {
+            chipLabel(title, systemImage: nil, selected: selected)
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func chipLabel(_ title: String, systemImage: String?, selected: Bool) -> some View {
+        HStack(spacing: 6) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            Text(title)
+                .font(Theme.syne(14, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(selected ? campusTheme.pillText : campusTheme.textPrimary)
+        .padding(.horizontal, 15)
+        .frame(height: 38)
+        .background(Capsule().fill(selected ? campusTheme.textPrimary : campusTheme.glass))
+        .overlay(Capsule().stroke(selected ? Color.clear : campusTheme.border, lineWidth: 1))
+    }
+
+    // MARK: Where
+
+    /// Selected spot first, then the last one used, then the campus list.
+    private var orderedSpots: [CampusMeetupSpot] {
+        var front: [String] = []
+        if !selectedSpotId.isEmpty { front.append(selectedSpotId) }
+        if let last = MeetupSpotMemory.lastSpotId, !front.contains(last) { front.append(last) }
+        let pinned = front.compactMap { id in spots.first(where: { $0.id == id }) }
+        return pinned + spots.filter { !front.contains($0.id) }
+    }
+
+    private var spotCards: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 10) {
+                    ForEach(orderedSpots) { spot in
+                        spotCard(spot)
+                            .id(spot.id)
+                    }
+                    Button {
+                        Motion.haptic(.light)
+                        searchText = ""
+                        showSpotPicker = true
+                    } label: {
+                        VStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 18, weight: .semibold))
+                            Text("All spots")
+                                .font(Theme.syne(13, weight: .bold))
+                        }
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(width: 104, height: 132)
+                        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(campusTheme.glass))
+                        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(campusTheme.border, lineWidth: 1))
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 2)
+            }
+            .onChange(of: selectedSpotId) { id in
+                withAnimation { proxy.scrollTo(id, anchor: .leading) }
+            }
+        }
+    }
+
+    private func spotCard(_ spot: CampusMeetupSpot) -> some View {
+        let selected = spot.id == selectedSpotId
+        let hasCoordinate = spot.latitude != 0 || spot.longitude != 0
+        return Button {
+            Motion.haptic(.light)
+            select(spot, animated: false)
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                ZStack {
+                    if hasCoordinate {
+                        Map(coordinateRegion: .constant(MeetupMaps.region(for: spot, span: 0.004)))
+                            .environment(\.colorScheme, campusTheme.isDark ? .dark : .light)
+                            .allowsHitTesting(false)
+                    } else {
+                        campusTheme.glassStrong
+                    }
+                    Circle()
+                        .fill(campusTheme.textPrimary)
+                        .frame(width: 16, height: 16)
+                        .overlay(Circle().fill(campusTheme.pillText).frame(width: 6, height: 6))
+                        .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+                }
+                .frame(width: 128, height: 70)
+                .clipped()
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(spot.name)
+                        .font(Theme.syne(13, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    if spot.id == MeetupSpotMemory.lastSpotId {
+                        Text("Last used")
+                            .font(Theme.syne(11, weight: .medium))
+                            .foregroundStyle(campusTheme.textMuted)
+                    }
+                }
+                .frame(width: 108, height: 54, alignment: .topLeading)
+                .padding(.horizontal, 10)
+                .padding(.top, 8)
+            }
+            .frame(width: 128, height: 132, alignment: .top)
+            .background(campusTheme.glass)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(selected ? campusTheme.textPrimary : campusTheme.border, lineWidth: selected ? 2 : 1)
+            )
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+        .accessibilityLabel(spot.name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    // MARK: Send
+
+    private var sendSummary: String {
+        let day = dayTitle(calendar.startOfDay(for: proposedAt))
+        return "\(day.lowercased()) \(timeLabel(proposedAt))"
+    }
+
+    private var sendButton: some View {
+        Button {
+            guard let spot = selectedSpot else { return }
+            Motion.haptic(.medium)
+            MeetupSpotMemory.lastSpotId = spot.id
+            onSend(spot, proposedAt)
+        } label: {
+            VStack(spacing: 1) {
+                Text(selectedSpot == nil ? "Pick a spot to send" : confirmTitle)
+                    .font(Theme.syne(16, weight: .bold))
+                if let spot = selectedSpot {
+                    Text("\(sendSummary) · \(spot.name)")
+                        .font(Theme.syne(12, weight: .medium))
+                        .opacity(0.7)
+                        .lineLimit(1)
+                }
+            }
+            .foregroundStyle(selectedSpot == nil ? campusTheme.textMuted : campusTheme.pillText)
+            .frame(maxWidth: .infinity)
+            .frame(height: 58)
+            .background(Capsule().fill(selectedSpot == nil ? campusTheme.glassStrong : campusTheme.textPrimary))
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+        .disabled(selectedSpot == nil)
     }
 
     private var spotPickerSheet: some View {
