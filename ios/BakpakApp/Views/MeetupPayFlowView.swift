@@ -209,8 +209,9 @@ struct MeetupPayFlowView: View {
                 }
             }
         }
-        .spotlight(activeTip)
         .campusPageStyle()
+        // After campusPageStyle so the dim also covers its top-edge scrim.
+        .spotlight(activeTip)
         .overlay {
             if showBuyerSentAnimation {
                 BuyerSentOverlay(
