@@ -286,12 +286,6 @@ private struct TourPhoneFrame<Content: View>: View {
 
     var body: some View {
         ZStack {
-            Ellipse()
-                .fill(Color.white.opacity(0.16))
-                .frame(width: 250, height: 250)
-                .blur(radius: 2)
-                .offset(x: 36, y: 40)
-
             RoundedRectangle(cornerRadius: 42, style: .continuous)
                 .fill(Color(white: 0.08))
                 .frame(width: width + 16, height: height + 16)
@@ -426,8 +420,8 @@ private struct TourHomeScreen: View {
                 .padding(.top, 10)
 
             HStack(spacing: 6) {
-                miniCard("vintage tee", "$12")
-                miniCard("denim jacket", "$28")
+                miniCard("vintage tee", "$12", icon: "tshirt.fill")
+                miniCard("denim jacket", "$28", icon: "jacket.fill")
             }
             .padding(.horizontal, 12)
             .padding(.top, 10)
@@ -438,11 +432,16 @@ private struct TourHomeScreen: View {
         .background(TourAurora())
     }
 
-    private func miniCard(_ title: String, _ price: String) -> some View {
+    private func miniCard(_ title: String, _ price: String, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(campus.listingCaptionBackground)
                 .frame(height: 88)
+                .overlay(
+                    Image(systemName: icon)
+                        .font(.system(size: 30, weight: .regular))
+                        .foregroundStyle(campus.textMuted)
+                )
             Text(title)
                 .font(Theme.syne(8, weight: .semibold))
                 .foregroundStyle(campus.textPrimary)
@@ -734,10 +733,15 @@ private struct TourProfileScreen: View {
             }
 
             HStack(spacing: 6) {
-                ForEach(0..<3, id: \.self) { _ in
+                ForEach(["tshirt.fill", "shoeprint.fill", "bag.fill"], id: \.self) { icon in
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(campus.listingCaptionBackground)
                         .frame(height: 70)
+                        .overlay(
+                            Image(systemName: icon)
+                                .font(.system(size: 20, weight: .regular))
+                                .foregroundStyle(campus.textMuted)
+                        )
                 }
             }
             .padding(.horizontal, 12)
