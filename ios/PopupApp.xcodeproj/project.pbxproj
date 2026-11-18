@@ -30,6 +30,7 @@
 		ADE00250D41817B09CB90158 /* MeetupPaymentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 759E1D4FFF2DA3082D55C3B4 /* MeetupPaymentService.swift */; };
 		B8AD964EFE9AF102A1FC7485 /* MeetupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48F3D619E0A53BE9212C7A9 /* MeetupService.swift */; };
 		3C1E31A3A32EB30EC0B8BB07 /* MeetupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB84D0F5FB91E57A5A3EDDCD /* MeetupStore.swift */; };
+		D36E8CA7D5CA286F4C68532B /* FirstTimeTips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF9A32C0A372FDDC551DB87 /* FirstTimeTips.swift */; };
 		0BBCD423D2A8256C02A96314 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95CC3DB173DD6DB85D2FCA8C /* Models.swift */; };
 		C4FD8BD1E8A487C7CCFA8B60 /* MoneyAmount.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF900DEF59623BEEE3815DA /* MoneyAmount.swift */; };
 		7FBD01ECBE2948FDF8D6430B /* NotificationKeywordRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B8C40901CDE721CD55A49E6 /* NotificationKeywordRouter.swift */; };
@@ -117,6 +118,7 @@
 		47ACEB8D5E367AD67FB46075 /* TwoFactorAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24CA9F040EA4E7006E25016A /* TwoFactorAuthView.swift */; };
 		01604FB607E6E08AC5BFFB98 /* UserProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9818C9EF94BBB5A397C674D /* UserProfileView.swift */; };
 		E1B326295DFC27A1A8EC44DD /* WantItSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB3087877312F34F926051D /* WantItSheet.swift */; };
+		505A51627E82641D1E79AD21 /* HowPopupWorksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B7D05A4C975332BA3A700D /* HowPopupWorksView.swift */; };
 		9EB596B5BE011F33AC1B6E7D /* Syne-wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F190E5882D245D814C3F30D1 /* Syne-wght.ttf */; };
 		291915B7A05A019FEF1ED9E8 /* popup_logo_pop.png in Resources */ = {isa = PBXBuildFile; fileRef = A74BF3A5DACF1D9CC771FFF4 /* popup_logo_pop.png */; };
 		A145BD88474D772815A3E233 /* popup_logo_pop_untilted.png in Resources */ = {isa = PBXBuildFile; fileRef = CE4021870BA7C3379D18F966 /* popup_logo_pop_untilted.png */; };
@@ -162,6 +164,7 @@
 		759E1D4FFF2DA3082D55C3B4 /* MeetupPaymentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupPaymentService.swift'; sourceTree = "<group>"; };
 		D48F3D619E0A53BE9212C7A9 /* MeetupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupService.swift'; sourceTree = "<group>"; };
 		AB84D0F5FB91E57A5A3EDDCD /* MeetupStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MeetupStore.swift'; sourceTree = "<group>"; };
+		1DF9A32C0A372FDDC551DB87 /* FirstTimeTips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'FirstTimeTips.swift'; sourceTree = "<group>"; };
 		95CC3DB173DD6DB85D2FCA8C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'Models.swift'; sourceTree = "<group>"; };
 		4BF900DEF59623BEEE3815DA /* MoneyAmount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'MoneyAmount.swift'; sourceTree = "<group>"; };
 		1B8C40901CDE721CD55A49E6 /* NotificationKeywordRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'NotificationKeywordRouter.swift'; sourceTree = "<group>"; };
@@ -249,6 +252,7 @@
 		24CA9F040EA4E7006E25016A /* TwoFactorAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'TwoFactorAuthView.swift'; sourceTree = "<group>"; };
 		F9818C9EF94BBB5A397C674D /* UserProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'UserProfileView.swift'; sourceTree = "<group>"; };
 		ADB3087877312F34F926051D /* WantItSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'WantItSheet.swift'; sourceTree = "<group>"; };
+		81B7D05A4C975332BA3A700D /* HowPopupWorksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'HowPopupWorksView.swift'; sourceTree = "<group>"; };
 		F190E5882D245D814C3F30D1 /* Syne-wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = 'Syne-wght.ttf'; sourceTree = "<group>"; };
 		A74BF3A5DACF1D9CC771FFF4 /* popup_logo_pop.png */ = {isa = PBXFileReference; lastKnownFileType = file; path = 'popup_logo_pop.png'; sourceTree = "<group>"; };
 		CE4021870BA7C3379D18F966 /* popup_logo_pop_untilted.png */ = {isa = PBXFileReference; lastKnownFileType = file; path = 'popup_logo_pop_untilted.png'; sourceTree = "<group>"; };
@@ -343,6 +347,7 @@
 				759E1D4FFF2DA3082D55C3B4 /* MeetupPaymentService.swift */,
 				D48F3D619E0A53BE9212C7A9 /* MeetupService.swift */,
 				AB84D0F5FB91E57A5A3EDDCD /* MeetupStore.swift */,
+				1DF9A32C0A372FDDC551DB87 /* FirstTimeTips.swift */,
 				95CC3DB173DD6DB85D2FCA8C /* Models.swift */,
 				4BF900DEF59623BEEE3815DA /* MoneyAmount.swift */,
 				1B8C40901CDE721CD55A49E6 /* NotificationKeywordRouter.swift */,
@@ -423,6 +428,7 @@
 				24CA9F040EA4E7006E25016A /* TwoFactorAuthView.swift */,
 				F9818C9EF94BBB5A397C674D /* UserProfileView.swift */,
 				ADB3087877312F34F926051D /* WantItSheet.swift */,
+				81B7D05A4C975332BA3A700D /* HowPopupWorksView.swift */,
 				B39A9C45FA246CC0E4091C91 /* Auth */,
 				13EDB08DDD3BA2C167B73A6B /* Meetups */,
 			);
@@ -570,6 +576,7 @@
 				ADE00250D41817B09CB90158 /* MeetupPaymentService.swift in Sources */,
 				B8AD964EFE9AF102A1FC7485 /* MeetupService.swift in Sources */,
 				3C1E31A3A32EB30EC0B8BB07 /* MeetupStore.swift in Sources */,
+				D36E8CA7D5CA286F4C68532B /* FirstTimeTips.swift in Sources */,
 				0BBCD423D2A8256C02A96314 /* Models.swift in Sources */,
 				C4FD8BD1E8A487C7CCFA8B60 /* MoneyAmount.swift in Sources */,
 				7FBD01ECBE2948FDF8D6430B /* NotificationKeywordRouter.swift in Sources */,
@@ -657,6 +664,7 @@
 				47ACEB8D5E367AD67FB46075 /* TwoFactorAuthView.swift in Sources */,
 				01604FB607E6E08AC5BFFB98 /* UserProfileView.swift in Sources */,
 				E1B326295DFC27A1A8EC44DD /* WantItSheet.swift in Sources */,
+				505A51627E82641D1E79AD21 /* HowPopupWorksView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
