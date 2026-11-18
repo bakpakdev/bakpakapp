@@ -50,7 +50,9 @@ struct MeetupDetailView: View {
 
             if let meetup {
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        header(meetup)
+
                         mapBlock
 
                         timelineCard(meetup)
@@ -64,7 +66,7 @@ struct MeetupDetailView: View {
                         }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 8)
+                    .padding(.top, 4)
                     .padding(.bottom, 24)
                 }
                 .safeAreaInset(edge: .bottom) {
@@ -75,19 +77,9 @@ struct MeetupDetailView: View {
                     .tint(campusTheme.primary)
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(titleText)
-                    .font(Theme.syne(17, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-            }
-        }
-        .toolbarBackground(campusTheme.surface.opacity(0.9), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbar(.visible, for: .navigationBar)
-        .hidesSystemNavigationBar(false)
-        .toolbarColorScheme(campusTheme.isDark ? .dark : .light, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden(true)
+        .hidesSystemNavigationBar(true)
         .preferredColorScheme(campusTheme.isDark ? .dark : .light)
         .tint(campusTheme.primary)
         .onAppear { centerMap() }
@@ -116,10 +108,47 @@ struct MeetupDetailView: View {
     }
 
     private var titleText: String {
-        guard let meetup else { return "Meetup" }
-        if meetup.needsMyResponse(meId: meId) { return "Meetup invite" }
-        if meetup.isLive { return "Live meetup" }
-        return "Meetup"
+        guard let meetup else { return "meetup" }
+        if meetup.needsMyResponse(meId: meId) { return "meetup invite" }
+        if meetup.isLive { return "live meetup" }
+        return "meetup"
+    }
+
+    // MARK: - Header
+
+    /// Glass back button, then a Home-style title: "meetup" over the spot name.
+    private func header(_ meetup: Meetup) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Button {
+                Motion.haptic(.light)
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(campusTheme.glass))
+                    .overlay(Circle().stroke(campusTheme.border, lineWidth: 1))
+            }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+            .accessibilityLabel("Back")
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(titleText)
+                    .font(Theme.syne(34, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(meetup.spotName.lowercased())
+                    .font(Theme.syne(24, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+        }
+        .padding(.top, 6)
     }
 
     private func centerMap() {
@@ -132,11 +161,25 @@ struct MeetupDetailView: View {
     private var mapBlock: some View {
         ZStack(alignment: .bottomLeading) {
             Map(coordinateRegion: .constant(region), annotationItems: [spot]) { pin in
-                MapMarker(
-                    coordinate: CLLocationCoordinate2D(latitude: pin.latitude, longitude: pin.longitude),
-                    tint: campusTheme.primary
-                )
+                MapAnnotation(
+                    coordinate: CLLocationCoordinate2D(latitude: pin.latitude, longitude: pin.longitude)
+                ) {
+                    ZStack {
+                        Circle()
+                            .fill(campusTheme.textPrimary.opacity(0.18))
+                            .frame(width: 46, height: 46)
+                        Circle()
+                            .fill(campusTheme.textPrimary)
+                            .frame(width: 30, height: 30)
+                        Circle()
+                            .fill(campusTheme.pillText)
+                            .frame(width: 10, height: 10)
+                    }
+                    .shadow(color: Color.black.opacity(0.35), radius: 8, y: 4)
+                }
             }
+            // Dark map in dark mode so it sits in the aurora instead of glowing.
+            .environment(\.colorScheme, campusTheme.isDark ? .dark : .light)
             .disabled(true)
 
             Button {
@@ -150,93 +193,77 @@ struct MeetupDetailView: View {
                         .font(Theme.syne(12, weight: .bold))
                 }
                 .foregroundStyle(campusTheme.textPrimary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(cardStroke, lineWidth: 1)
-                )
+                .padding(.horizontal, 14)
+                .frame(height: 38)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(cardStroke, lineWidth: 1))
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
             .padding(12)
         }
-        .frame(height: 220)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .frame(height: 190)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(cardStroke, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(campusTheme.border, lineWidth: 1)
         )
     }
 
     // MARK: - Timeline
 
+    /// Same step track as the pay screens: "proposed · confirmed · paid".
     private func timelineCard(_ meetup: Meetup) -> some View {
         let current = timelineIndex(for: meetup)
-        return VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(TimelineStep.allCases.enumerated()), id: \.element) { idx, step in
-                timelineRow(
-                    step: step,
-                    meetup: meetup,
-                    index: idx,
-                    current: current,
-                    isLast: idx == TimelineStep.allCases.count - 1
-                )
+        let stopped = meetup.status == .cancelled || meetup.status == .declined
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                ForEach(TimelineStep.allCases, id: \.self) { step in
+                    let done = step.rawValue < current || (meetup.status == .completed && step == .paid)
+                    let reached = !stopped && (done || step.rawValue == current)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Group {
+                                if done && !stopped {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 9, weight: .bold))
+                                } else {
+                                    Text("\(step.rawValue + 1)")
+                                        .font(Theme.syne(11, weight: .bold))
+                                }
+                            }
+                            .foregroundStyle(reached ? campusTheme.pillText : campusTheme.textMuted)
+                            .frame(width: 22, height: 22)
+                            .background(Circle().fill(reached ? campusTheme.textPrimary : campusTheme.glassStrong))
+                            Text(step.title.lowercased())
+                                .font(Theme.syne(13, weight: step.rawValue == current ? .bold : .semibold))
+                                .foregroundStyle(reached ? campusTheme.textPrimary : campusTheme.textMuted)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                        }
+                        Capsule()
+                            .fill(reached ? campusTheme.textPrimary : campusTheme.glassStrong)
+                            .frame(height: 3)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(timelineAccessibility(step, meetup: meetup, reached: reached))
+                }
+            }
+
+            if stopped {
+                Text(meetup.status == .cancelled ? "This meetup was cancelled." : "This meetup was declined.")
+                    .font(Theme.syne(13, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
             }
         }
-        .padding(16)
-        .background(CampusCardBackground(cornerRadius: 18))
+        .padding(.horizontal, 2)
     }
 
-    private func timelineRow(
-        step: TimelineStep,
-        meetup: Meetup,
-        index: Int,
-        current: Int,
-        isLast: Bool
-    ) -> some View {
-        let done = index < current || (index == current && meetup.status == .completed && step == .paid)
-        let active = index == current && meetup.status != .cancelled && meetup.status != .declined
-        let muted = meetup.status == .cancelled || meetup.status == .declined
-        return HStack(alignment: .top, spacing: 12) {
-            VStack(spacing: 0) {
-                ZStack {
-                    Circle()
-                        .fill(active ? campusTheme.primary : (done ? campusTheme.primary.opacity(0.85) : campusTheme.elevatedSurface))
-                        .frame(width: 22, height: 22)
-                    if done && !active {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.white)
-                    } else {
-                        Circle()
-                            .fill(active ? Color.white : campusTheme.textMuted.opacity(0.35))
-                            .frame(width: 8, height: 8)
-                    }
-                }
-                if !isLast {
-                    Rectangle()
-                        .fill(index < current ? campusTheme.primary : campusTheme.border)
-                        .frame(width: 2)
-                        .frame(maxHeight: .infinity)
-                }
-            }
-            .frame(width: 22)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(step.title)
-                    .font(Theme.syne(14, weight: active ? .bold : .semibold))
-                    .foregroundStyle((active || done) && !muted ? campusTheme.textPrimary : campusTheme.textMuted)
-                if let stamp = timelineStamp(step, meetup: meetup) {
-                    Text(stamp)
-                        .font(Theme.syne(12, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                }
-            }
-            .padding(.bottom, isLast ? 0 : 16)
-            Spacer(minLength: 0)
-        }
+    private func timelineAccessibility(_ step: TimelineStep, meetup: Meetup, reached: Bool) -> String {
+        var label = step.title
+        if let stamp = timelineStamp(step, meetup: meetup) { label += ", \(stamp)" }
+        if !reached { label += ", not yet" }
+        return label
     }
 
     private func timelineIndex(for meetup: Meetup) -> Int {
@@ -265,10 +292,6 @@ struct MeetupDetailView: View {
 
     private func detailsCard(_ meetup: Meetup) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(meetup.spotName)
-                .font(Theme.syne(22, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-
             HStack(spacing: 10) {
                 AvatarView(urlString: peer.avatarURL, size: 40, initials: peer.firstName)
                 VStack(alignment: .leading, spacing: 2) {
@@ -291,7 +314,7 @@ struct MeetupDetailView: View {
                         if let price = meetupStore.priceLabel(for: meetup) {
                             Text(price)
                                 .font(Theme.syne(13, weight: .bold))
-                                .foregroundStyle(campusTheme.tint)
+                                .foregroundStyle(campusTheme.textPrimary)
                         }
                     }
                     Spacer(minLength: 0)
@@ -301,18 +324,25 @@ struct MeetupDetailView: View {
             if meetup.ticksRelativeTime {
                 TimelineView(.periodic(from: .now, by: 30)) { context in
                     Label(Self.timeLine(for: meetup, now: context.date), systemImage: "clock")
-                        .font(Theme.syne(14, weight: .bold))
-                        .foregroundStyle(campusTheme.tint)
+                        .font(Theme.syne(14, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
                 }
             } else {
                 Label(Self.timeLine(for: meetup, now: Date()), systemImage: "clock")
-                    .font(Theme.syne(14, weight: .bold))
-                    .foregroundStyle(campusTheme.tint)
+                    .font(Theme.syne(14, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(CampusCardBackground(cornerRadius: 18))
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(campusTheme.glass)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(campusTheme.border, lineWidth: 1)
+        )
     }
 
     /// Countdown plus the clock time ("in 56m · today 4:30pm") so people know when to show up.
@@ -331,11 +361,11 @@ struct MeetupDetailView: View {
                     case .success(let image):
                         image.resizable().scaledToFill()
                     default:
-                        campusTheme.elevatedSurface
+                        campusTheme.glassStrong
                     }
                 }
             } else {
-                campusTheme.elevatedSurface
+                campusTheme.glassStrong
             }
         }
         .frame(width: 52, height: 52)
@@ -367,18 +397,6 @@ struct MeetupDetailView: View {
                     }
                 }
             } else if meetup.status == .confirmed {
-                if meetup.canShowPayment() {
-                    primaryButton(
-                        meetup.amISeller(meId: meId) ? "Receive" : "Pay",
-                        systemImage: meetup.amISeller(meId: meId)
-                            ? "tray.and.arrow.down.fill"
-                            : "dollarsign.circle.fill"
-                    ) {
-                        Motion.haptic(.medium)
-                        appState.path.append(.meetupPay(meetup.id))
-                    }
-                }
-
                 if meetup.isLive {
                     HStack(spacing: 8) {
                         secondaryButton("On my way") { Task { await setOnMyWay() } }
@@ -404,21 +422,34 @@ struct MeetupDetailView: View {
                 }
             }
 
-            if !meetup.conversationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                secondaryButton("Open chat") {
-                    Motion.haptic(.light)
-                    appState.openInboxChat(
-                        conversationId: meetup.conversationId,
-                        otherUserId: meetup.otherUserId(meId: meId),
-                        productId: meetup.productId
-                    )
+            let hasChat = !meetup.conversationId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let canPay = meetup.status == .confirmed && !meetup.hasEnded() && meetup.canShowPayment()
+            if hasChat || canPay {
+                HStack(spacing: 10) {
+                    if hasChat {
+                        secondaryButton("Open chat") {
+                            Motion.haptic(.light)
+                            appState.openInboxChat(
+                                conversationId: meetup.conversationId,
+                                otherUserId: meetup.otherUserId(meId: meId),
+                                productId: meetup.productId
+                            )
+                        }
+                    }
+                    if canPay {
+                        // Same words as the chat's deal bar.
+                        primaryButton(meetup.amISeller(meId: meId) ? "Get paid" : "Pay") {
+                            Motion.haptic(.medium)
+                            appState.path.append(.meetupPay(meetup.id))
+                        }
+                        .layoutPriority(1)
+                    }
                 }
             }
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
         .padding(.bottom, 12)
-        .background(campusTheme.background.opacity(0.94))
         .opacity(isBusy ? 0.7 : 1)
     }
 
@@ -432,11 +463,10 @@ struct MeetupDetailView: View {
                 Text(title)
                     .font(Theme.syne(14, weight: .bold))
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(campusTheme.pillText)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(campusTheme.primary)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .frame(height: 52)
+            .background(Capsule().fill(campusTheme.textPrimary))
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
         .disabled(isBusy)
@@ -448,13 +478,10 @@ struct MeetupDetailView: View {
                 .font(Theme.syne(14, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Color.white.opacity(campusTheme.isDark ? 0.06 : 0.55))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(cardStroke, lineWidth: 1)
-                )
+                .frame(height: 52)
+                .background(.ultraThinMaterial, in: Capsule())
+                .background(Capsule().fill(campusTheme.glass))
+                .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
         .disabled(isBusy)
@@ -494,8 +521,8 @@ struct MeetupDetailView: View {
                         .foregroundStyle(campusTheme.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(14)
-                        .background(campusTheme.elevatedSurface)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(campusTheme.glassStrong)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
             }
@@ -524,11 +551,10 @@ struct MeetupDetailView: View {
                     } label: {
                         Text("\(minutes) min")
                             .font(Theme.syne(15, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(campusTheme.pillText)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(campusTheme.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .frame(height: 52)
+                            .background(Capsule().fill(campusTheme.textPrimary))
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                 }
