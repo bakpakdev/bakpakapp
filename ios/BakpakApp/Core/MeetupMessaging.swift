@@ -652,6 +652,12 @@ struct MeetupComposeView: View {
     @State private var proposedAt: Date = MeetupComposeView.nextDaytimeSlot()
     @State private var searchText = ""
     @State private var showSpotPicker = false
+    @State private var otherPicker: OtherPicker?
+
+    private enum OtherPicker: String, Identifiable {
+        case day, time
+        var id: String { rawValue }
+    }
     @State private var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 44.0448, longitude: -123.0725),
         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
@@ -679,7 +685,28 @@ struct MeetupComposeView: View {
                     timeChips
                         .padding(.top, 8)
 
-                    sectionLabel("Where")
+                    HStack(alignment: .firstTextBaseline) {
+                        sectionLabel("Where")
+                        Spacer()
+                        Button {
+                            Motion.haptic(.light)
+                            searchText = ""
+                            showSpotPicker = true
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("All spots")
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .font(Theme.syne(13, weight: .semibold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 18)
+                            .padding(.bottom, 8)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
                     spotCards
                 }
                 .padding(.bottom, 12)
@@ -691,7 +718,7 @@ struct MeetupComposeView: View {
                 .padding(.bottom, 12)
         }
         .padding(.top, 18)
-        .presentationDetents([.height(560), .large])
+        .presentationDetents([.height(510)])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(34)
         .presentationBackground {
@@ -722,7 +749,59 @@ struct MeetupComposeView: View {
                 .environment(\.campusTheme, campusTheme)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+                .presentationCornerRadius(34)
         }
+        .sheet(item: $otherPicker) { which in
+            otherPickerSheet(which)
+                .environment(\.campusTheme, campusTheme)
+        }
+    }
+
+    /// "Other day" / "Other time": the system picker in a small sheet of its own.
+    private func otherPickerSheet(_ which: OtherPicker) -> some View {
+        VStack(spacing: 14) {
+            HStack {
+                Text(which == .day ? "pick a day" : "pick a time")
+                    .font(Theme.syne(22, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                Spacer()
+            }
+            .padding(.top, 22)
+
+            Group {
+                if which == .day {
+                    DatePicker("Day", selection: $proposedAt, in: Date()..., displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                } else {
+                    DatePicker("Time", selection: $proposedAt, displayedComponents: .hourAndMinute)
+                        .datePickerStyle(.wheel)
+                }
+            }
+            .labelsHidden()
+            .tint(campusTheme.textPrimary)
+            .frame(maxWidth: .infinity)
+
+            Button {
+                Motion.haptic(.light)
+                proposedAt = Self.roundedToHalfHour(proposedAt)
+                otherPicker = nil
+            } label: {
+                Text("Done")
+                    .font(Theme.syne(16, weight: .bold))
+                    .foregroundStyle(campusTheme.pillText)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(Capsule().fill(campusTheme.textPrimary))
+            }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 12)
+        .presentationDetents([.height(which == .day ? 520 : 380)])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(34)
+        .preferredColorScheme(campusTheme.isDark ? .dark : .light)
+        .onDisappear { proposedAt = Self.roundedToHalfHour(proposedAt) }
     }
 
     // MARK: Header
@@ -798,10 +877,13 @@ struct MeetupComposeView: View {
                     }
                 }
                 // Any other date: the system date picker sits invisibly over this chip.
-                chipLabel(pickedOtherDay ? dayTitle(selectedDay) : "Other day", systemImage: "calendar", selected: pickedOtherDay)
-                    .overlay {
-                        HalfHourDatePicker(date: $proposedAt, minimumDate: Date(), mode: .date)
-                    }
+                Button {
+                    Motion.haptic(.light)
+                    otherPicker = .day
+                } label: {
+                    chipLabel(pickedOtherDay ? dayTitle(selectedDay) : "Other day", systemImage: "calendar", selected: pickedOtherDay)
+                }
+                .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
             }
             .padding(.horizontal, 20)
         }
@@ -835,16 +917,22 @@ struct MeetupComposeView: View {
                         }
                         .id(slot)
                     }
-                    chipLabel("Other time", systemImage: "clock", selected: false)
-                        .overlay {
-                            HalfHourDatePicker(date: $proposedAt, minimumDate: Date(), mode: .time)
-                        }
+                    Button {
+                        Motion.haptic(.light)
+                        otherPicker = .time
+                    } label: {
+                        chipLabel("Other time", systemImage: "clock", selected: false)
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
                 }
                 .padding(.horizontal, 20)
             }
             .onAppear { proxy.scrollTo(proposedAt, anchor: .center) }
-            .onChange(of: calendar.startOfDay(for: proposedAt)) { _ in
-                proxy.scrollTo(proposedAt, anchor: .center)
+            .onChange(of: proposedAt) { value in
+                // Wait a beat so a new day's chips exist before scrolling to the time.
+                DispatchQueue.main.async {
+                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(value, anchor: .center) }
+                }
             }
         }
     }
@@ -899,46 +987,32 @@ struct MeetupComposeView: View {
 
     // MARK: Where
 
-    /// Selected spot first, then the last one used, then the campus list.
-    private var orderedSpots: [CampusMeetupSpot] {
-        var front: [String] = []
-        if !selectedSpotId.isEmpty { front.append(selectedSpotId) }
-        if let last = MeetupSpotMemory.lastSpotId, !front.contains(last) { front.append(last) }
-        let pinned = front.compactMap { id in spots.first(where: { $0.id == id }) }
-        return pinned + spots.filter { !front.contains($0.id) }
+    /// The last spot used first, then the start of the campus list, capped so the row
+    /// stays short. A spot picked from "All spots" joins the front.
+    private var suggestedSpots: [CampusMeetupSpot] {
+        var ids: [String] = []
+        if let last = MeetupSpotMemory.lastSpotId, spots.contains(where: { $0.id == last }) { ids.append(last) }
+        for spot in spots where ids.count < 6 && !ids.contains(spot.id) { ids.append(spot.id) }
+        if !selectedSpotId.isEmpty, !ids.contains(selectedSpotId) { ids.insert(selectedSpotId, at: 0) }
+        return ids.compactMap { id in spots.first(where: { $0.id == id }) }
     }
 
     private var spotCards: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 10) {
-                    ForEach(orderedSpots) { spot in
+                HStack(spacing: 10) {
+                    ForEach(suggestedSpots) { spot in
                         spotCard(spot)
                             .id(spot.id)
                     }
-                    Button {
-                        Motion.haptic(.light)
-                        searchText = ""
-                        showSpotPicker = true
-                    } label: {
-                        VStack(spacing: 8) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 18, weight: .semibold))
-                            Text("All spots")
-                                .font(Theme.syne(13, weight: .bold))
-                        }
-                        .foregroundStyle(campusTheme.textPrimary)
-                        .frame(width: 104, height: 132)
-                        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(campusTheme.glass))
-                        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(campusTheme.border, lineWidth: 1))
-                    }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 2)
             }
             .onChange(of: selectedSpotId) { id in
-                withAnimation { proxy.scrollTo(id, anchor: .leading) }
+                DispatchQueue.main.async {
+                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id) }
+                }
             }
         }
     }
@@ -953,7 +1027,7 @@ struct MeetupComposeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 ZStack {
                     if hasCoordinate {
-                        Map(coordinateRegion: .constant(MeetupMaps.region(for: spot, span: 0.004)))
+                        MiniSpotMap(region: MeetupMaps.region(for: spot, span: 0.004))
                             .environment(\.colorScheme, campusTheme.isDark ? .dark : .light)
                             .allowsHitTesting(false)
                     } else {
@@ -973,6 +1047,7 @@ struct MeetupComposeView: View {
                         .font(Theme.syne(13, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
                         .lineLimit(2)
+                        .minimumScaleFactor(0.75)
                         .multilineTextAlignment(.leading)
                     if spot.id == MeetupSpotMemory.lastSpotId {
                         Text("Last used")
@@ -1031,8 +1106,30 @@ struct MeetupComposeView: View {
     }
 
     private var spotPickerSheet: some View {
-        NavigationStack {
+        Group {
             VStack(spacing: 0) {
+                HStack {
+                    Text("all spots")
+                        .font(Theme.syne(24, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                    Spacer()
+                    Button {
+                        Motion.haptic(.light)
+                        showSpotPicker = false
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                            .frame(width: 38, height: 38)
+                            .background(Circle().fill(campusTheme.glass))
+                            .overlay(Circle().stroke(campusTheme.border, lineWidth: 1))
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+                    .accessibilityLabel("Close")
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 22)
+
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 14, weight: .semibold))
@@ -1040,14 +1137,14 @@ struct MeetupComposeView: View {
                     TextField("Search dorms & spots", text: $searchText)
                         .font(Theme.syne(14, weight: .medium))
                         .foregroundStyle(campusTheme.textPrimary)
-                        .tint(campusTheme.primary)
+                        .tint(campusTheme.textPrimary)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .background(campusTheme.elevatedSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .padding(.horizontal, 16)
-                .padding(.top, 12)
+                .frame(height: 46)
+                .background(Capsule().fill(campusTheme.glass))
+                .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
                 .padding(.bottom, 8)
 
                 ScrollView {
@@ -1063,7 +1160,7 @@ struct MeetupComposeView: View {
                                         .font(.system(size: 18, weight: .semibold))
                                         .foregroundStyle(
                                             selectedSpotId == spot.id
-                                                ? campusTheme.primary
+                                                ? campusTheme.textPrimary
                                                 : campusTheme.textMuted
                                         )
 
@@ -1078,7 +1175,7 @@ struct MeetupComposeView: View {
                                 .padding(.vertical, 14)
                                 .background(
                                     selectedSpotId == spot.id
-                                        ? campusTheme.primary.opacity(0.08)
+                                        ? campusTheme.glass
                                         : Color.clear
                                 )
                                 .contentShape(Rectangle())
@@ -1092,15 +1189,14 @@ struct MeetupComposeView: View {
                     }
                 }
             }
-            .background(campusTheme.background.ignoresSafeArea())
-            .navigationTitle("Meetup spot")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showSpotPicker = false }
-                        .font(Theme.syne(15, weight: .semibold))
-                }
+            .toolbar(.hidden, for: .navigationBar)
+        }
+        .presentationBackground {
+            ZStack {
+                Rectangle().fill(.ultraThinMaterial)
+                campusTheme.background.opacity(campusTheme.isDark ? 0.72 : 0.6)
             }
+            .ignoresSafeArea()
         }
     }
 
@@ -1461,6 +1557,20 @@ struct MeetupInviteBubble: View {
         switch status {
         case .accepted: return campusTheme.primary
         default: return campusTheme.textMuted
+        }
+    }
+}
+
+/// Small non-interactive map for a spot card, without points of interest where the OS allows.
+private struct MiniSpotMap: View {
+    let region: MKCoordinateRegion
+
+    var body: some View {
+        if #available(iOS 17.0, *) {
+            Map(initialPosition: .region(region), interactionModes: [])
+                .mapStyle(.standard(pointsOfInterest: .excludingAll))
+        } else {
+            Map(coordinateRegion: .constant(region))
         }
     }
 }
