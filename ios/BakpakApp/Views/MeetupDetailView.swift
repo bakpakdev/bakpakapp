@@ -159,7 +159,8 @@ struct MeetupDetailView: View {
     // MARK: - Map
 
     private var mapBlock: some View {
-        ZStack(alignment: .bottomLeading) {
+        // Directions sits top-right so Apple's map attribution (bottom) stays visible.
+        ZStack(alignment: .topTrailing) {
             Map(coordinateRegion: .constant(region), annotationItems: [spot]) { pin in
                 MapAnnotation(
                     coordinate: CLLocationCoordinate2D(latitude: pin.latitude, longitude: pin.longitude)
@@ -252,6 +253,10 @@ struct MeetupDetailView: View {
 
             if stopped {
                 Text(meetup.status == .cancelled ? "This meetup was cancelled." : "This meetup was declined.")
+                    .font(Theme.syne(13, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+            } else if meetup.status != .completed && meetup.hasEnded() {
+                Text("This meetup has passed without a payment.")
                     .font(Theme.syne(13, weight: .semibold))
                     .foregroundStyle(campusTheme.textMuted)
             }
