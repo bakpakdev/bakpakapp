@@ -148,6 +148,24 @@ struct MeetupPayFlowView: View {
         return "You get the full \(sessionAmountLabel). The buyer pays popup’s service fee on top."
     }
 
+    /// The first-time tip for whatever this screen is asking the person to do right now.
+    private var activeTip: FirstTimeTip? {
+        guard paymentOutcome == nil, !showBuyerSentAnimation, !showSellerReceivedCard, !paymentConfirmed else {
+            return nil
+        }
+        switch step {
+        case .confirm:
+            return isCollecting ? .sellerConfirm : .buyerConfirm
+        case .pay:
+            if isCollecting {
+                return activeSession?.status == "waiting" ? .sellerWaiting : .sellerReceive
+            }
+            return buyerCanPay ? .buyerPayButton : .buyerWaitForSeller
+        case .done:
+            return nil
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             CampusPageBackground()
@@ -192,6 +210,8 @@ struct MeetupPayFlowView: View {
             }
         }
         .campusPageStyle()
+        // After campusPageStyle so the dim also covers its top-edge scrim.
+        .spotlight(activeTip)
         .overlay {
             if showBuyerSentAnimation {
                 BuyerSentOverlay(
@@ -283,44 +303,44 @@ struct MeetupPayFlowView: View {
 
     // MARK: - Steps chrome
 
+    /// "1 confirm · 2 pay · 3 done" with a thin glass progress track under each step.
     private var stepIndicator: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 8) {
             ForEach(MeetupPayStep.allCases, id: \.rawValue) { s in
-                let active = step.rawValue >= s.rawValue
-                VStack(spacing: 8) {
-                    ZStack {
-                        Circle()
-                            .fill(active ? campusTheme.primary : campusTheme.elevatedSurface)
-                            .frame(width: 36, height: 36)
-                        if step.rawValue > s.rawValue {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white)
-                        } else {
-                            Text("\(s.rawValue + 1)")
-                                .font(Theme.syne(15, weight: .semibold))
-                                .foregroundStyle(active ? .white : campusTheme.textMuted)
+                let reached = step.rawValue >= s.rawValue
+                let current = step == s
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Group {
+                            if step.rawValue > s.rawValue {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 9, weight: .bold))
+                            } else {
+                                Text("\(s.rawValue + 1)")
+                                    .font(Theme.syne(11, weight: .bold))
+                            }
                         }
+                        .foregroundStyle(reached ? campusTheme.pillText : campusTheme.textMuted)
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(reached ? campusTheme.textPrimary : campusTheme.glassStrong))
+                        Text(s.title(collecting: isCollecting).lowercased())
+                            .font(Theme.syne(13, weight: current ? .bold : .semibold))
+                            .foregroundStyle(reached ? campusTheme.textPrimary : campusTheme.textMuted)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
-                    Text(s.title(collecting: isCollecting).lowercased())
-                        .font(Theme.syne(13, weight: .semibold))
-                        .foregroundStyle(active ? campusTheme.textPrimary : campusTheme.textMuted)
+                    Capsule()
+                        .fill(reached ? campusTheme.textPrimary : campusTheme.glassStrong)
+                        .frame(height: 3)
                 }
-                .frame(maxWidth: .infinity)
-
-                if s != .done {
-                    Rectangle()
-                        .fill(step.rawValue > s.rawValue ? campusTheme.primary : campusTheme.border)
-                        .frame(height: 2)
-                        .clipShape(Capsule())
-                        .padding(.bottom, 22)
-                        .offset(y: -10)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(current ? .isSelected : [])
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 18)
-        .background(CampusCardBackground())
+        .padding(.horizontal, 2)
+        .padding(.vertical, 6)
+        .animation(Motion.snappy, value: step)
     }
 
     // MARK: - Step content
@@ -396,7 +416,8 @@ struct MeetupPayFlowView: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity)
-            .background(CampusCardBackground())
+            .background(PayGlassCard())
+            .spotlightTarget(.sellerWaiting)
 
             if activeSession?.status != "waiting" {
                 Button {
@@ -404,15 +425,16 @@ struct MeetupPayFlowView: View {
                 } label: {
                     Text(isPaymentBusy ? "Opening…" : "Receive")
                         .font(Theme.syne(16, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(campusTheme.pillText)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
-                        .background(campusTheme.primary)
+                        .background(campusTheme.textPrimary)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
                 .disabled(isPaymentBusy || (item.productId ?? "").isEmpty || !bothPresent)
                 .opacity(bothPresent ? 1 : 0.5)
+                .spotlightTarget(.sellerReceive)
             } else if let sessionId = activeSession?.id {
                 Button(role: .destructive) {
                     Task { await cancelSellerSession(sessionId: sessionId) }
@@ -465,7 +487,7 @@ struct MeetupPayFlowView: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity)
-            .background(CampusCardBackground())
+            .background(PayGlassCard())
 
             if buyerCanPay {
                 if canUseApplePayUI {
@@ -477,21 +499,23 @@ struct MeetupPayFlowView: View {
                     }
                     .disabled(isPaymentBusy || (item.productId ?? "").isEmpty || !bothPresent)
                     .opacity(bothPresent ? 1 : 0.5)
+                    .spotlightTarget(.buyerPayButton)
                 } else {
                     Button {
                         Task { await startBuyerPay() }
                     } label: {
                         Text(isPaymentBusy ? "Opening…" : "Pay with card")
                             .font(Theme.syne(16, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(campusTheme.pillText)
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
-                            .background(campusTheme.primary)
+                            .background(campusTheme.textPrimary)
                             .clipShape(Capsule())
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
                     .disabled(isPaymentBusy || (item.productId ?? "").isEmpty || !bothPresent)
                     .opacity(bothPresent ? 1 : 0.5)
+                    .spotlightTarget(.buyerPayButton)
                 }
             } else {
                 HStack(spacing: 10) {
@@ -503,7 +527,7 @@ struct MeetupPayFlowView: View {
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(campusTheme.elevatedSurface)
+                .background(campusTheme.glassStrong)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 Button {
@@ -514,10 +538,11 @@ struct MeetupPayFlowView: View {
                         .foregroundStyle(campusTheme.textPrimary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
-                        .background(campusTheme.elevatedSurface)
+                        .background(campusTheme.glassStrong)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
+                .spotlightTarget(.buyerWaitForSeller)
             }
 
             Text(paymentConfirmed
@@ -585,7 +610,7 @@ struct MeetupPayFlowView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(CampusCardBackground())
+        .background(PayGlassCard())
     }
 
     private var presenceBanner: some View {
@@ -619,7 +644,7 @@ struct MeetupPayFlowView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(campusTheme.elevatedSurface)
+        .background(campusTheme.glassStrong)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .accessibilityElement(children: .combine)
     }
@@ -646,7 +671,7 @@ struct MeetupPayFlowView: View {
                 .frame(width: 42, height: 42)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(campusTheme.surface)
+                        .fill(campusTheme.glassStrong)
                 )
             Text("Meet in a public campus spot. Only confirm after payment actually goes through.")
                 .font(Theme.syne(13))
@@ -654,7 +679,7 @@ struct MeetupPayFlowView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(campusTheme.elevatedSurface)
+        .background(campusTheme.glassStrong)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
@@ -687,7 +712,7 @@ struct MeetupPayFlowView: View {
                         .foregroundStyle(campusTheme.textPrimary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
-                        .background(campusTheme.elevatedSurface)
+                        .background(campusTheme.glassStrong)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
@@ -702,15 +727,16 @@ struct MeetupPayFlowView: View {
                 } label: {
                     Text(primaryButtonTitle)
                         .font(Theme.syne(15, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(campusTheme.pillText)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
-                        .background(campusTheme.primary)
+                        .background(campusTheme.textPrimary)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
                 .disabled(primaryButtonBlocked)
                 .opacity(primaryButtonBlocked ? 0.5 : 1)
+                .spotlightTarget(step == .confirm ? (isCollecting ? .sellerConfirm : .buyerConfirm) : nil)
             }
         }
     }
@@ -1029,10 +1055,10 @@ private struct BuyerSentOverlay: View {
                 Button(action: onContinue) {
                     Text("continue")
                         .font(Theme.syne(15, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(campusTheme.pillText)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
-                        .background(campusTheme.primary)
+                        .background(campusTheme.textPrimary)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
@@ -1080,7 +1106,7 @@ private struct SellerReceivedOverlay: View {
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(CampusCardBackground())
+                .background(PayGlassCard())
                 .padding(.horizontal, 20)
                 .offset(y: appeared ? 0 : -420)
                 .opacity(appeared ? 1 : 0)
@@ -1090,10 +1116,10 @@ private struct SellerReceivedOverlay: View {
                 Button(action: onContinue) {
                     Text("continue")
                         .font(Theme.syne(15, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(campusTheme.pillText)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
-                        .background(campusTheme.primary)
+                        .background(campusTheme.textPrimary)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
@@ -1206,10 +1232,10 @@ struct SaleReceiptView: View {
                     Text(isSeller ? "Received" : "Paid")
                         .font(Theme.syne(12, weight: .semibold))
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(campusTheme.pillText)
                 .padding(.horizontal, 12)
                 .frame(height: 28)
-                .background(campusTheme.primary)
+                .background(campusTheme.textPrimary)
                 .clipShape(Capsule())
             }
 
@@ -1272,7 +1298,7 @@ struct SaleReceiptView: View {
         }
         .padding(22)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(CampusCardBackground())
+        .background(PayGlassCard())
         .accessibilityElement(children: .combine)
     }
 
@@ -1317,7 +1343,7 @@ struct SaleReceiptView: View {
                             .foregroundStyle(star <= rating ? .white : campusTheme.textPrimary)
                             .frame(width: 46, height: 46)
                             .background(
-                                Circle().fill(star <= rating ? campusTheme.primary : campusTheme.elevatedSurface)
+                                Circle().fill(star <= rating ? campusTheme.primary : campusTheme.glassStrong)
                             )
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.9))
@@ -1336,7 +1362,7 @@ struct SaleReceiptView: View {
                     .padding(.vertical, 14)
                     .background(
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(campusTheme.elevatedSurface)
+                            .fill(campusTheme.glassStrong)
                     )
                     .onChange(of: comment) { value in
                         if value.count > 600 { comment = String(value.prefix(600)) }
@@ -1353,14 +1379,14 @@ struct SaleReceiptView: View {
                     Task { await send() }
                 } label: {
                     HStack(spacing: 8) {
-                        if isSending { ProgressView().tint(.white) }
+                        if isSending { ProgressView().tint(campusTheme.pillText) }
                         Text(isSending ? "Posting…" : "Post review")
                             .font(Theme.syne(15, weight: .semibold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(campusTheme.pillText)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
-                    .background(campusTheme.primary)
+                    .background(campusTheme.textPrimary)
                     .clipShape(Capsule())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
@@ -1375,7 +1401,7 @@ struct SaleReceiptView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(CampusCardBackground())
+        .background(PayGlassCard())
     }
 
     private func send() async {
@@ -1512,3 +1538,18 @@ struct SaleReceiptDebugPreview: View {
     }
 }
 #endif
+
+/// Translucent card for the pay flow: the aurora shows through, like Home's glass.
+private struct PayGlassCard: View {
+    var cornerRadius: CGFloat = 26
+    @Environment(\.campusTheme) private var campusTheme
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(campusTheme.glass)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(campusTheme.border, lineWidth: 1)
+            )
+    }
+}

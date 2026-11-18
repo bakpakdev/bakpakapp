@@ -67,6 +67,7 @@ struct InboxThreadView: View {
             composer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .spotlight(chatTip)
         .background(campusTheme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
@@ -95,7 +96,7 @@ struct InboxThreadView: View {
         .task { await bootstrap() }
         .task { await serviceFee.refreshIfNeeded() }
         .onDisappear { vm.stopLiveUpdates() }
-        .fullScreenCover(isPresented: $showMeetupPicker) {
+        .sheet(isPresented: $showMeetupPicker) {
             MeetupComposeView(
                 spots: campusTheme.meetupLocations,
                 screenTitle: meetupDraft.screenTitle,
@@ -500,6 +501,13 @@ struct InboxThreadView: View {
         return parts.joined(separator: " · ")
     }
 
+    /// First-time tip on the deal bar's Get paid / Pay button.
+    private var chatTip: FirstTimeTip? {
+        guard showMessages, case let .confirmed(meetup, _)? = dealState,
+              let meetup, meetup.canShowPayment() else { return nil }
+        return meetup.amISeller(meId: authVM.user?.id ?? "") ? .sellerGetPaid : .buyerPay
+    }
+
     @ViewBuilder
     private var dealBar: some View {
         if showMessages, let state = dealState {
@@ -559,7 +567,8 @@ struct InboxThreadView: View {
                             : ("Directions", {
                                 MeetupMaps.open(spotId: payload.spotId, spotName: payload.spotName, theme: campusTheme)
                             }),
-                        secondary: meetup.map { m in ("Details", { appState.path.append(.meetupDetail(m.id)) }) }
+                        secondary: meetup.map { m in ("Details", { appState.path.append(.meetupDetail(m.id)) }) },
+                        primaryTip: canPay ? (isSeller ? .sellerGetPaid : .buyerPay) : nil
                     )
                 }
             }
@@ -576,7 +585,8 @@ struct InboxThreadView: View {
         detail: String,
         primary: (String, () -> Void)?,
         secondary: (String, () -> Void)?,
-        primaryIsQuiet: Bool = false
+        primaryIsQuiet: Bool = false,
+        primaryTip: FirstTimeTip? = nil
     ) -> some View {
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
@@ -616,6 +626,7 @@ struct InboxThreadView: View {
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .spotlightTarget(primaryTip)
             }
         }
         .padding(12)

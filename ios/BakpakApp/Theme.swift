@@ -162,6 +162,11 @@ struct CampusTheme: Equatable {
         isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
     }
 
+    /// Text on a solid `textPrimary` pill (white pill in dark mode, ink pill in light).
+    var pillText: Color {
+        isDark ? PopupBrand.buttonText : Color.white
+    }
+
     var textPrimary: Color {
         if isMono { return isDark ? PopupBrand.textPrimary : PopupBrand.background }
         return isDark ? Color.white : Color(hex: "#151817")
