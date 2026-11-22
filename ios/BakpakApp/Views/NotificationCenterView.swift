@@ -245,15 +245,23 @@ enum NotificationText {
 struct NotificationCenterView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var meetupStore: MeetupStore
     @Environment(\.campusTheme) private var campusTheme
 
     @State private var notifications: [AppNotification] = []
     @State private var isLoading = false
+    @State private var filter: NotificationFilter = .all
+    /// Listing photo per product id (lowercased), so each row shows the item it's about.
+    @State private var productImages: [String: String] = [:]
 
     private let messageService = MessageService()
 
     private var unreadCount: Int {
         NotificationCenterStore.unreadCount(in: notifications)
+    }
+
+    private var filtered: [AppNotification] {
+        notifications.filter { filter.includes($0) }
     }
 
     var body: some View {
@@ -262,168 +270,253 @@ struct NotificationCenterView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    header
-                        .padding(.top, 4)
-                        .padding(.bottom, 22)
+                    filterChips
+                        .padding(.top, 6)
+                        .padding(.bottom, 8)
 
                     if isLoading && notifications.isEmpty {
                         ProgressView()
-                            .tint(campusTheme.primary)
+                            .tint(campusTheme.textPrimary)
                             .frame(maxWidth: .infinity)
                             .padding(.top, 60)
-                    } else if notifications.isEmpty {
+                    } else if filtered.isEmpty {
                         emptyState
                     } else {
-                        Text(unreadCount > 0 ? "new · \(unreadCount)" : "recent")
-                            .font(Theme.syne(18, weight: .semibold))
-                            .foregroundStyle(campusTheme.textPrimary)
-                            .padding(.bottom, 12)
+                        ForEach(NotificationSection.group(filtered), id: \.title) { section in
+                            Text(section.title)
+                                .font(Theme.syne(11, weight: .bold))
+                                .tracking(1.3)
+                                .textCase(.uppercase)
+                                .foregroundStyle(campusTheme.textMuted)
+                                .padding(.top, 18)
+                                .padding(.bottom, 4)
+                                .padding(.horizontal, 4)
 
-                        LazyVStack(spacing: 10) {
-                            ForEach(notifications) { item in
+                            ForEach(Array(section.items.enumerated()), id: \.element.id) { index, item in
+                                if index > 0 {
+                                    Rectangle()
+                                        .fill(campusTheme.textPrimary.opacity(0.08))
+                                        .frame(height: 1)
+                                        .padding(.leading, 64)
+                                }
                                 notificationRow(item)
                             }
                         }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 18)
                 .padding(.bottom, 32)
             }
             .refreshable { await reload() }
         }
         .campusPageStyle()
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("notifications")
+                    .font(Theme.syne(17, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if unreadCount > 0 {
+                    Button {
+                        Motion.haptic(.light)
+                        Task { await markAllRead() }
+                    } label: {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(campusTheme.textPrimary)
+                    }
+                    .accessibilityLabel("Mark all read")
+                }
+            }
+        }
         .task { await reload() }
     }
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("notifications")
-                    .font(Theme.syne(36, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text("messages, offers & meetups")
-                    .font(Theme.syne(28, weight: .semibold))
-                    .foregroundStyle(campusTheme.textMuted)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+    // MARK: - Filters
+
+    private var filterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                ForEach(NotificationFilter.allCases, id: \.self) { option in
+                    filterChip(option)
+                }
             }
+            .padding(.horizontal, 2)
+            .padding(.vertical, 2)
+        }
+    }
 
-            Spacer(minLength: 8)
+    private func filterChip(_ option: NotificationFilter) -> some View {
+        let isOn = filter == option
+        let count = notifications.filter { !$0.isRead && option.includes($0) }.count
+        let onText: Color = campusTheme.isDark ? .black : .white
 
-            if unreadCount > 0 {
-                Button {
-                    Motion.haptic(.light)
-                    Task { await markAllRead() }
-                } label: {
-                    Image(systemName: "checkmark.circle")
-                        .font(.system(size: 22, weight: .semibold))
+        return Button {
+            Motion.haptic(.light)
+            withAnimation(.easeOut(duration: 0.2)) { filter = option }
+        } label: {
+            HStack(spacing: 6) {
+                Text(option.label)
+                    .font(Theme.syne(13, weight: .semibold))
+                if count > 0 {
+                    Text("\(count)")
+                        .font(Theme.syne(10, weight: .bold))
                         .foregroundStyle(campusTheme.textPrimary)
-                        .frame(width: 62, height: 62)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
                         .background(
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .fill(campusTheme.elevatedSurface)
+                            Capsule().fill(isOn ? onText : campusTheme.textPrimary.opacity(0.16))
                         )
                 }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.94))
-                .accessibilityLabel("Mark all read")
             }
+            .foregroundStyle(isOn ? onText : campusTheme.textPrimary)
+            .padding(.horizontal, 14)
+            .frame(height: 36)
+            .background {
+                if isOn {
+                    Capsule().fill(campusTheme.textPrimary)
+                } else {
+                    Color.clear.notificationGlass(Capsule(), isDark: campusTheme.isDark)
+                }
+            }
+            .contentShape(Capsule())
         }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
+    // MARK: - Empty
+
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "bell")
-                .font(.system(size: 24, weight: .semibold))
+        VStack(spacing: 10) {
+            Image(systemName: filter.emptyIcon)
+                .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
-                .frame(width: 62, height: 62)
-                .background(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(campusTheme.elevatedSurface)
-                )
-            Text("you're all caught up")
-                .font(Theme.syne(18, weight: .semibold))
+                .frame(width: 56, height: 56)
+                .background(Color.clear.notificationGlass(Circle(), isDark: campusTheme.isDark))
+            Text(filter == .all ? "you're all caught up" : "no \(filter.label) yet")
+                .font(Theme.syne(17, weight: .semibold))
                 .foregroundStyle(campusTheme.textPrimary)
-            Text("New messages, offers, and meetup updates will show up here for two weeks.")
-                .font(Theme.syne(14, weight: .regular))
+            Text("New messages, offers and meetup updates show up here for two weeks.")
+                .font(Theme.syne(13, weight: .regular))
                 .foregroundStyle(campusTheme.textMuted)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 24)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 36)
-        .background(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(campusTheme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .stroke(campusTheme.border, lineWidth: 1)
-                )
-        )
+        .padding(.top, 70)
     }
+
+    // MARK: - Row
 
     private func notificationRow(_ item: AppNotification) -> some View {
         Button {
             Motion.haptic(.light)
             Task { await handleTap(item) }
         } label: {
-            HStack(alignment: .top, spacing: 14) {
-                Image(systemName: item.kind.systemImage)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(item.isRead ? campusTheme.textMuted : campusTheme.primary)
-                    .frame(width: 52, height: 52)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(campusTheme.elevatedSurface)
-                    )
+            HStack(alignment: .center, spacing: 12) {
+                thumbnail(for: item)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(item.kind.title.lowercased())
-                            .font(Theme.syne(12, weight: .semibold))
-                            .foregroundStyle(campusTheme.textMuted)
-                        Spacer(minLength: 8)
-                        Text(relativeTime(item.createdAt))
-                            .font(Theme.syne(11, weight: .medium))
-                            .foregroundStyle(campusTheme.textMuted)
-                    }
-
+                VStack(alignment: .leading, spacing: 3) {
                     Text(item.headline)
-                        .font(Theme.syne(15, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary.opacity(item.isRead ? 0.75 : 1))
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .font(Theme.syne(14.5, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .lineLimit(1)
 
                     // Older saved rows may still hold raw meetup/offer codes, so clean them up here too.
                     Text(NotificationText.readable(item.body))
-                        .font(Theme.syne(14, weight: .regular))
+                        .font(Theme.syne(12.5, weight: .regular))
                         .foregroundStyle(campusTheme.textMuted)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
+                        .lineLimit(1)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                if !item.isRead {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 8, height: 8)
-                        .padding(.top, 6)
+                VStack(alignment: .trailing, spacing: 7) {
+                    Text(relativeTime(item.createdAt))
+                        .font(Theme.syne(11, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                    if !item.isRead {
+                        Circle()
+                            .fill(campusTheme.textPrimary)
+                            .frame(width: 8, height: 8)
+                            .overlay(
+                                Circle()
+                                    .stroke(campusTheme.textPrimary.opacity(0.18), lineWidth: 3)
+                                    .frame(width: 13, height: 13)
+                            )
+                            .accessibilityLabel("Unread")
+                    }
                 }
             }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(campusTheme.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 26, style: .continuous)
-                            .stroke(
-                                item.isRead ? campusTheme.border : campusTheme.primary.opacity(0.28),
-                                lineWidth: 1
-                            )
-                    )
-            )
+            .padding(.vertical, 11)
+            .padding(.horizontal, 4)
+            .opacity(item.isRead ? 0.62 : 1)
+            .contentShape(Rectangle())
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+    }
+
+    @ViewBuilder
+    private func thumbnail(for item: AppNotification) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        let icon = Image(systemName: Self.icon(for: item))
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(campusTheme.textPrimary)
+
+        if let url = imageURL(for: item).flatMap(URL.init(string:)) {
+            AsyncImage(url: url) { phase in
+                if case .success(let image) = phase {
+                    image.resizable().scaledToFill()
+                } else {
+                    Color.clear.notificationGlass(shape, isDark: campusTheme.isDark)
+                        .overlay(icon)
+                }
+            }
+            .frame(width: 48, height: 48)
+            .clipShape(shape)
+            .overlay(shape.stroke(campusTheme.textPrimary.opacity(0.1), lineWidth: 1))
+        } else {
+            Color.clear
+                .notificationGlass(shape, isDark: campusTheme.isDark)
+                .frame(width: 48, height: 48)
+                .overlay(icon)
+        }
+    }
+
+    private func imageURL(for item: AppNotification) -> String? {
+        if let productId = item.productId?.lowercased(), let url = productImages[productId] {
+            return url
+        }
+        if let meetupId = item.meetupId, let meetup = meetupStore.meetup(id: meetupId) {
+            return meetupStore.listing(for: meetup)?.imageURL
+        }
+        return nil
+    }
+
+    private static func icon(for item: AppNotification) -> String {
+        switch item.kind {
+        case .message: return "bubble.left.fill"
+        case .offer: return "dollarsign"
+        case .meetup:
+            let text = "\(item.headline) \(item.body)".lowercased()
+            if text.contains("confirm") || text.contains("accept") { return "checkmark" }
+            if text.contains("declin") || text.contains("cancel") { return "xmark" }
+            return "mappin"
+        }
+    }
+
+    private func loadProductImages() async {
+        let ids = Set(notifications.compactMap { $0.productId?.lowercased() })
+            .subtracting(productImages.keys)
+        guard !ids.isEmpty, let client = SupabaseManager.shared.client() else { return }
+        guard let products = try? await SupabaseProductService.fetchProductsByIds(client: client, ids: Array(ids)) else { return }
+        var next = productImages
+        for product in products {
+            let url = product.images?.first(where: { $0.isPrimary == true })?.url ?? product.images?.first?.url
+            if let url { next[product.id.lowercased()] = url }
+        }
+        productImages = next
     }
 
     private func handleTap(_ item: AppNotification) async {
@@ -560,6 +653,7 @@ struct NotificationCenterView: View {
             let meetupRows = rows.compactMap { Self.appNotification(from: $0) }
             notifications = NotificationCenterStore.mergeServer(meetupRows)
         }
+        await loadProductImages()
     }
 
     private static func appNotification(from row: MeetupService.ServerNotification) -> AppNotification? {
@@ -581,7 +675,7 @@ struct NotificationCenterView: View {
 
     private func relativeTime(_ date: Date) -> String {
         let seconds = Int(Date().timeIntervalSince(date))
-        if seconds < 60 { return "Just now" }
+        if seconds < 60 { return "now" }
         if seconds < 3600 { return "\(seconds / 60)m" }
         if seconds < 86400 { return "\(seconds / 3600)h" }
         if seconds < 86400 * 7 { return "\(seconds / 86400)d" }
@@ -589,5 +683,83 @@ struct NotificationCenterView: View {
         f.dateStyle = .short
         f.timeStyle = .none
         return f.string(from: date)
+    }
+}
+
+// MARK: - Filters and sections
+
+private enum NotificationFilter: CaseIterable {
+    case all, meetups, offers, chats
+
+    var label: String {
+        switch self {
+        case .all: return "all"
+        case .meetups: return "meetups"
+        case .offers: return "offers"
+        case .chats: return "chats"
+        }
+    }
+
+    var emptyIcon: String {
+        switch self {
+        case .all: return "bell"
+        case .meetups: return "mappin"
+        case .offers: return "dollarsign"
+        case .chats: return "bubble.left"
+        }
+    }
+
+    func includes(_ item: AppNotification) -> Bool {
+        switch self {
+        case .all: return true
+        case .meetups: return item.kind == .meetup
+        case .offers: return item.kind == .offer
+        case .chats: return item.kind == .message
+        }
+    }
+}
+
+private struct NotificationSection {
+    let title: String
+    let items: [AppNotification]
+
+    /// "today", "this week", "earlier", keeping the newest-first order inside each.
+    static func group(_ items: [AppNotification], now: Date = Date()) -> [NotificationSection] {
+        let calendar = Calendar.current
+        let weekAgo = calendar.date(byAdding: .day, value: -7, to: calendar.startOfDay(for: now)) ?? now
+        var today: [AppNotification] = []
+        var week: [AppNotification] = []
+        var earlier: [AppNotification] = []
+        for item in items.sorted(by: { $0.createdAt > $1.createdAt }) {
+            if calendar.isDate(item.createdAt, inSameDayAs: now) {
+                today.append(item)
+            } else if item.createdAt >= weekAgo {
+                week.append(item)
+            } else {
+                earlier.append(item)
+            }
+        }
+        return [
+            NotificationSection(title: "today", items: today),
+            NotificationSection(title: "this week", items: week),
+            NotificationSection(title: "earlier", items: earlier),
+        ].filter { !$0.items.isEmpty }
+    }
+}
+
+private extension View {
+    /// See-through glass for chips and thumbnails on the aurora: Liquid Glass on iOS 26,
+    /// frosted material with a light rim before that.
+    @ViewBuilder
+    func notificationGlass<S: InsettableShape>(_ shape: S, isDark: Bool) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular, in: shape)
+        } else {
+            self
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(
+                    shape.strokeBorder(Color.white.opacity(isDark ? 0.16 : 0.7), lineWidth: 1)
+                )
+        }
     }
 }
