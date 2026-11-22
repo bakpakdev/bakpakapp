@@ -186,17 +186,18 @@ struct ChangeUsernameView: View {
         .sheet(isPresented: $showConfirm) {
             confirmSheet
                 .environment(\.campusTheme, campusTheme)
-                .presentationDetents([.height(470)])
+                .presentationDetents([.height(440)])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(38)
                 .presentationBackground(.ultraThinMaterial)
                 .interactiveDismissDisabled(isSaving)
         }
-        .onAppear {
-            check.currentUsername = currentUsername
-            if !effectiveStatus.locked {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { fieldFocused = true }
-            }
+        .onAppear { check.currentUsername = currentUsername }
+        .task {
+            // Focus after the push animation settles, or the keyboard request gets dropped.
+            guard !effectiveStatus.locked else { return }
+            try? await Task.sleep(nanoseconds: 650_000_000)
+            fieldFocused = true
         }
     }
 
@@ -432,7 +433,7 @@ struct ChangeUsernameView: View {
                     .padding(.top, 10)
             }
 
-            Spacer(minLength: 14)
+            Color.clear.frame(height: 20)
 
             VStack(spacing: 10) {
                 UsernamePillButton(title: "yes, switch", isLoading: isSaving) {
@@ -446,6 +447,7 @@ struct ChangeUsernameView: View {
         .padding(.horizontal, 22)
         .padding(.top, 30)
         .padding(.bottom, 18)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     private func commit() async {
