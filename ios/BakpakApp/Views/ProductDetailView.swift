@@ -235,6 +235,35 @@ struct ProductDetailView: View {
             )
             .ignoresSafeArea()
             .zIndex(10)
+        } else if showLowerPriceOptions, let product {
+            ChoiceActionCard(
+                title: product.hasDiscount ? "change the price" : "lower the price",
+                message: "Pick how you want to drop it.",
+                icon: "arrow.down.circle",
+                options: [
+                    .init(
+                        icon: "tag",
+                        title: product.hasDiscount ? "Change the discount" : "Discount it for everyone",
+                        subtitle: "Everyone sees the new price and the savings"
+                    ) {
+                        showLowerPriceOptions = false
+                        pushOwnerRoute(.setDiscount(productId))
+                    },
+                    .init(
+                        icon: "heart",
+                        title: "Send a private offer",
+                        subtitle: stats.likes > 0
+                            ? "Only to \(stats.likes == 1 ? "the 1 person" : "the \(stats.likes) people") who liked it"
+                            : "Only to people who like it"
+                    ) {
+                        showLowerPriceOptions = false
+                        pushOwnerRoute(.sendOffers(productId))
+                    },
+                ],
+                onCancel: { showLowerPriceOptions = false }
+            )
+            .ignoresSafeArea()
+            .zIndex(10)
         } else if showCopyConfirm {
             ConfirmActionCard(
                 title: "copy listing?",
@@ -379,15 +408,6 @@ struct ProductDetailView: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 40)
-        }
-        .confirmationDialog("Lower the price", isPresented: $showLowerPriceOptions, titleVisibility: .visible) {
-            Button(product.hasDiscount ? "Change the discount for everyone" : "Discount it for everyone") {
-                pushOwnerRoute(.setDiscount(productId))
-            }
-            Button(stats.likes > 0 ? "Send a private offer to \(stats.likes == 1 ? "the 1 person" : "the \(stats.likes) people") who liked it" : "Send a private offer to people who like it") {
-                pushOwnerRoute(.sendOffers(productId))
-            }
-            Button("Cancel", role: .cancel) {}
         }
     }
 
