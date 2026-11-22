@@ -35,6 +35,8 @@ struct ProductDetailView: View {
     /// "I want this": price, spot and time on one sheet, sent into the chat.
     @State private var showWantSheet = false
     @State private var showLowerPriceOptions = false
+    /// Where to go once the "lower the price" sheet has finished closing.
+    @State private var pendingLowerPriceRoute: Route?
     @State private var isSendingWant = false
     @State private var isLiked = false
     @State private var isSaved = false
@@ -380,14 +382,35 @@ struct ProductDetailView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 40)
         }
-        .confirmationDialog("Lower the price", isPresented: $showLowerPriceOptions, titleVisibility: .visible) {
-            Button(product.hasDiscount ? "Change the discount for everyone" : "Discount it for everyone") {
-                pushOwnerRoute(.setDiscount(productId))
+        .sheet(isPresented: $showLowerPriceOptions, onDismiss: {
+            if let route = pendingLowerPriceRoute {
+                pendingLowerPriceRoute = nil
+                pushOwnerRoute(route)
             }
-            Button(stats.likes > 0 ? "Send a private offer to \(stats.likes == 1 ? "the 1 person" : "the \(stats.likes) people") who liked it" : "Send a private offer to people who like it") {
-                pushOwnerRoute(.sendOffers(productId))
-            }
-            Button("Cancel", role: .cancel) {}
+        }) {
+            LowerPriceSheet(
+                title: product.hasDiscount ? "change the price" : "lower the price",
+                discountTitle: product.hasDiscount ? "Change the discount" : "Discount it for everyone",
+                discountSubtitle: product.hasDiscount ? discountSubtitle(product) : "Drop the price and show the savings",
+                offerTitle: "Send a private offer",
+                offerSubtitle: stats.likes > 0
+                    ? "To \(stats.likes == 1 ? "the 1 person" : "the \(stats.likes) people") who liked it"
+                    : "To people who like it",
+                onDiscount: {
+                    pendingLowerPriceRoute = .setDiscount(productId)
+                    showLowerPriceOptions = false
+                },
+                onOffer: {
+                    pendingLowerPriceRoute = .sendOffers(productId)
+                    showLowerPriceOptions = false
+                },
+                onCancel: { showLowerPriceOptions = false }
+            )
+            .environment(\.campusTheme, campusTheme)
+            .presentationDetents([.height(372)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(38)
+            .presentationBackground(.ultraThinMaterial)
         }
     }
 
@@ -1521,5 +1544,101 @@ private struct ProductDetailAlerts: ViewModifier {
             .alert("Payment", isPresented: Binding(get: { !suppressPaymentAlert && paymentPresenter.errorMessage != nil }, set: { if !$0 { paymentPresenter.errorMessage = nil } })) {
                 Button("OK", role: .cancel) { paymentPresenter.errorMessage = nil }
             } message: { Text(paymentPresenter.errorMessage ?? "") }
+    }
+}
+
+/// "lower the price" options as a bottom sheet in the app's own style
+/// (replaces the system confirmation dialog, which iOS 26 shows as a
+/// popover pinned to the top of the page).
+private struct LowerPriceSheet: View {
+    let title: String
+    let discountTitle: String
+    let discountSubtitle: String
+    let offerTitle: String
+    let offerSubtitle: String
+    let onDiscount: () -> Void
+    let onOffer: () -> Void
+    let onCancel: () -> Void
+    @Environment(\.campusTheme) private var campusTheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title)
+                .font(Theme.syne(28, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+            Text("Pick how you want to sell it faster.")
+                .font(Theme.syne(14, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+                .padding(.top, 4)
+
+            VStack(spacing: 0) {
+                option(icon: "tag", title: discountTitle, subtitle: discountSubtitle, action: onDiscount)
+                Rectangle()
+                    .fill(campusTheme.border)
+                    .frame(height: 1)
+                    .padding(.leading, 70)
+                option(icon: "paperplane", title: offerTitle, subtitle: offerSubtitle, action: onOffer)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(campusTheme.glass)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(campusTheme.border, lineWidth: 1)
+                    )
+            )
+            .padding(.top, 20)
+
+            Spacer(minLength: 16)
+
+            Button {
+                Motion.haptic(.light)
+                onCancel()
+            } label: {
+                Text("cancel")
+                    .font(Theme.syne(16, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(Capsule().fill(campusTheme.glass))
+                    .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 30)
+        .padding(.bottom, 18)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private func option(icon: String, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(Circle().fill(campusTheme.glassInset))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(Theme.syne(16, weight: .semibold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                    Text(subtitle)
+                        .font(Theme.syne(13))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
