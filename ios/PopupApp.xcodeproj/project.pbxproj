@@ -73,6 +73,7 @@
 		5EE93D6B5E4C55C05BBC1A55 /* BadgeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FFC5F87A92B19D4F8EA62E /* BadgeViews.swift */; };
 		49CDC4C7CA99CAE09C849135 /* CampusPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C6573FABE13C6F633B2E05 /* CampusPage.swift */; };
 		90A29E5730D45B37A96421BD /* CartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B46950DDFE96A1232D026567 /* CartView.swift */; };
+		5D949B65EA3B7937522C59C9 /* ChangeUsernameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9E8FAC04736AD200A24C62 /* ChangeUsernameView.swift */; };
 		08D11D3C8F6827D35EFFD186 /* CheckoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A534702596215D22316BC0A /* CheckoutView.swift */; };
 		87772514930A3840A85FB0EE /* ContactSupportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A6111B4913D23034EF6C437 /* ContactSupportView.swift */; };
 		A54F670E0AC6D20D8965760B /* ConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A27B8CDDCB25FF7F41085A18 /* ConversationView.swift */; };
@@ -205,6 +206,7 @@
 		46FFC5F87A92B19D4F8EA62E /* BadgeViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'BadgeViews.swift'; sourceTree = "<group>"; };
 		A1C6573FABE13C6F633B2E05 /* CampusPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'CampusPage.swift'; sourceTree = "<group>"; };
 		B46950DDFE96A1232D026567 /* CartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'CartView.swift'; sourceTree = "<group>"; };
+		9B9E8FAC04736AD200A24C62 /* ChangeUsernameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ChangeUsernameView.swift'; sourceTree = "<group>"; };
 		0A534702596215D22316BC0A /* CheckoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'CheckoutView.swift'; sourceTree = "<group>"; };
 		7A6111B4913D23034EF6C437 /* ContactSupportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ContactSupportView.swift'; sourceTree = "<group>"; };
 		A27B8CDDCB25FF7F41085A18 /* ConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ConversationView.swift'; sourceTree = "<group>"; };
@@ -381,6 +383,7 @@
 				46FFC5F87A92B19D4F8EA62E /* BadgeViews.swift */,
 				A1C6573FABE13C6F633B2E05 /* CampusPage.swift */,
 				B46950DDFE96A1232D026567 /* CartView.swift */,
+				9B9E8FAC04736AD200A24C62 /* ChangeUsernameView.swift */,
 				0A534702596215D22316BC0A /* CheckoutView.swift */,
 				7A6111B4913D23034EF6C437 /* ContactSupportView.swift */,
 				A27B8CDDCB25FF7F41085A18 /* ConversationView.swift */,
@@ -613,6 +616,7 @@
 				5EE93D6B5E4C55C05BBC1A55 /* BadgeViews.swift in Sources */,
 				49CDC4C7CA99CAE09C849135 /* CampusPage.swift in Sources */,
 				90A29E5730D45B37A96421BD /* CartView.swift in Sources */,
+				5D949B65EA3B7937522C59C9 /* ChangeUsernameView.swift in Sources */,
 				08D11D3C8F6827D35EFFD186 /* CheckoutView.swift in Sources */,
 				87772514930A3840A85FB0EE /* ContactSupportView.swift in Sources */,
 				A54F670E0AC6D20D8965760B /* ConversationView.swift in Sources */,
