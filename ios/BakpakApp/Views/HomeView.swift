@@ -189,6 +189,14 @@ struct HomeView: View {
     @State private var showCampusPeople = false
     @State private var campusPeopleCount: Int?
     @State private var campusPeopleLoading = false
+    /// Listings whose card has been on screen this session.
+    @State private var seenIDs: Set<String> = []
+    /// After a pull-to-refresh, listings the user hadn't seen yet go to the top.
+    @State private var freshFirstIDs: Set<String> = []
+    @State private var isPullRefreshing = false
+    @State private var refreshStatus: HomeRefreshStatus?
+    @State private var refreshStatusTask: Task<Void, Never>?
+    @State private var revealToken = 0
 
     private let columns: [GridItem] = [
         GridItem(.flexible(), spacing: 12),
@@ -206,7 +214,12 @@ struct HomeView: View {
         case .newest:
             // While searching, the default order is best match (SearchEngine), not date.
             if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return filtered }
-            return filtered.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
+            let fresh = freshFirstIDs
+            return filtered.sorted { a, b in
+                let aFresh = fresh.contains(a.id), bFresh = fresh.contains(b.id)
+                if aFresh != bFresh { return aFresh }
+                return (a.createdAt ?? "") > (b.createdAt ?? "")
+            }
         case .priceLow:
             return filtered.sorted { $0.price < $1.price }
         case .priceHigh:
@@ -266,10 +279,23 @@ struct HomeView: View {
                     productsGrid
                         .padding(.horizontal, 16)
                         .padding(.bottom, 110)
+                        .opacity(isPullRefreshing ? 0.4 : 1)
+                        .scaleEffect(isPullRefreshing ? 0.98 : 1, anchor: .top)
+                        .animation(Motion.gentle, value: isPullRefreshing)
                 }
             }
-            .refreshable { await reloadProducts() }
+            .refreshable { await pullToRefresh() }
         }
+        .overlay(alignment: .top) {
+            if let refreshStatus {
+                HomeRefreshPill(status: refreshStatus)
+                    .padding(.top, HomeRefreshPill.topInset)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .allowsHitTesting(false)
+                    .zIndex(30)
+            }
+        }
+        .animation(Motion.snappy, value: refreshStatus)
         .background(campusTheme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -292,6 +318,7 @@ struct HomeView: View {
         .onChange(of: appState.homeEntryToken) { _ in
             searchText = ""
             selectedCategory = "All"
+            freshFirstIDs = []
             searchTask?.cancel()
             vm.beginFreshHomeLoad()
             Task {
@@ -303,6 +330,7 @@ struct HomeView: View {
             if showCampusPeople {
                 withAnimation(Motion.snappy) { showCampusPeople = false }
             }
+            freshFirstIDs = []
             Task { await reloadProducts() }
         }
         .onChange(of: searchText) { _ in
@@ -313,6 +341,8 @@ struct HomeView: View {
         }
         .onDisappear {
             searchTask?.cancel()
+            refreshStatusTask?.cancel()
+            refreshStatus = nil
         }
     }
 
@@ -586,11 +616,13 @@ struct HomeView: View {
                 .padding(.vertical, 48)
             } else {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(clothingProducts) { product in
+                    ForEach(Array(clothingProducts.enumerated()), id: \.element.id) { index, product in
                         HomeProductCard(
                             product: product,
                             onTap: { appState.path.append(.productDetail(product.id)) }
                         )
+                        .modifier(FeedReveal(index: index, token: revealToken))
+                        .onAppear { seenIDs.insert(product.id) }
                     }
                 }
             }
@@ -607,6 +639,60 @@ struct HomeView: View {
             await vm.loadDiscover(school: school)
         } else {
             await vm.search(query: query, category: category, school: school)
+        }
+    }
+
+    /// Pull-to-refresh: reload, then put listings the user hasn't scrolled past yet at
+    /// the top so the feed visibly changes. Says so in a glass pill either way.
+    private func pullToRefresh() async {
+        Motion.haptic(.medium)
+        refreshStatusTask?.cancel()
+        let seenBefore = seenIDs
+        let started = Date()
+        withAnimation(Motion.snappy) {
+            isPullRefreshing = true
+            refreshStatus = .refreshing
+        }
+
+        await reloadProducts()
+
+        // Hold the spinner long enough to read as a real refresh, even on a fast network.
+        let minimum: TimeInterval = 0.9
+        let elapsed = Date().timeIntervalSince(started)
+        if elapsed < minimum {
+            try? await Task.sleep(nanoseconds: UInt64((minimum - elapsed) * 1_000_000_000))
+        }
+
+        let reorders = homeSort == .newest
+            && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let unseen = clothingProducts.map(\.id).filter { !seenBefore.contains($0) }
+        let failed = !(vm.errorMessage ?? "").isEmpty
+
+        withAnimation(Motion.gentle) {
+            freshFirstIDs = reorders ? Set(unseen) : []
+            isPullRefreshing = false
+            revealToken += 1
+        }
+
+        let status: HomeRefreshStatus
+        if failed {
+            status = .failed
+        } else if unseen.isEmpty {
+            status = .caughtUp
+        } else {
+            status = .fresh(unseen.count)
+        }
+        withAnimation(Motion.snappy) { refreshStatus = status }
+        switch status {
+        case .fresh: UINotificationFeedbackGenerator().notificationOccurred(.success)
+        case .failed: UINotificationFeedbackGenerator().notificationOccurred(.error)
+        default: Motion.haptic(.light)
+        }
+
+        refreshStatusTask = Task {
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(Motion.gentle) { refreshStatus = nil }
         }
     }
 
@@ -657,5 +743,100 @@ struct HomeView: View {
         } catch {
             campusPeopleCount = nil
         }
+    }
+}
+
+// MARK: - Refresh feedback
+
+private enum HomeRefreshStatus: Equatable {
+    case refreshing
+    case fresh(Int)
+    case caughtUp
+    case failed
+}
+
+/// Glass pill under the status bar while Home refreshes, then what the refresh found.
+private struct HomeRefreshPill: View {
+    let status: HomeRefreshStatus
+    @Environment(\.campusTheme) private var campusTheme
+
+    static var topInset: CGFloat {
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first
+        return (window?.safeAreaInsets.top ?? 20) + 6
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            icon
+            Text(label)
+                .font(Theme.syne(13, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .lineLimit(1)
+                .contentTransition(.opacity)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 36)
+        .background(.ultraThinMaterial, in: Capsule())
+        .background(campusTheme.glass, in: Capsule())
+        .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.12), radius: 12, y: 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(label)
+    }
+
+    @ViewBuilder
+    private var icon: some View {
+        switch status {
+        case .refreshing:
+            ProgressView()
+                .controlSize(.small)
+                .tint(campusTheme.textPrimary)
+        case .fresh:
+            Image(systemName: "sparkles")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(campusTheme.tint)
+        case .caughtUp:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(campusTheme.tint)
+        case .failed:
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Color(hex: "#E11D48"))
+        }
+    }
+
+    private var label: String {
+        switch status {
+        case .refreshing: return "Finding new finds…"
+        case .fresh(let n): return n == 1 ? "1 find you haven't seen" : "\(n) finds you haven't seen"
+        case .caughtUp: return "You're all caught up"
+        case .failed: return "Couldn't refresh"
+        }
+    }
+}
+
+/// After a refresh, the first cards drop back in one after another.
+private struct FeedReveal: ViewModifier {
+    let index: Int
+    let token: Int
+    @State private var hidden = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(hidden ? 0 : 1)
+            .offset(y: hidden ? 18 : 0)
+            .scaleEffect(hidden ? 0.96 : 1)
+            .onChange(of: token) { _ in
+                guard index < 8 else { return }
+                var instant = Transaction()
+                instant.disablesAnimations = true
+                withTransaction(instant) { hidden = true }
+                DispatchQueue.main.async {
+                    withAnimation(Motion.gentle.delay(Double(index) * 0.05)) { hidden = false }
+                }
+            }
     }
 }
