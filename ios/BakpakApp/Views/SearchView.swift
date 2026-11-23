@@ -145,7 +145,7 @@ struct SearchView: View {
                 }
 
                 searchBarRow
-                    .padding(.top, searchFieldFocused ? 58 : 0)
+                    .padding(.top, searchFieldFocused ? 70 : 0)
                     .padding(.horizontal, 20)
 
                 Group {
@@ -262,7 +262,9 @@ struct SearchView: View {
                 Button {
                     Motion.haptic(.light)
                     withAnimation(.easeInOut(duration: 0.22)) {
+                        // Like iOS search: Cancel drops what was typed. A picked category stays.
                         searchFieldFocused = false
+                        query = ""
                     }
                 } label: {
                     Text("Cancel")
@@ -579,7 +581,11 @@ struct SearchView: View {
                     emptyQueryContent
                 } else {
                     typingSuggestions
-                        .padding(.bottom, 22)
+                        .padding(.bottom, 18)
+                    // Always visible while typing, so a category picked earlier never
+                    // silently narrows the results.
+                    categoryChipRow
+                        .padding(.bottom, 18)
                     resultsSection
                 }
             }
@@ -894,6 +900,8 @@ struct SearchView: View {
     private func selectPrediction(_ suggestion: SearchSuggestion) {
         Motion.haptic(.light)
         query = suggestion.text
+        // Suggestions come from the whole campus, so search all of it.
+        if category != "all" { category = "all" }
         searchFieldFocused = false
         saveRecentSearch(suggestion.text)
         logSubmit(suggestion.text, suggestion: suggestion.text, type: suggestion.type, event: "click")
@@ -943,7 +951,7 @@ struct SearchView: View {
         case "category": return "square.grid.2x2"
         case "recent": return "clock"
         case "trending": return "chart.line.uptrend.xyaxis"
-        case "listing": return "tshirt"
+        case "listing": return "hanger"
         default: return "magnifyingglass"
         }
     }
@@ -1048,7 +1056,8 @@ struct SearchView: View {
 
     private func saveRecentSearch(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        // One letter isn't a search worth remembering.
+        guard trimmed.count >= 2 else { return }
         var updated = [trimmed] + recentSearches.filter { $0.caseInsensitiveCompare(trimmed) != .orderedSame }
         updated = Array(updated.prefix(maxRecentSearches))
         recentSearches = updated
