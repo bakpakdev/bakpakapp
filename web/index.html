@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
 <style>
-/* Layout: stark black hero with a live phone, a ticker of real-feeling drops, then three-step how-it-works on white, closing black CTA band. Single committed look (black/white), colour only lives inside the clothes. */
+/* Layout (original): stark black hero with a live phone, a ticker of real-feeling drops, then three-step how-it-works on white, closing black CTA band. Single committed look (black/white), colour only lives inside the clothes. */
 :root{
   --ink:#0a0a0a; --paper:#ffffff; --fog:#f2f2f0; --line:#e3e3e0; --mute:#6b6b68; --mute-d:#a3a3a0;
   --display:"Syne","Arial Black",system-ui,sans-serif;
@@ -148,8 +148,64 @@ footer a{text-decoration:none}footer a:hover{color:var(--ink)}
 }
 @media (max-width:420px){.tag{font-size:12px;padding:8px 10px}.hero h1 .out{-webkit-text-stroke-width:1.5px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
+
+/* ===== Silver glass (2026-11): matches the app's glass controls, black/white/silver only ===== */
+:root{--ink:#0a0a0a;--bg:#08090b;--silver:#C9CDD6;--glass:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.035));--glass-line:rgba(255,255,255,.15);--glass-hi:inset 0 1px 0 rgba(255,255,255,.22);--txt2:rgba(255,255,255,.62);color-scheme:dark}
+body{background:var(--bg);color:#fff}
+body::before{background:transparent}
+.sky{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+.sky i{position:absolute;border-radius:50%;filter:blur(120px)}
+.sky i:nth-child(1){width:70vw;height:70vw;max-width:980px;max-height:980px;left:-18vw;top:-38vw;background:#fff;opacity:.11}
+.sky i:nth-child(2){width:46vw;height:46vw;max-width:640px;max-height:640px;left:40vw;top:-22vw;background:var(--silver);opacity:.13}
+.sky i:nth-child(3){width:56vw;height:56vw;max-width:780px;max-height:780px;right:-22vw;top:10vh;background:#fff;opacity:.06}
+.sky i:nth-child(4){width:50vw;height:50vw;max-width:700px;max-height:700px;left:10vw;bottom:-30vw;background:var(--silver);opacity:.07}
+.glassy,body>nav>.wrap,.step,.feat,.tag,.eyebrow,.ghost{background:var(--glass);-webkit-backdrop-filter:blur(26px) saturate(140%);backdrop-filter:blur(26px) saturate(140%);border:1px solid var(--glass-line);box-shadow:var(--glass-hi)}
+body>nav{background:transparent;border:0;backdrop-filter:none;-webkit-backdrop-filter:none;padding-top:14px}
+body>nav>.wrap{max-width:1160px;width:calc(100% - 32px);height:60px;border-radius:999px;padding:0 8px 0 16px;background:linear-gradient(180deg,rgba(30,32,36,.62),rgba(16,17,20,.52))}
+.navlinks a{opacity:.72}
+.pill,.store,.final .store{background:linear-gradient(180deg,#fff,#d6d9df);color:#0a0a0a;box-shadow:inset 0 -2px 0 rgba(0,0,0,.08),0 10px 30px rgba(255,255,255,.07)}
+.hero{background:transparent;overflow-x:clip}
+.hero .wrap>*{min-width:0}
+.eyebrow{padding:8px 14px;border-radius:999px;color:#fff;font-family:var(--body);font-size:13px;font-weight:600;letter-spacing:0;text-transform:none}
+.hero h1 .out{-webkit-text-stroke:0;background:linear-gradient(100deg,#fff 0%,#9aa0aa 35%,#fff 55%,#8b9099 80%,#e9ebef 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shine 7s ease-in-out infinite}
+@keyframes shine{50%{background-position:100% 0}}
+.hero .lede,.proof,.soon{color:var(--txt2)}
+.proof b{color:#fff}
+.phone{background:linear-gradient(160deg,#3a3d42,#121315);box-shadow:0 0 0 1px rgba(255,255,255,.16),0 40px 90px rgba(0,0,0,.6);margin-bottom:0;transform:rotate(-3deg)}
+.stage{padding-bottom:40px}
+.screen{background:radial-gradient(380px 300px at 25% -5%,rgba(255,255,255,.16),transparent),#0c0d0f;color:#fff}
+.search{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07)}
+.search i{background:#fff}
+.chips span{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1)}
+.chips span:first-child{background:#fff;color:#0a0a0a}
+.item{border:1px solid rgba(255,255,255,.12)}
+.c1{background:#2a2622}.c2{background:#1f232b}.c3{background:#2a1f22}.c4{background:#232425}
+.item .row{color:#fff}
+.c4 path{fill:#e8e8e8;stroke:#e8e8e8}
+.tabbar{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:999px;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);box-shadow:var(--glass-hi);color:rgba(255,255,255,.75)}
+.tabbar .plus{background:#fff;color:#0a0a0a;border:0;margin-top:0}
+.tag{color:#fff;box-shadow:var(--glass-hi),0 14px 30px rgba(0,0,0,.4);background:linear-gradient(180deg,rgba(40,42,46,.7),rgba(20,21,24,.6))}
+.tag .ok{background:#fff;color:#0a0a0a}
+.ticker{background:rgba(255,255,255,.03);border-block:1px solid rgba(255,255,255,.09)}
+.track em{color:var(--txt2)}
+.sec-h p,.step p,.why .sec-h p,.final p,.feat p,.feat .ic{color:var(--txt2)}
+.step{border-radius:30px}
+.step .n{color:var(--txt2)}
+.vis{background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.08)}
+.field{border-bottom-color:rgba(255,255,255,.1)}.field span,.spot small{color:var(--txt2)}
+.btn,.pin{background:#fff;color:#0a0a0a}
+.why{background:transparent}
+.feats{gap:14px;background:transparent;border-radius:0;overflow:visible}
+.feat{border-radius:24px}
+.final h2{background:linear-gradient(180deg,#fff 30%,#9aa0aa);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.08em}
+.final img{box-shadow:0 0 0 1px rgba(255,255,255,.16),0 20px 60px rgba(255,255,255,.08)}
+footer{border-top-color:rgba(255,255,255,.09);color:var(--txt2)}
+footer a:hover{color:#fff}
+@media (max-width:900px){.phone{margin-bottom:0}.stage{padding-bottom:30px}}
+@media (max-width:420px){body>nav>.wrap{width:calc(100% - 24px)}.hero h1{font-size:12.6vw}}
 </style>
 </head><body>
+<div class="sky" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 
 <nav aria-label="Main">
   <div class="wrap">
