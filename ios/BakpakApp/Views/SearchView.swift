@@ -2,17 +2,22 @@ import SwiftUI
 
 // MARK: - Constants
 
-private struct SearchCategoryTile: Identifiable {
+private struct SearchCategory: Identifiable {
+    /// `products.category` value.
     let id: String
     let name: String
     let icon: String
 }
 
-private let searchCategoryTiles: [SearchCategoryTile] = [
-    SearchCategoryTile(id: "tops", name: "Tops", icon: "tshirt"),
-    SearchCategoryTile(id: "bottoms", name: "Bottoms", icon: "figure.stand"),
-    SearchCategoryTile(id: "shoes", name: "Shoes", icon: "shoeprints.fill"),
-    SearchCategoryTile(id: "accessories", name: "Accessories", icon: "tag"),
+/// Every category a listing can be filed under when it's posted (see
+/// `CreateListingView.categorySlugForListing`), so nothing is unreachable from browse.
+private let searchCategories: [SearchCategory] = [
+    SearchCategory(id: "tops", name: "Tops", icon: "tshirt"),
+    SearchCategory(id: "bottoms", name: "Bottoms", icon: "figure.stand"),
+    SearchCategory(id: "outerwear", name: "Outerwear", icon: "wind"),
+    SearchCategory(id: "dresses", name: "Dresses", icon: "figure.stand.dress"),
+    SearchCategory(id: "shoes", name: "Shoes", icon: "shoeprints.fill"),
+    SearchCategory(id: "accessories", name: "Accessories", icon: "tag"),
 ]
 
 private enum SearchSort: CaseIterable {
@@ -28,17 +33,10 @@ private enum SearchSort: CaseIterable {
     }
 }
 
-private let trendingSearchTerms = [
-    "Denim jacket", "Nike Dunks", "Cardigan", "Cargo pants", "Vintage tee",
-]
-
-private let popularSearchBrands = [
-    "Nike", "Adidas", "Levi’s", "Carhartt", "Patagonia", "The North Face",
-    "New Balance", "Lululemon", "Aritzia", "Dickies", "Champion", "Urban Outfitters",
-]
-
 private var recentSearchesKey: String { AccountScopedDefaults.key("popup.recent_searches") }
 private let maxRecentSearches = 24
+/// While typing, a few suggestions sit above the live results.
+private let typingSuggestionLimit = 4
 
 // MARK: - Search tab
 
@@ -48,39 +46,84 @@ struct SearchView: View {
     @EnvironmentObject private var blockStore: BlockStore
     @Environment(\.campusTheme) private var campusTheme
 
+    // Query + results
     @State private var query = ""
     @State private var category = "all"
     @State private var products: [Product] = []
-    @State private var likedProductIDs: Set<String> = []
-    @State private var savedProductIDs: Set<String> = []
-    @State private var recentSearches: [String] = []
+    /// False when nothing matched every word, so the results are the closest listings.
+    @State private var resultsExact = true
     @State private var loading = false
+    @State private var sortOrder: SearchSort = .relevant
+    /// Bumped per request so a slow older response can't overwrite newer results.
+    @State private var searchGeneration = 0
+    /// What the last request was for, so the same search isn't fetched twice in a row.
+    @State private var lastSearchKey = ""
     @State private var searchDebounceTask: Task<Void, Never>?
-    @State private var suggestDebounceTask: Task<Void, Never>?
+
+    // Suggestions
     @State private var liveSuggestions: [SearchSuggestion] = []
     @State private var suggestionsLoading = false
+    @State private var suggestGeneration = 0
+    @State private var suggestDebounceTask: Task<Void, Never>?
+    @State private var recentSearches: [String] = []
+
+    // Browse (photo) screen
+    @State private var campusListings: [Product] = []
+    @State private var likeCounts: [String: Int] = [:]
+    @State private var categoryCounts: [String: Int] = [:]
+    @State private var browseLoaded = false
+
     @State private var notificationUnread = 0
-    @State private var sortOrder: SearchSort = .relevant
     @FocusState private var searchFieldFocused: Bool
 
-    private var showResults: Bool {
-        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || category != "all"
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var filteredProducts: [Product] {
+    private var showResults: Bool {
+        !trimmedQuery.isEmpty || category != "all"
+    }
+
+    private var sortedProducts: [Product] {
         let _ = blockStore.revision
         let visible = blockStore.filterProducts(products)
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        // Already matched and ranked by SearchEngine (multi-word, synonyms, typos).
-        let matches = visible
-        _ = q
         switch sortOrder {
-        case .relevant: return matches
+        // Already ranked by SearchEngine (multi-word, synonyms, typos).
+        case .relevant: return visible
         // ISO-8601 timestamps sort correctly as strings.
-        case .newest: return matches.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
-        case .priceLow: return matches.sorted { $0.price < $1.price }
-        case .priceHigh: return matches.sorted { $0.price > $1.price }
+        case .newest: return visible.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
+        case .priceLow: return visible.sorted { $0.price < $1.price }
+        case .priceHigh: return visible.sorted { $0.price > $1.price }
         }
+    }
+
+    /// Most-liked listings at this school, newest first among ties.
+    private var trendingListings: [Product] {
+        let _ = blockStore.revision
+        let visible = blockStore.filterProducts(campusListings)
+        let ranked = visible.enumerated().sorted { a, b in
+            let la = likes(for: a.element), lb = likes(for: b.element)
+            if la != lb { return la > lb }
+            return a.offset < b.offset  // campusListings is already newest first
+        }
+        return Array(ranked.prefix(10).map(\.element))
+    }
+
+    private var hasLikedListings: Bool {
+        trendingListings.contains { likes(for: $0) > 0 }
+    }
+
+    /// Cover photo for each category card: its most-liked (then newest) listing with a photo.
+    private var categoryCovers: [String: Product] {
+        let _ = blockStore.revision
+        var covers: [String: Product] = [:]
+        let visible = blockStore.filterProducts(campusListings)
+        for product in visible where product.primaryListingImage != nil {
+            guard let cat = product.category?.lowercased() else { continue }
+            if let current = covers[cat], likes(for: current) >= likes(for: product) { continue }
+            covers[cat] = product
+        }
+        return covers
     }
 
     private let columns = [
@@ -95,36 +138,32 @@ struct SearchView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if !searchFieldFocused {
                     headerBlock
-                        .padding(.top, 76)
+                        .padding(.top, 70)
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 22)
+                        .padding(.bottom, 16)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
                 searchBarRow
-                    .padding(.top, searchFieldFocused ? 56 : 0)
+                    .padding(.top, searchFieldFocused ? 58 : 0)
                     .padding(.horizontal, 20)
-                    .padding(.bottom, searchFieldFocused ? 16 : 26)
 
-                if searchFieldFocused {
-                    focusedSearchScreen
-                        .transition(.opacity)
-                } else {
-                    ScrollView(showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            if showResults {
-                                resultsFilterRow
-                                    .padding(.horizontal, 20)
-                                    .padding(.bottom, 18)
-                                resultsContent
-                            } else {
-                                idleContent
-                            }
-                        }
-                        .padding(.bottom, 110)
+                Group {
+                    if searchFieldFocused {
+                        focusedContent
+                    } else {
+                        browseContent
                     }
-                    .transition(.opacity)
                 }
+                .transition(.opacity)
+                // Content scrolls away softly under the bar instead of being cut off.
+                .mask(
+                    VStack(spacing: 0) {
+                        LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                            .frame(height: 18)
+                        Color.black
+                    }
+                )
             }
             .animation(.easeInOut(duration: 0.22), value: searchFieldFocused)
         }
@@ -135,10 +174,8 @@ struct SearchView: View {
         .onAppear {
             loadRecentSearches()
             Task {
-                await loadLikedProducts()
-                await loadSavedProducts()
-                await refreshSuggestions()
                 await loadNotificationBadge()
+                if !browseLoaded { await loadBrowse() }
                 if showResults { await performSearch() }
             }
         }
@@ -151,13 +188,11 @@ struct SearchView: View {
         }
         .onChange(of: query) { _ in
             scheduleSearch()
-            scheduleSuggestions()
+            if searchFieldFocused { scheduleSuggestions() }
         }
         .onChange(of: searchFieldFocused) { focused in
             appState.hidesTabBar = focused
-            if focused {
-                scheduleSuggestions()
-            }
+            if focused { scheduleSuggestions(immediately: true) }
         }
         .onChange(of: appState.selectedTab) { tab in
             if tab != .search {
@@ -175,30 +210,17 @@ struct SearchView: View {
         }
         .onChange(of: authVM.user?.id) { _ in
             recentSearches = []
-            likedProductIDs = []
-            savedProductIDs = []
             loadRecentSearches()
-            Task {
-                await loadLikedProducts()
-                await loadSavedProducts()
-            }
         }
     }
 
-    // MARK: Header + search (scroll-integrated)
+    // MARK: Header + search bar
 
     private var headerBlock: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("search")
-                    .font(Theme.syne(36, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                Text("brands, styles & more")
-                    .font(Theme.syne(28, weight: .semibold))
-                    .foregroundStyle(campusTheme.textMuted)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
+        HStack(alignment: .center, spacing: 10) {
+            Text("search")
+                .font(Theme.syne(36, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
 
             Spacer(minLength: 8)
 
@@ -210,21 +232,25 @@ struct SearchView: View {
                     Image(systemName: "bell")
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(campusTheme.textPrimary)
-                        .frame(width: 62, height: 62)
-                        .background(campusTheme.elevatedSurface)
-                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .frame(width: 54, height: 54)
+                        .background(campusTheme.glass)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .stroke(campusTheme.border, lineWidth: 1)
+                        )
 
                     if notificationUnread > 0 {
                         Circle()
-                            .fill(campusTheme.primary)
-                            .frame(width: 9, height: 9)
-                            .offset(x: -16, y: 16)
+                            .fill(campusTheme.textPrimary)
+                            .frame(width: 8, height: 8)
+                            .offset(x: -14, y: 14)
                             .transition(.scale.combined(with: .opacity))
                     }
                 }
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
-            .accessibilityLabel("Notifications")
+            .accessibilityLabel(notificationUnread > 0 ? "Notifications, unread" : "Notifications")
             .animation(Motion.bounce, value: notificationUnread)
         }
     }
@@ -253,67 +279,68 @@ struct SearchView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(campusTheme.textPrimary)
-                .padding(.leading, 6)
+                .padding(.leading, 4)
 
             TextField(
                 "",
                 text: $query,
-                prompt: Text("Search for thrift finds")
+                prompt: Text("Search brands, styles, sizes")
                     .font(Theme.syne(15, weight: .regular))
                     .foregroundColor(campusTheme.textMuted)
             )
             .focused($searchFieldFocused)
             .font(Theme.syne(15, weight: .regular))
             .foregroundStyle(campusTheme.textPrimary)
-            .tint(campusTheme.primary)
+            .tint(campusTheme.textPrimary)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
             .submitLabel(.search)
             .onSubmit { submitTypedQuery() }
 
             if !query.isEmpty {
                 Button {
-                    query = ""
-                    products = []
-                    liveSuggestions = []
                     Motion.haptic(.light)
-                    scheduleSuggestions()
+                    clearQuery()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(campusTheme.textPrimary)
-                        .frame(width: 50, height: 50)
-                        .background(campusTheme.elevatedSurface)
-                        .clipShape(Circle())
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(campusTheme.glassStrong))
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
                 .accessibilityLabel("Clear search")
             }
         }
         .padding(.leading, 16)
-        .padding(.trailing, query.isEmpty ? 16 : 6)
-        .frame(height: 62)
-        .background(campusTheme.surface)
+        .padding(.trailing, query.isEmpty ? 16 : 10)
+        .frame(height: 56)
+        .background(campusTheme.glass)
         .clipShape(Capsule())
         .overlay(
             Capsule()
                 .stroke(
-                    searchFieldFocused ? campusTheme.primary.opacity(0.45) : campusTheme.border,
+                    searchFieldFocused ? campusTheme.textPrimary.opacity(0.35) : campusTheme.border,
                     lineWidth: 1
                 )
         )
     }
 
-    private func sectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(Theme.syne(18, weight: .semibold))
-            .foregroundStyle(campusTheme.textPrimary)
+    // MARK: Shared pieces
+
+    private func sectionLabel(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(Theme.syne(11, weight: .bold))
+            .tracking(1.3)
+            .foregroundStyle(campusTheme.textMuted)
     }
 
-    private func listCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    private func glassCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(spacing: 0, content: content)
-            .background(campusTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .background(campusTheme.glass)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .stroke(campusTheme.border, lineWidth: 1)
             )
             .padding(.horizontal, 20)
@@ -323,528 +350,589 @@ struct SearchView: View {
         Image(systemName: systemName)
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(campusTheme.textPrimary)
-            .frame(width: 36, height: 36)
-            .background(campusTheme.elevatedSurface)
-            .clipShape(Circle())
+            .frame(width: 34, height: 34)
+            .background(Circle().fill(campusTheme.glassInset))
     }
 
-    private var resultsFilterRow: some View {
-        HStack {
-            if category != "all" {
-                HStack(spacing: 10) {
-                    Image(systemName: categoryIcon(for: category))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.white)
-                        .frame(width: 36, height: 36)
-                        .background(Circle().fill(Color.white.opacity(0.18)))
-                        .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
-                    Text(categoryLabel(for: category))
-                        .font(Theme.syne(14, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Button {
-                        withAnimation(Motion.snappy) { category = "all" }
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.9))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.leading, 5)
-                .padding(.trailing, 16)
-                .frame(height: 46)
-                .background(campusTheme.primary)
-                .clipShape(Capsule())
-            }
+    private var rowDivider: some View {
+        Rectangle()
+            .fill(campusTheme.border)
+            .frame(height: 1)
+            .padding(.leading, 58)
+    }
 
-            Spacer()
+    private func likes(for product: Product) -> Int {
+        likeCounts[product.id.lowercased()] ?? 0
+    }
 
-            Menu {
-                Picker("Sort", selection: $sortOrder) {
-                    ForEach(SearchSort.allCases, id: \.self) { option in
-                        Text(option.title).tag(option)
-                    }
+    // MARK: Browse (not typing)
+
+    private var browseContent: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                if showResults {
+                    categoryChipRow
+                        .padding(.bottom, 18)
+                    resultsSection
+                } else {
+                    trendingRow
+                    categoryGrid
+                        .padding(.top, 26)
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 13, weight: .medium))
-                    Text(sortOrder == .relevant ? "Sort" : sortOrder.title)
-                        .font(Theme.syne(13, weight: .semibold))
-                }
-                .foregroundStyle(campusTheme.textPrimary)
-                .padding(.horizontal, 16)
-                .frame(height: 46)
-                .background(campusTheme.elevatedSurface)
-                .clipShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .padding(.top, 22)
+            .padding(.bottom, 110)
         }
-    }
-
-    // MARK: Focused search session
-
-    private var focusedSearchScreen: some View {
-        Group {
-            if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                recentsFullScreen
+        .refreshable {
+            if showResults {
+                lastSearchKey = ""
+                await performSearch()
             } else {
-                predictionContent
+                await loadBrowse()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    private var recentsFullScreen: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                sectionTitle("recent searches")
-                Spacer()
-                if !recentSearches.isEmpty {
+    @ViewBuilder
+    private var trendingRow: some View {
+        let items = trendingListings
+        if !items.isEmpty || !browseLoaded {
+            VStack(alignment: .leading, spacing: 12) {
+                sectionLabel(hasLikedListings ? "trending on campus" : "new on campus")
+                    .padding(.horizontal, 24)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 10) {
+                        if items.isEmpty {
+                            ForEach(0..<3, id: \.self) { _ in
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .fill(campusTheme.glass)
+                                    .frame(width: 128, height: 156)
+                            }
+                        }
+                        ForEach(items) { product in
+                            trendingCard(product)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+        }
+    }
+
+    private func trendingCard(_ product: Product) -> some View {
+        let count = likes(for: product)
+        return VStack(alignment: .leading, spacing: 4) {
+            Color.clear
+                .frame(width: 128, height: 156)
+                .overlay { HomeProductImage(product: product) }
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(campusTheme.border, lineWidth: 1)
+                )
+                .overlay(alignment: .topTrailing) {
+                    if count > 0 {
+                        HStack(spacing: 3) {
+                            Image(systemName: "heart.fill")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("\(count)")
+                                .font(Theme.syne(11, weight: .bold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .frame(height: 22)
+                        .background(Capsule().fill(Color.black.opacity(0.45)))
+                        .padding(7)
+                    }
+                }
+                .padding(.bottom, 4)
+
+            Text(product.homePriceLabel)
+                .font(Theme.syne(14, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+            Text(product.title)
+                .font(Theme.syne(11, weight: .medium))
+                .foregroundStyle(campusTheme.textMuted)
+                .lineLimit(1)
+        }
+        .frame(width: 128, alignment: .leading)
+        .contentShape(Rectangle())
+        .pressableCard { appState.path.append(.productDetail(product.id)) }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var categoryGrid: some View {
+        let covers = categoryCovers
+        return VStack(alignment: .leading, spacing: 12) {
+            sectionLabel("shop by category")
+                .padding(.horizontal, 24)
+
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(searchCategories) { cat in
+                    categoryCard(cat, cover: covers[cat.id])
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+
+    private func categoryCard(_ cat: SearchCategory, cover: Product?) -> some View {
+        Button {
+            Motion.haptic(.light)
+            withAnimation(Motion.snappy) { category = cat.id }
+        } label: {
+            ZStack(alignment: .bottomLeading) {
+                if let cover {
+                    Color.clear
+                        .overlay { HomeProductImage(product: cover) }
+                    LinearGradient(
+                        colors: [.clear, Color.black.opacity(0.65)],
+                        startPoint: .center,
+                        endPoint: .bottom
+                    )
+                } else {
+                    campusTheme.glass
+                    Image(systemName: cat.icon)
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(width: 48, height: 48)
+                        .background(Circle().fill(campusTheme.glassInset))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.bottom, 18)
+                }
+
+                Text(cat.name)
+                    .font(Theme.syne(15, weight: .bold))
+                    .foregroundStyle(cover == nil ? campusTheme.textPrimary : Color.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .padding(12)
+            }
+            .frame(height: 120)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(campusTheme.border, lineWidth: 1)
+            )
+            .overlay(alignment: .topTrailing) {
+                if let count = categoryCounts[cat.id] {
+                    Text(count == 1 ? "1 item" : "\(count) items")
+                        .font(Theme.syne(10.5, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .frame(height: 22)
+                        .background(Capsule().fill(Color.black.opacity(0.4)))
+                        .padding(8)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+        .accessibilityLabel(categoryCounts[cat.id].map { "\(cat.name), \($0) items" } ?? cat.name)
+    }
+
+    /// Narrow results by category; white when picked, like the Home chips.
+    private var categoryChipRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                categoryChip(id: "all", name: "All", icon: "square.grid.2x2")
+                ForEach(searchCategories) { cat in
+                    categoryChip(id: cat.id, name: cat.name, icon: cat.icon)
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+
+    private func categoryChip(id: String, name: String, icon: String) -> some View {
+        let isActive = category == id
+        return Button {
+            Motion.haptic(.light)
+            withAnimation(Motion.snappy) { category = id }
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
+                Text(name)
+                    .font(Theme.syne(13, weight: .semibold))
+            }
+            .foregroundStyle(isActive ? (campusTheme.isDark ? Color.black : Color.white) : campusTheme.textPrimary)
+            .padding(.horizontal, 14)
+            .frame(height: 40)
+            .background(Capsule().fill(isActive ? campusTheme.textPrimary : campusTheme.glass))
+            .overlay(Capsule().stroke(isActive ? Color.clear : campusTheme.border, lineWidth: 1))
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
+        .accessibilityAddTraits(isActive ? .isSelected : [])
+    }
+
+    // MARK: Focused (typing)
+
+    private var focusedContent: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                if trimmedQuery.isEmpty {
+                    emptyQueryContent
+                } else {
+                    typingSuggestions
+                        .padding(.bottom, 22)
+                    resultsSection
+                }
+            }
+            .padding(.top, 18)
+            .padding(.bottom, 110)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    /// Before typing: your recent searches, then what people at your school search for.
+    private var emptyQueryContent: some View {
+        let popular = liveSuggestions.filter { $0.type != "recent" }.prefix(8)
+        return VStack(alignment: .leading, spacing: 0) {
+            if !recentSearches.isEmpty {
+                HStack {
+                    sectionLabel("recent")
+                    Spacer()
                     Button("Clear") {
                         Motion.haptic(.light)
                         recentSearches = []
                         UserDefaults.standard.removeObject(forKey: recentSearchesKey)
                     }
-                    .font(Theme.syne(13, weight: .semibold))
+                    .font(Theme.syne(12, weight: .semibold))
                     .foregroundStyle(campusTheme.textMuted)
                 }
-            }
-            .padding(.horizontal, 20)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 10)
 
-            if recentSearches.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 28, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                    Text("No recent searches")
-                        .font(Theme.syne(16, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                    Text("Terms you search for will show up here.")
-                        .font(Theme.syne(14))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, 32)
-            } else {
-                GeometryReader { geo in
-                    ScrollView(showsIndicators: false) {
-                        recentSearchesList
-                            .frame(minHeight: geo.size.height, alignment: .top)
-                            .padding(.bottom, 110)
-                    }
-                    .scrollDismissesKeyboard(.interactively)
-                }
-            }
-        }
-        .padding(.top, 4)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-
-    private func submitTypedQuery() {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        saveRecentSearch(trimmed)
-        searchFieldFocused = false
-        Task { await performSearch() }
-    }
-
-    /// Always-there first row: run the search for exactly what they typed.
-    private var searchTypedRow: some View {
-        Button {
-            submitTypedQuery()
-        } label: {
-            HStack(spacing: 12) {
-                rowIcon("magnifyingglass")
-                Text("Search for \u{201C}\(query.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}")
-                    .font(Theme.syne(15, weight: .semibold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .lineLimit(1)
-                Spacer()
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(campusTheme.textMuted)
-            }
-            .padding(.horizontal, 12)
-            .frame(height: 56)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-    }
-
-    private var predictionContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            sectionTitle("search suggestions")
-                .padding(.horizontal, 20)
-
-            ScrollView(showsIndicators: false) {
-                    listCard {
-                        searchTypedRow
-                        if suggestionsLoading && liveSuggestions.isEmpty {
-                            Divider()
-                                .overlay(campusTheme.border)
-                                .padding(.leading, 60)
-                            ProgressView()
-                                .tint(campusTheme.primary)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 56)
-                        } else if !liveSuggestions.isEmpty {
-                            Divider()
-                                .overlay(campusTheme.border)
-                                .padding(.leading, 60)
-                        }
-                        ForEach(liveSuggestions) { suggestion in
+                glassCard {
+                    ForEach(recentSearches.prefix(8), id: \.self) { term in
+                        HStack(spacing: 4) {
                             Button {
-                                selectPrediction(suggestion)
+                                selectPrediction(SearchSuggestion(text: term, type: "recent", score: 1))
                             } label: {
                                 HStack(spacing: 12) {
-                                    rowIcon(predictionIcon(for: suggestion))
-
-                                    highlightedPrediction(suggestion.text)
-
+                                    rowIcon("clock")
+                                    Text(term)
+                                        .font(Theme.syne(14, weight: .medium))
+                                        .foregroundStyle(campusTheme.textPrimary)
+                                        .lineLimit(1)
                                     Spacer()
-
-                                    Image(systemName: "arrow.up.left")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(campusTheme.textMuted)
                                 }
-                                .padding(.horizontal, 12)
-                                .frame(height: 56)
+                                .frame(height: 52)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
 
-                            if suggestion.id != liveSuggestions.last?.id {
-                                Divider()
-                                    .overlay(campusTheme.border)
-                                    .padding(.leading, 60)
+                            Button {
+                                Motion.haptic(.light)
+                                deleteRecentSearch(term)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(campusTheme.textMuted)
+                                    .frame(width: 40, height: 40)
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Delete \(term)")
+                        }
+                        .padding(.horizontal, 12)
+
+                        if term != recentSearches.prefix(8).last {
+                            rowDivider
                         }
                     }
-                    .padding(.bottom, 110)
+                }
+                .padding(.bottom, 24)
             }
-            .scrollDismissesKeyboard(.interactively)
+
+            if !popular.isEmpty {
+                sectionLabel("popular at your school")
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 10)
+                FlowChips(items: Array(popular)) { suggestion in
+                    Button {
+                        selectPrediction(suggestion)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 11, weight: .bold))
+                            Text(suggestion.text)
+                                .font(Theme.syne(13, weight: .semibold))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .padding(.horizontal, 13)
+                        .frame(height: 36)
+                        .background(Capsule().fill(campusTheme.glass))
+                        .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
+                }
+                .padding(.horizontal, 20)
+            } else if recentSearches.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                    Text("Search brands, styles and sizes")
+                        .font(Theme.syne(15, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                    Text("Results show up as you type.")
+                        .font(Theme.syne(13))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 60)
+            }
         }
-        .padding(.top, 4)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    /// A few suggestions above the live results while typing.
+    @ViewBuilder
+    private var typingSuggestions: some View {
+        let shown = Array(
+            liveSuggestions
+                .filter { $0.text.caseInsensitiveCompare(trimmedQuery) != .orderedSame }
+                .prefix(typingSuggestionLimit)
+        )
+        if !shown.isEmpty {
+            glassCard {
+                ForEach(shown) { suggestion in
+                    Button {
+                        selectPrediction(suggestion)
+                    } label: {
+                        HStack(spacing: 12) {
+                            rowIcon(predictionIcon(for: suggestion))
+                            highlightedPrediction(suggestion.text)
+                                .font(Theme.syne(14, weight: .medium))
+                                .lineLimit(1)
+                            Spacer()
+                            Image(systemName: "arrow.up.left")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(campusTheme.textMuted)
+                        }
+                        .padding(.horizontal, 12)
+                        .frame(height: 50)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+
+                    if suggestion.id != shown.last?.id {
+                        rowDivider
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
     private func highlightedPrediction(_ prediction: String) -> some View {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty,
-           let range = prediction.range(of: trimmed, options: .caseInsensitive) {
+        if !trimmedQuery.isEmpty,
+           let range = prediction.range(of: trimmedQuery, options: .caseInsensitive) {
             Text(String(prediction[..<range.lowerBound]))
-                .foregroundColor(campusTheme.textPrimary)
+                .foregroundColor(campusTheme.textMuted)
             + Text(String(prediction[range]))
-                .bold()
-                .foregroundColor(campusTheme.tint)
-            + Text(String(prediction[range.upperBound...]))
+                .fontWeight(.bold)
                 .foregroundColor(campusTheme.textPrimary)
+            + Text(String(prediction[range.upperBound...]))
+                .foregroundColor(campusTheme.textMuted)
         } else {
             Text(prediction)
-                .font(Theme.syne(14, weight: .medium))
-                .foregroundStyle(campusTheme.textPrimary)
+                .foregroundColor(campusTheme.textPrimary)
         }
     }
 
-    // MARK: Idle browse
+    // MARK: Results (live while typing, and after)
 
-    private var idleContent: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            trendingSection(
-                title: "trending searches",
-                terms: trendingSearchTerms,
-                icon: "arrow.up.right"
-            )
-            .padding(.top, 8)
-
-            categoryTiles
-                .padding(.top, 28)
-
-            brandScroller
-                .padding(.top, 28)
-        }
-    }
-
-    private var recentSearchesList: some View {
-        VStack(spacing: 0) {
-            ForEach(recentSearches, id: \.self) { term in
-                HStack(spacing: 4) {
-                    Button {
-                        selectPrediction(SearchSuggestion(text: term, type: "recent", score: 1))
-                    } label: {
-                        HStack(spacing: 12) {
-                            rowIcon("clock")
-                            Text(term)
-                                .font(Theme.syne(14, weight: .medium))
-                                .foregroundStyle(campusTheme.textPrimary)
-                            Spacer()
-                        }
-                        .padding(.leading, 4)
-                        .frame(height: 58)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-
-                    Button {
-                        Motion.haptic(.light)
-                        deleteRecentSearch(term)
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(campusTheme.textMuted)
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Delete \(term)")
-                }
-                .padding(.horizontal, 12)
-
-                if term != recentSearches.last {
-                    Divider()
-                        .overlay(campusTheme.border)
-                        .padding(.leading, 64)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(campusTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(campusTheme.border, lineWidth: 1)
-        )
-        .padding(.horizontal, 20)
-    }
-
-    private func trendingSection(title: String, terms: [String], icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionTitle(title)
-                .padding(.horizontal, 20)
-
-            listCard {
-                ForEach(terms, id: \.self) { term in
-                    Button {
-                        selectPrediction(SearchSuggestion(text: term, type: "trending", score: 1))
-                    } label: {
-                        HStack(spacing: 12) {
-                            rowIcon(icon)
-                            Text(term)
-                                .font(Theme.syne(14, weight: .medium))
-                                .foregroundStyle(campusTheme.textPrimary)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 12)
-                        .frame(height: 56)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-
-                    if term != terms.last {
-                        Divider()
-                            .overlay(campusTheme.border)
-                            .padding(.leading, 60)
-                    }
-                }
-            }
-        }
-    }
-
-    private var categoryTiles: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("browse categories")
-                .padding(.horizontal, 20)
-
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(searchCategoryTiles) { cat in
-                    let isActive = category == cat.id
-                    Button {
-                        Motion.haptic(.light)
-                        withAnimation(Motion.snappy) { category = cat.id }
-                    } label: {
-                        VStack(spacing: 12) {
-                            Image(systemName: cat.icon)
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
-                                .frame(width: 52, height: 52)
-                                .background(
-                                    Circle().fill(isActive ? Color.white.opacity(0.18) : campusTheme.elevatedSurface)
-                                )
-                                .overlay(
-                                    Circle().stroke(isActive ? Color.white.opacity(0.35) : Color.clear, lineWidth: 1)
-                                )
-                            Text(cat.name)
-                                .font(Theme.syne(15, weight: .bold))
-                                .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 128)
-                        .background(isActive ? campusTheme.primary : campusTheme.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                                .stroke(isActive ? Color.clear : campusTheme.border, lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-                }
+    private var resultsSection: some View {
+        let items = sortedProducts
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(resultsTitle)
+                    .font(Theme.syne(17, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                sortMenu
             }
             .padding(.horizontal, 20)
-        }
-    }
 
-    private var brandScroller: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("shop by brand")
-                .padding(.horizontal, 20)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(popularSearchBrands, id: \.self) { brand in
-                        Button {
-                            selectPrediction(SearchSuggestion(text: brand, type: "brand", score: 1))
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text(String(brand.prefix(1)))
-                                    .font(Theme.syne(15, weight: .bold))
-                                    .foregroundStyle(campusTheme.textPrimary)
-                                    .frame(width: 42, height: 42)
-                                    .background(Circle().fill(campusTheme.surface))
-                                Text(brand)
-                                    .font(Theme.syne(14, weight: .semibold))
-                                    .foregroundStyle(campusTheme.textPrimary)
-                            }
-                            .padding(.leading, 5)
-                            .padding(.trailing, 18)
-                            .frame(height: 52)
-                            .background(campusTheme.elevatedSurface)
-                            .clipShape(Capsule())
-                        }
-                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
-                    }
-                }
-                .padding(.horizontal, 20)
-            }
-        }
-    }
-
-    // MARK: Results
-
-    private var resultsContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            if let closestNote {
-                Text(closestNote)
-                    .font(Theme.syne(13, weight: .medium))
+            if !resultsExact, !trimmedQuery.isEmpty, !items.isEmpty {
+                Text("No exact matches for \u{201C}\(trimmedQuery)\u{201D}. Here\u{2019}s the closest.")
+                    .font(Theme.syne(12, weight: .medium))
                     .foregroundStyle(campusTheme.textMuted)
                     .padding(.horizontal, 20)
-                    .padding(.bottom, -8)
+                    .padding(.top, -6)
             }
-            HStack {
-                sectionTitle(resultsTitle)
-                    .lineLimit(1)
-                Spacer()
-                Text(filteredProducts.count == 1 ? "1 item" : "\(filteredProducts.count) items")
-                    .font(Theme.syne(12, weight: .semibold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .padding(.horizontal, 12)
-                    .frame(height: 30)
-                    .background(campusTheme.elevatedSurface)
-                    .clipShape(Capsule())
-            }
-            .padding(.horizontal, 20)
 
-            if loading {
+            if items.isEmpty && loading {
                 ProgressView()
-                    .tint(campusTheme.primary)
+                    .tint(campusTheme.textPrimary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 48)
-            } else if filteredProducts.isEmpty {
+            } else if items.isEmpty {
                 emptyState
             } else {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(filteredProducts) { product in
+                    ForEach(items) { product in
                         HomeProductCard(
                             product: product,
-                            onTap: { appState.path.append(.productDetail(product.id)) }
+                            onTap: { openResult(product) }
                         )
                     }
                 }
                 .padding(.horizontal, 16)
+                // Keep the old results on screen while new ones load, instead of flashing a spinner.
+                .opacity(loading ? 0.55 : 1)
+                .animation(.easeInOut(duration: 0.15), value: loading)
             }
         }
-        .padding(.top, 4)
-    }
-
-    /// Nothing matched every word (e.g. no "vintage" shirts): say so instead of
-    /// implying these are exact matches.
-    private var closestNote: String? {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty, !filteredProducts.isEmpty,
-              !SearchEngine.rank(filteredProducts, query: q).exact else { return nil }
-        return "No exact matches for \u{201C}\(q)\u{201D}. Here’s the closest."
     }
 
     private var resultsTitle: String {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !q.isEmpty { return "results for \"\(q)\"" }
-        if category != "all" { return categoryLabel(for: category).lowercased() }
-        return "thrift finds"
+        let count = sortedProducts.count
+        if loading && count == 0 { return "Searching\u{2026}" }
+        return count == 1 ? "1 result" : "\(count) results"
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            Picker("Sort", selection: $sortOrder) {
+                ForEach(SearchSort.allCases, id: \.self) { option in
+                    Text(option.title).tag(option)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(sortOrder.title)
+                    .font(Theme.syne(12, weight: .semibold))
+            }
+            .foregroundStyle(campusTheme.textPrimary)
+            .padding(.horizontal, 13)
+            .frame(height: 34)
+            .background(Capsule().fill(campusTheme.glass))
+            .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Sort, \(sortOrder.title)")
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 28, weight: .medium))
+                .font(.system(size: 26, weight: .medium))
                 .foregroundStyle(campusTheme.textMuted)
-            Text("No thrift finds")
+            Text("Nothing here yet")
                 .font(Theme.syne(16, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
-            Text("Try another search or browse a clothing category.")
-                .font(Theme.syne(14))
+            Text(category != "all" && !trimmedQuery.isEmpty
+                 ? "Try All categories or a shorter search."
+                 : "Try another search or browse a category.")
+                .font(Theme.syne(13))
                 .foregroundStyle(campusTheme.textMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
-            Button("Clear search", action: clearAll)
-                .font(Theme.syne(14, weight: .bold))
-                .foregroundStyle(campusTheme.tint)
-                .padding(.top, 4)
+            if !searchFieldFocused {
+                Button("Clear search", action: clearAll)
+                    .font(Theme.syne(14, weight: .bold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .padding(.horizontal, 18)
+                    .frame(height: 40)
+                    .background(Capsule().fill(campusTheme.glass))
+                    .padding(.top, 4)
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 56)
+        .padding(.vertical, 44)
     }
 
     // MARK: Actions
 
-    private func clearAll() {
-        query = ""
-        category = "all"
-        products = []
-        liveSuggestions = []
+    private func openResult(_ product: Product) {
+        // Tapping a result while typing counts as the search they meant.
+        if searchFieldFocused, !trimmedQuery.isEmpty {
+            saveRecentSearch(trimmedQuery)
+            searchFieldFocused = false
+        }
+        let q = trimmedQuery
+        let school = campusTheme.schoolID
+        let userId = authVM.user?.id
+        Task {
+            await SearchSuggestService().logEvent(
+                queryText: q,
+                suggestionText: nil,
+                suggestionType: "result",
+                resultProductId: product.id,
+                eventType: "click",
+                school: school,
+                userId: userId
+            )
+        }
+        appState.path.append(.productDetail(product.id))
+    }
+
+    private func submitTypedQuery() {
+        let trimmed = trimmedQuery
+        guard !trimmed.isEmpty else { return }
+        saveRecentSearch(trimmed)
         searchFieldFocused = false
-        Motion.haptic(.light)
-        scheduleSuggestions()
+        logSubmit(trimmed, suggestion: trimmed, type: "submit", event: "submit")
+        // Results are usually already there from typing; this only fetches if they aren't.
+        searchDebounceTask?.cancel()
+        Task { await performSearch() }
     }
 
     private func selectPrediction(_ suggestion: SearchSuggestion) {
+        Motion.haptic(.light)
         query = suggestion.text
         searchFieldFocused = false
         saveRecentSearch(suggestion.text)
-        Motion.haptic(.light)
+        logSubmit(suggestion.text, suggestion: suggestion.text, type: suggestion.type, event: "click")
+        searchDebounceTask?.cancel()
+        Task { await performSearch() }
+    }
+
+    private func logSubmit(_ q: String, suggestion: String?, type: String?, event: String) {
+        let school = campusTheme.schoolID
+        let userId = authVM.user?.id
         Task {
             await SearchSuggestService().logEvent(
-                queryText: suggestion.text,
-                suggestionText: suggestion.text,
-                suggestionType: suggestion.type,
+                queryText: q,
+                suggestionText: suggestion,
+                suggestionType: type,
                 resultProductId: nil,
-                eventType: "click",
-                school: campusTheme.schoolID,
-                userId: authVM.user?.id
+                eventType: event,
+                school: school,
+                userId: userId
             )
-            await performSearch()
         }
+    }
+
+    private func clearQuery() {
+        query = ""
+        if category == "all" {
+            products = []
+            resultsExact = true
+            lastSearchKey = ""
+        }
+        searchFieldFocused = true
+    }
+
+    private func clearAll() {
+        Motion.haptic(.light)
+        query = ""
+        category = "all"
+        products = []
+        resultsExact = true
+        lastSearchKey = ""
+        searchFieldFocused = false
     }
 
     private func predictionIcon(for suggestion: SearchSuggestion) -> String {
@@ -858,125 +946,96 @@ struct SearchView: View {
         }
     }
 
-    private func categoryIcon(for id: String) -> String {
-        searchCategoryTiles.first(where: { $0.id == id })?.icon ?? "tag"
-    }
-
-    private func categoryLabel(for id: String) -> String {
-        searchCategoryTiles.first(where: { $0.id == id })?.name ?? id.capitalized
-    }
-
     private func scheduleSearch() {
         searchDebounceTask?.cancel()
         guard showResults else {
+            searchGeneration += 1  // drop any response still in flight
             products = []
+            resultsExact = true
+            loading = false
+            lastSearchKey = ""
             return
         }
         searchDebounceTask = Task {
-            try? await Task.sleep(nanoseconds: 350_000_000)
+            try? await Task.sleep(nanoseconds: 280_000_000)
             guard !Task.isCancelled else { return }
             await performSearch()
         }
     }
 
-    private func scheduleSuggestions() {
+    private func scheduleSuggestions(immediately: Bool = false) {
         suggestDebounceTask?.cancel()
         suggestDebounceTask = Task {
-            try? await Task.sleep(nanoseconds: 220_000_000)
+            if !immediately {
+                try? await Task.sleep(nanoseconds: 160_000_000)
+            }
             guard !Task.isCancelled else { return }
             await refreshSuggestions()
         }
     }
 
+    @MainActor
     private func refreshSuggestions() async {
-        await MainActor.run { suggestionsLoading = liveSuggestions.isEmpty }
-        let q = query
-        let school = campusTheme.schoolID
-        let recent = recentSearches
+        suggestGeneration += 1
+        let generation = suggestGeneration
+        suggestionsLoading = liveSuggestions.isEmpty
         let suggestions = await SearchSuggestService().suggest(
-            query: q,
-            school: school,
-            recentSearches: recent,
+            query: query,
+            school: campusTheme.schoolID,
+            recentSearches: recentSearches,
             limit: 8
         )
-        await MainActor.run {
-            liveSuggestions = suggestions
-            suggestionsLoading = false
-        }
-        if searchFieldFocused {
-            await SearchSuggestService().logEvent(
-                queryText: q,
-                suggestionText: nil,
-                suggestionType: nil,
-                resultProductId: nil,
-                eventType: "typeahead",
-                school: school,
-                userId: authVM.user?.id
-            )
-        }
+        // A newer keystroke already asked again; its answer wins.
+        guard generation == suggestGeneration else { return }
+        liveSuggestions = suggestions
+        suggestionsLoading = false
     }
 
+    @MainActor
     private func performSearch() async {
         guard showResults else {
-            await MainActor.run { products = []; loading = false }
+            products = []
+            loading = false
             return
         }
-        await MainActor.run { loading = true }
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let q = trimmedQuery
         let cat = category == "all" ? nil : category
+        let key = "\(q.lowercased())|\(category)"
+        // Same search as the one already shown or loading (e.g. tapping a suggestion right
+        // after typing it): don't fetch it again.
+        if key == lastSearchKey { return }
+        lastSearchKey = key
+        searchGeneration += 1
+        let generation = searchGeneration
+        loading = true
         do {
-            let fetched = try await ProductService().search(query: q, category: cat, school: campusTheme.schoolID)
-            await MainActor.run {
-                products = BlockStore.shared.filterProducts(fetched)
-                loading = false
-            }
-            await SearchSuggestService().logEvent(
-                queryText: q,
-                suggestionText: q,
-                suggestionType: "submit",
-                resultProductId: nil,
-                eventType: "submit",
-                school: campusTheme.schoolID,
-                userId: authVM.user?.id
-            )
+            let ranked = try await ProductService().searchRanked(query: q, category: cat, school: campusTheme.schoolID)
+            guard generation == searchGeneration else { return }
+            products = BlockStore.shared.filterProducts(ranked.products)
+            resultsExact = ranked.exact
+            loading = false
         } catch {
-            await MainActor.run {
-                products = []
-                loading = false
-            }
+            guard generation == searchGeneration else { return }
+            // Let the next attempt (or pull to refresh) try again.
+            lastSearchKey = ""
+            loading = false
         }
     }
 
-    private func toggleLike(productId: String) async {
-        let isLiked = likedProductIDs.contains(productId)
-        await MainActor.run {
-            if isLiked { likedProductIDs.remove(productId) }
-            else { likedProductIDs.insert(productId) }
-        }
+    @MainActor
+    private func loadBrowse() async {
+        let school = campusTheme.schoolID
+        let service = ProductService()
+        async let counts = service.categoryCounts(searchCategories.map(\.id), school: school)
         do {
-            try await SocialService().setLiked(productId: productId, liked: !isLiked)
+            let listings = try await service.discover(school: school)
+            campusListings = listings
+            likeCounts = await service.likeCounts(productIds: listings.map(\.id))
         } catch {
-            await MainActor.run {
-                if isLiked { likedProductIDs.insert(productId) }
-                else { likedProductIDs.remove(productId) }
-            }
+            // Keep whatever we had; the category cards still work without photos.
         }
-    }
-
-    private func toggleSave(productId: String) async {
-        let isSaved = savedProductIDs.contains(productId)
-        await MainActor.run {
-            if isSaved { savedProductIDs.remove(productId) }
-            else { savedProductIDs.insert(productId) }
-        }
-        do {
-            try await SocialService().setSaved(productId: productId, saved: !isSaved)
-        } catch {
-            await MainActor.run {
-                if isSaved { savedProductIDs.insert(productId) }
-                else { savedProductIDs.remove(productId) }
-            }
-        }
+        categoryCounts = await counts
+        browseLoaded = true
     }
 
     private func loadRecentSearches() {
@@ -988,7 +1047,7 @@ struct SearchView: View {
     private func saveRecentSearch(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        var updated = [trimmed] + recentSearches.filter { $0 != trimmed }
+        var updated = [trimmed] + recentSearches.filter { $0.caseInsensitiveCompare(trimmed) != .orderedSame }
         updated = Array(updated.prefix(maxRecentSearches))
         recentSearches = updated
         UserDefaults.standard.set(updated, forKey: recentSearchesKey)
@@ -998,24 +1057,6 @@ struct SearchView: View {
         let updated = recentSearches.filter { $0 != text }
         recentSearches = updated
         UserDefaults.standard.set(updated, forKey: recentSearchesKey)
-    }
-
-    private func loadLikedProducts() async {
-        do {
-            let items = try await SocialService().likedItems()
-            await MainActor.run { likedProductIDs = Set(items.map(\.id)) }
-        } catch {
-            await MainActor.run { likedProductIDs = [] }
-        }
-    }
-
-    private func loadSavedProducts() async {
-        do {
-            let items = try await SocialService().savedItems()
-            await MainActor.run { savedProductIDs = Set(items.map(\.id)) }
-        } catch {
-            await MainActor.run { savedProductIDs = [] }
-        }
     }
 
     private func loadNotificationBadge() async {
@@ -1035,6 +1076,58 @@ struct SearchView: View {
                     in: NotificationCenterStore.loadPersisted()
                 )
             }
+        }
+    }
+}
+
+// MARK: - Wrapping chip layout (iOS 16)
+
+/// Lays chips out left to right, wrapping to a new line when the row is full.
+private struct FlowChips<Item: Identifiable, Chip: View>: View {
+    let items: [Item]
+    @ViewBuilder let chip: (Item) -> Chip
+
+    var body: some View {
+        WrapLayout(spacing: 8) {
+            ForEach(items) { item in
+                chip(item)
+            }
+        }
+    }
+}
+
+private struct WrapLayout: Layout {
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            maxX = max(maxX, x - spacing)
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: proposal.width ?? maxX, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, rowHeight: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
         }
     }
 }

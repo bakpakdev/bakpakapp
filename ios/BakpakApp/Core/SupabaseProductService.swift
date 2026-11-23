@@ -28,13 +28,66 @@ enum SupabaseProductService {
     }
 
     static func search(client: SupabaseClient, query: String, category: String?, school: String?) async throws -> [Product] {
+        try await searchRanked(client: client, query: query, category: category, school: school).products
+    }
+
+    /// Recent listings reused across keystrokes while someone types, so live search
+    /// doesn't refetch the same 100 listings for its typo fallback on every letter.
+    private static let recentCacheLock = NSLock()
+    private static var recentCache: [String: (at: Date, products: [Product])] = [:]
+
+    private static func cachedRecent(client: SupabaseClient, school: String?) async throws -> [Product] {
+        let key = school ?? ""
+        recentCacheLock.lock()
+        let hit = recentCache[key]
+        recentCacheLock.unlock()
+        if let hit, Date().timeIntervalSince(hit.at) < 45 { return hit.products }
+        let fresh = try await fetchDiscover(client: client, school: school)
+        recentCacheLock.lock()
+        recentCache[key] = (Date(), fresh)
+        recentCacheLock.unlock()
+        return fresh
+    }
+
+    /// Like counts for a set of listings (likes are readable by any signed-in user).
+    static func likeCounts(client: SupabaseClient, productIds: [String]) async throws -> [String: Int] {
+        guard !productIds.isEmpty else { return [:] }
+        struct Row: Decodable { let product_id: String }
+        let rows: [Row] = try await client
+            .from("likes")
+            .select("product_id")
+            .in("product_id", values: productIds)
+            .limit(2000)
+            .execute()
+            .value
+        var counts: [String: Int] = [:]
+        for row in rows { counts[row.product_id.lowercased(), default: 0] += 1 }
+        return counts
+    }
+
+    /// Number of unsold listings in one category at a school.
+    static func countListings(client: SupabaseClient, category: String, school: String?) async throws -> Int {
+        var q = client
+            .from("products")
+            .select("id", head: true, count: .exact)
+            .eq("is_sold", value: false)
+            .eq("category", value: category)
+        if let school, !school.isEmpty {
+            q = q.eq("school", value: school)
+        }
+        return try await q.execute().count ?? 0
+    }
+
+    /// Same as `search`, but also says whether the results match every word or are only
+    /// the closest listings, so the screen doesn't have to rank them a second time.
+    static func searchRanked(client: SupabaseClient, query: String, category: String?, school: String?) async throws -> SearchEngine.Ranked {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let cat = category?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let hasCat = !cat.isEmpty
         let hasQ = !trimmed.isEmpty
 
         if !hasCat && !hasQ {
-            return try await fetchDiscover(client: client, school: school)
+            return SearchEngine.Ranked(products: try await fetchDiscover(client: client, school: school), exact: true)
         }
 
         var q = client
@@ -53,7 +106,7 @@ enum SupabaseProductService {
                 .limit(100)
                 .execute()
                 .value
-            return rows.map(\.asProduct)
+            return SearchEngine.Ranked(products: rows.map(\.asProduct), exact: true)
         }
 
         // Candidates: any listing that mentions any word (or synonym) of the query, plus the
@@ -74,14 +127,14 @@ enum SupabaseProductService {
             .limit(200)
             .execute()
             .value
-        async let recent = fetchDiscover(client: client, school: school)
+        async let recent = cachedRecent(client: client, school: school)
         let matched = (try? await matchedRows)?.map(\.asProduct) ?? []
         var pool = matched
         var seen = Set(matched.map(\.id))
         for p in (try? await recent) ?? [] where seen.insert(p.id).inserted {
             if !hasCat || p.category == cat { pool.append(p) }
         }
-        return SearchEngine.rank(pool, query: trimmed).products
+        return SearchEngine.rank(pool, query: trimmed)
     }
 
     static func fetchProduct(client: SupabaseClient, id: String) async throws -> Product {
