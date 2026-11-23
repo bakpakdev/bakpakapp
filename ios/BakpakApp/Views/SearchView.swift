@@ -81,6 +81,11 @@ struct SearchView: View {
     @State private var notificationUnread = 0
     @FocusState private var searchFieldFocused: Bool
 
+    /// One spring for every part of opening and closing search, so it moves as one piece.
+    private let searchGlide = Animation.spring(response: 0.46, dampingFraction: 0.86)
+    /// Drives the one-after-another rise of the sections on the focused screen.
+    @State private var focusedRevealed = false
+
     private var trimmedQuery: String {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -146,7 +151,8 @@ struct SearchView: View {
                         .padding(.top, 70)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 16)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        // Glide: the title floats up and away while the bar rises into its place.
+                        .transition(.opacity.combined(with: .offset(y: -28)))
                 }
 
                 searchBarRow
@@ -156,11 +162,12 @@ struct SearchView: View {
                 Group {
                     if searchFieldFocused {
                         focusedContent
+                            .transition(.opacity)
                     } else {
                         browseContent
+                            .transition(.opacity.combined(with: .offset(y: 36)))
                     }
                 }
-                .transition(.opacity)
                 // Content scrolls away softly under the bar instead of being cut off.
                 .mask(
                     VStack(spacing: 0) {
@@ -170,7 +177,7 @@ struct SearchView: View {
                     }
                 )
             }
-            .animation(.easeInOut(duration: 0.22), value: searchFieldFocused)
+            .animation(searchGlide, value: searchFieldFocused)
         }
         .background(campusTheme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
@@ -266,7 +273,7 @@ struct SearchView: View {
             if searchFieldFocused {
                 Button {
                     Motion.haptic(.light)
-                    withAnimation(.easeInOut(duration: 0.22)) {
+                    withAnimation(searchGlide) {
                         // Like iOS search: Cancel drops what was typed. A picked category stays.
                         searchFieldFocused = false
                         query = ""
@@ -277,6 +284,7 @@ struct SearchView: View {
                         .foregroundStyle(campusTheme.textPrimary)
                 }
                 .buttonStyle(.plain)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
     }
@@ -636,11 +644,37 @@ struct SearchView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onAppear {
+            focusedRevealed = false
+            DispatchQueue.main.async { focusedRevealed = true }
+        }
+        .onDisappear { focusedRevealed = false }
+    }
+
+    /// Short, shop-like searches for the "popular" chips ("Carhartt", "Nike Dunks"),
+    /// not catalog combos like "Herschel accessories". Falls back to popular brands.
+    private var popularChips: [SearchSuggestion] {
+        var seen = Set(recentSearches.map { $0.lowercased() })
+        var chips: [SearchSuggestion] = []
+        for suggestion in liveSuggestions where ["popular", "brand", "listing"].contains(suggestion.type) {
+            let text = suggestion.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard text.count >= 2, text.count <= 22, seen.insert(text.lowercased()).inserted else { continue }
+            chips.append(SearchSuggestion(text: text, type: suggestion.type, score: suggestion.score))
+            if chips.count == 6 { break }
+        }
+        if chips.count < 3 {
+            for brand in popularSearchBrands where seen.insert(brand.lowercased()).inserted {
+                chips.append(SearchSuggestion(text: brand, type: "brand", score: 0))
+                if chips.count == 6 { break }
+            }
+        }
+        return chips
     }
 
     /// Before typing: your recent searches, then what people at your school search for.
     private var emptyQueryContent: some View {
-        let popular = liveSuggestions.filter { $0.type != "recent" }.prefix(8)
+        let popular = popularChips
+        let recents = Array(recentSearches.prefix(5))
         return VStack(alignment: .leading, spacing: 0) {
             if !recentSearches.isEmpty {
                 HStack {
@@ -656,9 +690,10 @@ struct SearchView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 10)
+                .riseIn(focusedRevealed, order: 0)
 
                 glassCard {
-                    ForEach(recentSearches.prefix(8), id: \.self) { term in
+                    ForEach(recents, id: \.self) { term in
                         HStack(spacing: 4) {
                             Button {
                                 selectPrediction(SearchSuggestion(text: term, type: "recent", score: 1))
@@ -690,11 +725,12 @@ struct SearchView: View {
                         }
                         .padding(.horizontal, 12)
 
-                        if term != recentSearches.prefix(8).last {
+                        if term != recents.last {
                             rowDivider
                         }
                     }
                 }
+                .riseIn(focusedRevealed, order: 1)
                 .padding(.bottom, 24)
             }
 
@@ -702,14 +738,16 @@ struct SearchView: View {
                 sectionLabel("popular at your school")
                     .padding(.horizontal, 24)
                     .padding(.bottom, 10)
+                    .riseIn(focusedRevealed, order: 2)
                 FlowChips(spacing: 8) {
-                    ForEach(Array(popular)) { suggestion in
+                    ForEach(popular) { suggestion in
                     Button {
                         selectPrediction(suggestion)
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.up.right")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(campusTheme.textMuted)
                             Text(suggestion.text)
                                 .font(Theme.syne(13, weight: .semibold))
                                 .lineLimit(1)
@@ -724,6 +762,7 @@ struct SearchView: View {
                     }
                 }
                 .padding(.horizontal, 20)
+                .riseIn(focusedRevealed, order: 3)
             } else if recentSearches.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
@@ -1092,7 +1131,8 @@ struct SearchView: View {
 
     private func loadRecentSearches() {
         if let data = UserDefaults.standard.array(forKey: recentSearchesKey) as? [String] {
-            recentSearches = data
+            // Older builds saved one-letter searches; leave those out.
+            recentSearches = data.filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 }
         }
     }
 
@@ -1130,5 +1170,21 @@ struct SearchView: View {
                 )
             }
         }
+    }
+}
+
+// MARK: - Rise-in for the focused screen
+
+private extension View {
+    /// Fades a section up into place, each one a beat after the one above it.
+    func riseIn(_ shown: Bool, order: Int) -> some View {
+        self
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 16)
+            .animation(
+                .spring(response: 0.44, dampingFraction: 0.86)
+                    .delay(shown ? 0.1 + Double(order) * 0.06 : 0),
+                value: shown
+            )
     }
 }
