@@ -182,6 +182,14 @@ struct HomeView: View {
     @Environment(\.campusTheme) private var campusTheme
 
     @State private var selectedCategory: String? = "All"
+    /// Listings whose card has been on screen this session.
+    @State private var seenListingIDs: Set<String> = []
+    /// After a pull-to-refresh: listing id -> position, putting ones not seen yet first.
+    @State private var refreshRank: [String: Int] = [:]
+    /// Bumped on each refresh so the grid fades the new order in.
+    @State private var feedRevision = 0
+    @State private var refreshBanner: RefreshBanner?
+    @State private var bannerTask: Task<Void, Never>?
     @State private var searchText = ""
     @State private var searchTask: Task<Void, Never>?
     @State private var notificationUnread = 0
@@ -206,7 +214,13 @@ struct HomeView: View {
         case .newest:
             // While searching, the default order is best match (SearchEngine), not date.
             if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return filtered }
-            return filtered.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
+            let byDate = filtered.sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
+            guard !refreshRank.isEmpty else { return byDate }
+            // Keep date order as the tie-break so listings the refresh didn't rank stay sensible.
+            let fallback = Dictionary(uniqueKeysWithValues: byDate.enumerated().map { ($1.id, $0 + refreshRank.count) })
+            return byDate.sorted {
+                (refreshRank[$0.id] ?? fallback[$0.id] ?? .max) < (refreshRank[$1.id] ?? fallback[$1.id] ?? .max)
+            }
         case .priceLow:
             return filtered.sorted { $0.price < $1.price }
         case .priceHigh:
@@ -268,7 +282,9 @@ struct HomeView: View {
                         .padding(.bottom, 110)
                 }
             }
-            .refreshable { await reloadProducts() }
+            // Run in its own task: SwiftUI cancels the refreshable task when the feed
+            // re-renders mid-load, which used to drop the refresh silently.
+            .refreshable { await Task { await pullToRefresh() }.value }
         }
         .background(campusTheme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
@@ -277,6 +293,15 @@ struct HomeView: View {
         .hidesSystemNavigationBar(true)
         .ignoresSafeArea(edges: .top)
         .topEdgeScrim(aurora: true)
+        // Above the top scrim so the pill isn't faded out.
+        .overlay(alignment: .top) {
+            if let refreshBanner {
+                refreshBannerView(refreshBanner)
+                    .padding(.top, 4)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(30)
+            }
+        }
         .task {
             await blockStore.refreshIfNeeded()
             await reloadProducts()
@@ -292,6 +317,7 @@ struct HomeView: View {
         .onChange(of: appState.homeEntryToken) { _ in
             searchText = ""
             selectedCategory = "All"
+            refreshRank = [:]
             searchTask?.cancel()
             vm.beginFreshHomeLoad()
             Task {
@@ -300,6 +326,7 @@ struct HomeView: View {
             }
         }
         .onChange(of: selectedCategory) { _ in
+            refreshRank = [:]
             if showCampusPeople {
                 withAnimation(Motion.snappy) { showCampusPeople = false }
             }
@@ -313,6 +340,7 @@ struct HomeView: View {
         }
         .onDisappear {
             searchTask?.cancel()
+            bannerTask?.cancel()
         }
     }
 
@@ -586,11 +614,13 @@ struct HomeView: View {
                 .padding(.vertical, 48)
             } else {
                 LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(clothingProducts) { product in
+                    ForEach(Array(clothingProducts.enumerated()), id: \.element.id) { index, product in
                         HomeProductCard(
                             product: product,
                             onTap: { appState.path.append(.productDetail(product.id)) }
                         )
+                        .onAppear { seenListingIDs.insert(product.id) }
+                        .modifier(FeedRevealModifier(revision: feedRevision, index: index))
                     }
                 }
             }
@@ -607,6 +637,99 @@ struct HomeView: View {
             await vm.loadDiscover(school: school)
         } else {
             await vm.search(query: query, category: category, school: school)
+        }
+    }
+
+    /// Pull-to-refresh: fetch, then lead with listings the user hasn't scrolled to yet,
+    /// and say what happened so the refresh is obvious.
+    private func pullToRefresh() async {
+        Motion.haptic(.medium)
+        bannerTask?.cancel()
+        withAnimation(Motion.bounce) { refreshBanner = .refreshing }
+        let seenBefore = seenListingIDs
+        let started = Date()
+        await reloadProducts()
+
+        // Keep the spinner up long enough to register as a refresh.
+        let elapsed = Date().timeIntervalSince(started)
+        if elapsed < 0.8 {
+            try? await Task.sleep(nanoseconds: UInt64((0.8 - elapsed) * 1_000_000_000))
+        }
+        let isPlainFeed = homeSort == .newest
+            && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard isPlainFeed else {
+            // Search or a custom sort: order is the user's choice, just confirm the refresh.
+            showRefreshBanner(.updated(clothingCount))
+            return
+        }
+
+        let ordered = clothingProductsByDate
+        let unseen = ordered.filter { !seenBefore.contains($0.id) }
+        guard !unseen.isEmpty else {
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            showRefreshBanner(.caughtUp)
+            return
+        }
+        // Not seen yet first (newest first), then what they've already looked at.
+        let seen = ordered.filter { seenBefore.contains($0.id) }
+        var rank: [String: Int] = [:]
+        for (i, p) in (unseen + seen).enumerated() { rank[p.id] = i }
+
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        withAnimation(Motion.gentle) {
+            refreshRank = rank
+            feedRevision += 1
+        }
+        showRefreshBanner(.fresh(unseen.count))
+    }
+
+    private var clothingCount: Int { clothingProducts.count }
+
+    /// The feed in plain date order, ignoring any refresh ranking.
+    private var clothingProductsByDate: [Product] {
+        vm.products
+            .filter { product in
+                guard blockStore.isVisibleSeller(of: product),
+                      let category = product.category?.lowercased() else { return false }
+                return homeClothingCategories.contains(category)
+            }
+            .sorted { ($0.createdAt ?? "") > ($1.createdAt ?? "") }
+    }
+
+    private func showRefreshBanner(_ banner: RefreshBanner) {
+        bannerTask?.cancel()
+        withAnimation(Motion.bounce) { refreshBanner = banner }
+        bannerTask = Task {
+            try? await Task.sleep(nanoseconds: 2_400_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation(Motion.gentle) { refreshBanner = nil }
+            }
+        }
+    }
+
+    private func refreshBannerView(_ banner: RefreshBanner) -> some View {
+        HStack(spacing: 8) {
+            if banner == .refreshing {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(campusTheme.isDark ? Color.black : Color.white)
+            } else {
+                Image(systemName: banner.icon)
+                    .font(.system(size: 13, weight: .bold))
+            }
+            Text(banner.title)
+                .font(Theme.syne(14, weight: .semibold))
+        }
+        .foregroundStyle(campusTheme.isDark ? Color.black : Color.white)
+        .padding(.horizontal, 16)
+        .frame(height: 40)
+        .background(Capsule().fill(campusTheme.textPrimary))
+        .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.updatesFrequently)
+        .onTapGesture {
+            withAnimation(Motion.gentle) { refreshBanner = nil }
         }
     }
 
@@ -657,5 +780,54 @@ struct HomeView: View {
         } catch {
             campusPeopleCount = nil
         }
+    }
+}
+
+// MARK: - Refresh feedback
+
+private enum RefreshBanner: Equatable {
+    case fresh(Int)
+    case caughtUp
+    case updated(Int)
+    case refreshing
+
+    var title: String {
+        switch self {
+        case .fresh(let n): return n == 1 ? "1 find you haven't seen" : "\(n) finds you haven't seen"
+        case .caughtUp: return "You're all caught up"
+        case .updated(let n): return n == 1 ? "Updated · 1 find" : "Updated · \(n) finds"
+        case .refreshing: return "Finding new stuff…"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .fresh: return "sparkles"
+        case .caughtUp: return "checkmark.circle.fill"
+        case .updated, .refreshing: return "arrow.clockwise"
+        }
+    }
+}
+
+/// Cards rise and fade in, staggered, each time the feed is refreshed into a new order.
+private struct FeedRevealModifier: ViewModifier {
+    let revision: Int
+    let index: Int
+    @State private var shownRevision = 0
+
+    func body(content: Content) -> some View {
+        let hidden = revision > 0 && shownRevision != revision
+        content
+            .opacity(hidden ? 0 : 1)
+            .offset(y: hidden ? 18 : 0)
+            .scaleEffect(hidden ? 0.97 : 1)
+            .onAppear { reveal() }
+            .onChange(of: revision) { _ in reveal() }
+    }
+
+    private func reveal() {
+        guard shownRevision != revision else { return }
+        let delay = Double(min(index, 8)) * 0.045
+        withAnimation(Motion.gentle.delay(delay)) { shownRevision = revision }
     }
 }
