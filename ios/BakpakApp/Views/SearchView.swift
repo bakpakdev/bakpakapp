@@ -33,6 +33,12 @@ private enum SearchSort: CaseIterable {
     }
 }
 
+/// Shown as the "shop by brand" row at the bottom of the browse screen.
+private let popularSearchBrands = [
+    "Nike", "Adidas", "Levi’s", "Carhartt", "Patagonia", "The North Face",
+    "New Balance", "Lululemon", "Aritzia", "Dickies", "Champion", "Urban Outfitters",
+]
+
 private var recentSearchesKey: String { AccountScopedDefaults.key("popup.recent_searches") }
 private let maxRecentSearches = 24
 /// While typing, a few suggestions sit above the live results.
@@ -380,6 +386,8 @@ struct SearchView: View {
                     trendingRow
                     categoryGrid
                         .padding(.top, 26)
+                    brandRow
+                        .padding(.top, 26)
                 }
             }
             .padding(.top, 22)
@@ -535,6 +543,44 @@ struct SearchView: View {
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
         .accessibilityLabel(categoryCounts[cat.id].map { "\(cat.name), \($0) items" } ?? cat.name)
+    }
+
+    /// Brand shortcuts at the very bottom; tapping one searches that brand campus-wide.
+    private var brandRow: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionLabel("shop by brand")
+                .padding(.horizontal, 24)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(popularSearchBrands, id: \.self) { brand in
+                        Button {
+                            selectPrediction(SearchSuggestion(text: brand, type: "brand", score: 1))
+                        } label: {
+                            HStack(spacing: 9) {
+                                Text(String(brand.prefix(1)))
+                                    .font(Theme.syne(14, weight: .bold))
+                                    .foregroundStyle(campusTheme.textPrimary)
+                                    .frame(width: 34, height: 34)
+                                    .background(Circle().fill(campusTheme.glassInset))
+                                Text(brand)
+                                    .font(Theme.syne(13, weight: .semibold))
+                                    .foregroundStyle(campusTheme.textPrimary)
+                                    .lineLimit(1)
+                            }
+                            .padding(.leading, 4)
+                            .padding(.trailing, 16)
+                            .frame(height: 44)
+                            .background(Capsule().fill(campusTheme.glass))
+                            .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+                        }
+                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
+                        .accessibilityLabel("Shop \(brand)")
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
     }
 
     /// Narrow results by category; white when picked, like the Home chips.
