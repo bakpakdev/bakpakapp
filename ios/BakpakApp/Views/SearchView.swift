@@ -38,6 +38,11 @@ private let maxRecentSearches = 24
 /// While typing, a few suggestions sit above the live results.
 private let typingSuggestionLimit = 4
 
+private let popularSearchBrands = [
+    "Nike", "Adidas", "Levi\u{2019}s", "Carhartt", "Patagonia", "The North Face",
+    "New Balance", "Lululemon", "Aritzia", "Dickies", "Champion", "Urban Outfitters",
+]
+
 // MARK: - Search tab
 
 struct SearchView: View {
@@ -380,6 +385,8 @@ struct SearchView: View {
                     trendingRow
                     categoryGrid
                         .padding(.top, 26)
+                    brandScroller
+                        .padding(.top, 26)
                 }
             }
             .padding(.top, 22)
@@ -570,6 +577,41 @@ struct SearchView: View {
         }
         .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
         .accessibilityAddTraits(isActive ? .isSelected : [])
+    }
+
+    private var brandScroller: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionLabel("shop by brand")
+                .padding(.horizontal, 24)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(popularSearchBrands, id: \.self) { brand in
+                        Button {
+                            selectPrediction(SearchSuggestion(text: brand, type: "brand", score: 1))
+                        } label: {
+                            HStack(spacing: 9) {
+                                Text(String(brand.prefix(1)))
+                                    .font(Theme.syne(14, weight: .bold))
+                                    .foregroundStyle(campusTheme.textPrimary)
+                                    .frame(width: 34, height: 34)
+                                    .background(Circle().fill(campusTheme.glassInset))
+                                Text(brand)
+                                    .font(Theme.syne(13, weight: .semibold))
+                                    .foregroundStyle(campusTheme.textPrimary)
+                            }
+                            .padding(.leading, 5)
+                            .padding(.trailing, 15)
+                            .frame(height: 44)
+                            .background(Capsule().fill(campusTheme.glass))
+                            .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+                        }
+                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
     }
 
     // MARK: Focused (typing)
