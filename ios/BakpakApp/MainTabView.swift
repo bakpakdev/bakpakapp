@@ -44,12 +44,17 @@ struct MainTabView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !appState.hidesTabBar {
                 customTabBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         // The tab bar stays put when the keyboard opens (e.g. Home search); it no longer
         // rides up on top of the keyboard.
         .ignoresSafeArea(.keyboard, edges: .bottom)
-        .animation(nil, value: appState.hidesTabBar)
+        // Focused search slides the tab bar away; everywhere else it still just hides.
+        .animation(
+            appState.selectedTab == .search ? .spring(response: 0.46, dampingFraction: 0.86) : nil,
+            value: appState.hidesTabBar
+        )
         .toolbar(.hidden, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
         .navigationBarHidden(true)

@@ -33,15 +33,16 @@ private enum SearchSort: CaseIterable {
     }
 }
 
+/// Shown as the "shop by brand" row at the bottom of the browse screen.
+private let popularSearchBrands = [
+    "Nike", "Adidas", "Levi’s", "Carhartt", "Patagonia", "The North Face",
+    "New Balance", "Lululemon", "Aritzia", "Dickies", "Champion", "Urban Outfitters",
+]
+
 private var recentSearchesKey: String { AccountScopedDefaults.key("popup.recent_searches") }
 private let maxRecentSearches = 24
 /// While typing, a few suggestions sit above the live results.
 private let typingSuggestionLimit = 4
-
-private let popularSearchBrands = [
-    "Nike", "Adidas", "Levi\u{2019}s", "Carhartt", "Patagonia", "The North Face",
-    "New Balance", "Lululemon", "Aritzia", "Dickies", "Champion", "Urban Outfitters",
-]
 
 // MARK: - Search tab
 
@@ -80,11 +81,6 @@ struct SearchView: View {
 
     @State private var notificationUnread = 0
     @FocusState private var searchFieldFocused: Bool
-
-    /// One spring for every part of opening and closing search, so it moves as one piece.
-    private let searchGlide = Animation.spring(response: 0.46, dampingFraction: 0.86)
-    /// Drives the one-after-another rise of the sections on the focused screen.
-    @State private var focusedRevealed = false
 
     private var trimmedQuery: String {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -151,8 +147,10 @@ struct SearchView: View {
                         .padding(.top, 70)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 16)
-                        // Glide: the title floats up and away while the bar rises into its place.
-                        .transition(.opacity.combined(with: .offset(y: -28)))
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .offset(y: -18)),
+                            removal: .opacity.combined(with: .offset(y: -44))
+                        ))
                 }
 
                 searchBarRow
@@ -162,12 +160,15 @@ struct SearchView: View {
                 Group {
                     if searchFieldFocused {
                         focusedContent
-                            .transition(.opacity)
                     } else {
                         browseContent
-                            .transition(.opacity.combined(with: .offset(y: 36)))
                     }
                 }
+                .transition(.asymmetric(
+                    insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.08)),
+                    // Leave fast so the two screens never overlap for long.
+                    removal: .opacity.combined(with: .offset(y: 22)).animation(.easeIn(duration: 0.14))
+                ))
                 // Content scrolls away softly under the bar instead of being cut off.
                 .mask(
                     VStack(spacing: 0) {
@@ -225,6 +226,9 @@ struct SearchView: View {
             loadRecentSearches()
         }
     }
+
+    /// The "Glide" focus animation: one soft spring for the bar, header and content.
+    private var searchGlide: Animation { .spring(response: 0.46, dampingFraction: 0.86) }
 
     // MARK: Header + search bar
 
@@ -363,9 +367,9 @@ struct SearchView: View {
 
     private func rowIcon(_ systemName: String) -> some View {
         Image(systemName: systemName)
-            .font(.system(size: 13, weight: .semibold))
+            .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(campusTheme.textPrimary)
-            .frame(width: 34, height: 34)
+            .frame(width: 30, height: 30)
             .background(Circle().fill(campusTheme.glassInset))
     }
 
@@ -373,7 +377,7 @@ struct SearchView: View {
         Rectangle()
             .fill(campusTheme.border)
             .frame(height: 1)
-            .padding(.leading, 58)
+            .padding(.leading, 52)
     }
 
     private func likes(for product: Product) -> Int {
@@ -393,7 +397,7 @@ struct SearchView: View {
                     trendingRow
                     categoryGrid
                         .padding(.top, 26)
-                    brandScroller
+                    brandRow
                         .padding(.top, 26)
                 }
             }
@@ -552,6 +556,44 @@ struct SearchView: View {
         .accessibilityLabel(categoryCounts[cat.id].map { "\(cat.name), \($0) items" } ?? cat.name)
     }
 
+    /// Brand shortcuts at the very bottom; tapping one searches that brand campus-wide.
+    private var brandRow: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionLabel("shop by brand")
+                .padding(.horizontal, 24)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(popularSearchBrands, id: \.self) { brand in
+                        Button {
+                            selectPrediction(SearchSuggestion(text: brand, type: "brand", score: 1))
+                        } label: {
+                            HStack(spacing: 9) {
+                                Text(String(brand.prefix(1)))
+                                    .font(Theme.syne(14, weight: .bold))
+                                    .foregroundStyle(campusTheme.textPrimary)
+                                    .frame(width: 34, height: 34)
+                                    .background(Circle().fill(campusTheme.glassInset))
+                                Text(brand)
+                                    .font(Theme.syne(13, weight: .semibold))
+                                    .foregroundStyle(campusTheme.textPrimary)
+                                    .lineLimit(1)
+                            }
+                            .padding(.leading, 4)
+                            .padding(.trailing, 16)
+                            .frame(height: 44)
+                            .background(Capsule().fill(campusTheme.glass))
+                            .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+                        }
+                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
+                        .accessibilityLabel("Shop \(brand)")
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+
     /// Narrow results by category; white when picked, like the Home chips.
     private var categoryChipRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -587,41 +629,6 @@ struct SearchView: View {
         .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 
-    private var brandScroller: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionLabel("shop by brand")
-                .padding(.horizontal, 24)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(popularSearchBrands, id: \.self) { brand in
-                        Button {
-                            selectPrediction(SearchSuggestion(text: brand, type: "brand", score: 1))
-                        } label: {
-                            HStack(spacing: 9) {
-                                Text(String(brand.prefix(1)))
-                                    .font(Theme.syne(14, weight: .bold))
-                                    .foregroundStyle(campusTheme.textPrimary)
-                                    .frame(width: 34, height: 34)
-                                    .background(Circle().fill(campusTheme.glassInset))
-                                Text(brand)
-                                    .font(Theme.syne(13, weight: .semibold))
-                                    .foregroundStyle(campusTheme.textPrimary)
-                            }
-                            .padding(.leading, 5)
-                            .padding(.trailing, 15)
-                            .frame(height: 44)
-                            .background(Capsule().fill(campusTheme.glass))
-                            .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
-                        }
-                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
-                    }
-                }
-                .padding(.horizontal, 20)
-            }
-        }
-    }
-
     // MARK: Focused (typing)
 
     private var focusedContent: some View {
@@ -644,11 +651,6 @@ struct SearchView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onAppear {
-            focusedRevealed = false
-            DispatchQueue.main.async { focusedRevealed = true }
-        }
-        .onDisappear { focusedRevealed = false }
     }
 
     /// Short, shop-like searches for the "popular" chips ("Carhartt", "Nike Dunks"),
@@ -674,9 +676,10 @@ struct SearchView: View {
     /// Before typing: your recent searches, then what people at your school search for.
     private var emptyQueryContent: some View {
         let popular = popularChips
-        let recents = Array(recentSearches.prefix(5))
+        // Older builds saved one-letter searches; don't show those.
+        let recents = Array(recentSearches.filter { $0.count >= 2 }.prefix(6))
         return VStack(alignment: .leading, spacing: 0) {
-            if !recentSearches.isEmpty {
+            if !recents.isEmpty {
                 HStack {
                     sectionLabel("recent")
                     Spacer()
@@ -690,7 +693,7 @@ struct SearchView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 10)
-                .riseIn(focusedRevealed, order: 0)
+                .modifier(GlideIn(order: 0))
 
                 glassCard {
                     ForEach(recents, id: \.self) { term in
@@ -699,14 +702,14 @@ struct SearchView: View {
                                 selectPrediction(SearchSuggestion(text: term, type: "recent", score: 1))
                             } label: {
                                 HStack(spacing: 12) {
-                                    rowIcon("clock")
+                                    rowIcon("clock.arrow.circlepath")
                                     Text(term)
                                         .font(Theme.syne(14, weight: .medium))
                                         .foregroundStyle(campusTheme.textPrimary)
                                         .lineLimit(1)
                                     Spacer()
                                 }
-                                .frame(height: 52)
+                                .frame(height: 46)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
@@ -718,29 +721,30 @@ struct SearchView: View {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(campusTheme.textMuted)
-                                    .frame(width: 40, height: 40)
+                                    .frame(width: 36, height: 36)
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Delete \(term)")
                         }
-                        .padding(.horizontal, 12)
+                        .padding(.leading, 10)
+                        .padding(.trailing, 6)
 
                         if term != recents.last {
                             rowDivider
                         }
                     }
                 }
-                .riseIn(focusedRevealed, order: 1)
-                .padding(.bottom, 24)
+                .padding(.bottom, 26)
+                .modifier(GlideIn(order: 1))
             }
 
             if !popular.isEmpty {
                 sectionLabel("popular at your school")
                     .padding(.horizontal, 24)
                     .padding(.bottom, 10)
-                    .riseIn(focusedRevealed, order: 2)
+                    .modifier(GlideIn(order: 2))
                 FlowChips(spacing: 8) {
-                    ForEach(popular) { suggestion in
+                    ForEach(Array(popular)) { suggestion in
                     Button {
                         selectPrediction(suggestion)
                     } label: {
@@ -754,7 +758,7 @@ struct SearchView: View {
                         }
                         .foregroundStyle(campusTheme.textPrimary)
                         .padding(.horizontal, 13)
-                        .frame(height: 36)
+                        .frame(height: 34)
                         .background(Capsule().fill(campusTheme.glass))
                         .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
                     }
@@ -762,8 +766,8 @@ struct SearchView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .riseIn(focusedRevealed, order: 3)
-            } else if recentSearches.isEmpty {
+                .modifier(GlideIn(order: 3))
+            } else if recents.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 26, weight: .medium))
@@ -1131,8 +1135,7 @@ struct SearchView: View {
 
     private func loadRecentSearches() {
         if let data = UserDefaults.standard.array(forKey: recentSearchesKey) as? [String] {
-            // Older builds saved one-letter searches; leave those out.
-            recentSearches = data.filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 }
+            recentSearches = data
         }
     }
 
@@ -1173,18 +1176,20 @@ struct SearchView: View {
     }
 }
 
-// MARK: - Rise-in for the focused screen
+/// Rises and fades in a beat after the search bar glides up, one section after another.
+private struct GlideIn: ViewModifier {
+    let order: Int
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-private extension View {
-    /// Fades a section up into place, each one a beat after the one above it.
-    func riseIn(_ shown: Bool, order: Int) -> some View {
-        self
+    func body(content: Content) -> some View {
+        content
             .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 16)
-            .animation(
-                .spring(response: 0.44, dampingFraction: 0.86)
-                    .delay(shown ? 0.1 + Double(order) * 0.06 : 0),
-                value: shown
-            )
+            .offset(y: shown || reduceMotion ? 0 : 12)
+            .onAppear {
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.16 + Double(order) * 0.05)) {
+                    shown = true
+                }
+            }
     }
 }
