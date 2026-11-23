@@ -147,7 +147,10 @@ struct SearchView: View {
                         .padding(.top, 70)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 16)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .offset(y: -18)),
+                            removal: .opacity.combined(with: .offset(y: -44))
+                        ))
                 }
 
                 searchBarRow
@@ -161,7 +164,11 @@ struct SearchView: View {
                         browseContent
                     }
                 }
-                .transition(.opacity)
+                .transition(.asymmetric(
+                    insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.08)),
+                    // Leave fast so the two screens never overlap for long.
+                    removal: .opacity.combined(with: .offset(y: 22)).animation(.easeIn(duration: 0.14))
+                ))
                 // Content scrolls away softly under the bar instead of being cut off.
                 .mask(
                     VStack(spacing: 0) {
@@ -171,7 +178,7 @@ struct SearchView: View {
                     }
                 )
             }
-            .animation(.easeInOut(duration: 0.22), value: searchFieldFocused)
+            .animation(searchGlide, value: searchFieldFocused)
         }
         .background(campusTheme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
@@ -220,6 +227,9 @@ struct SearchView: View {
         }
     }
 
+    /// The "Glide" focus animation: one soft spring for the bar, header and content.
+    private var searchGlide: Animation { .spring(response: 0.46, dampingFraction: 0.86) }
+
     // MARK: Header + search bar
 
     private var headerBlock: some View {
@@ -267,7 +277,7 @@ struct SearchView: View {
             if searchFieldFocused {
                 Button {
                     Motion.haptic(.light)
-                    withAnimation(.easeInOut(duration: 0.22)) {
+                    withAnimation(searchGlide) {
                         // Like iOS search: Cancel drops what was typed. A picked category stays.
                         searchFieldFocused = false
                         query = ""
@@ -278,6 +288,7 @@ struct SearchView: View {
                         .foregroundStyle(campusTheme.textPrimary)
                 }
                 .buttonStyle(.plain)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
     }
@@ -356,9 +367,9 @@ struct SearchView: View {
 
     private func rowIcon(_ systemName: String) -> some View {
         Image(systemName: systemName)
-            .font(.system(size: 13, weight: .semibold))
+            .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(campusTheme.textPrimary)
-            .frame(width: 34, height: 34)
+            .frame(width: 30, height: 30)
             .background(Circle().fill(campusTheme.glassInset))
     }
 
@@ -366,7 +377,7 @@ struct SearchView: View {
         Rectangle()
             .fill(campusTheme.border)
             .frame(height: 1)
-            .padding(.leading, 58)
+            .padding(.leading, 52)
     }
 
     private func likes(for product: Product) -> Int {
@@ -645,8 +656,10 @@ struct SearchView: View {
     /// Before typing: your recent searches, then what people at your school search for.
     private var emptyQueryContent: some View {
         let popular = liveSuggestions.filter { $0.type != "recent" }.prefix(8)
+        // Older builds saved one-letter searches; don't show those.
+        let recents = Array(recentSearches.filter { $0.count >= 2 }.prefix(6))
         return VStack(alignment: .leading, spacing: 0) {
-            if !recentSearches.isEmpty {
+            if !recents.isEmpty {
                 HStack {
                     sectionLabel("recent")
                     Spacer()
@@ -660,22 +673,23 @@ struct SearchView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 10)
+                .modifier(GlideIn(order: 0))
 
                 glassCard {
-                    ForEach(recentSearches.prefix(8), id: \.self) { term in
+                    ForEach(recents, id: \.self) { term in
                         HStack(spacing: 4) {
                             Button {
                                 selectPrediction(SearchSuggestion(text: term, type: "recent", score: 1))
                             } label: {
                                 HStack(spacing: 12) {
-                                    rowIcon("clock")
+                                    rowIcon("clock.arrow.circlepath")
                                     Text(term)
                                         .font(Theme.syne(14, weight: .medium))
                                         .foregroundStyle(campusTheme.textPrimary)
                                         .lineLimit(1)
                                     Spacer()
                                 }
-                                .frame(height: 52)
+                                .frame(height: 46)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
@@ -687,25 +701,28 @@ struct SearchView: View {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(campusTheme.textMuted)
-                                    .frame(width: 40, height: 40)
+                                    .frame(width: 36, height: 36)
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Delete \(term)")
                         }
-                        .padding(.horizontal, 12)
+                        .padding(.leading, 10)
+                        .padding(.trailing, 6)
 
-                        if term != recentSearches.prefix(8).last {
+                        if term != recents.last {
                             rowDivider
                         }
                     }
                 }
-                .padding(.bottom, 24)
+                .padding(.bottom, 26)
+                .modifier(GlideIn(order: 1))
             }
 
             if !popular.isEmpty {
                 sectionLabel("popular at your school")
                     .padding(.horizontal, 24)
                     .padding(.bottom, 10)
+                    .modifier(GlideIn(order: 2))
                 FlowChips(spacing: 8) {
                     ForEach(Array(popular)) { suggestion in
                     Button {
@@ -713,14 +730,15 @@ struct SearchView: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.up.right")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(campusTheme.textMuted)
                             Text(suggestion.text)
                                 .font(Theme.syne(13, weight: .semibold))
                                 .lineLimit(1)
                         }
                         .foregroundStyle(campusTheme.textPrimary)
                         .padding(.horizontal, 13)
-                        .frame(height: 36)
+                        .frame(height: 34)
                         .background(Capsule().fill(campusTheme.glass))
                         .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
                     }
@@ -728,7 +746,8 @@ struct SearchView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-            } else if recentSearches.isEmpty {
+                .modifier(GlideIn(order: 3))
+            } else if recents.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 26, weight: .medium))
@@ -1134,5 +1153,23 @@ struct SearchView: View {
                 )
             }
         }
+    }
+}
+
+/// Rises and fades in a beat after the search bar glides up, one section after another.
+private struct GlideIn: ViewModifier {
+    let order: Int
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown || reduceMotion ? 0 : 12)
+            .onAppear {
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.16 + Double(order) * 0.05)) {
+                    shown = true
+                }
+            }
     }
 }
