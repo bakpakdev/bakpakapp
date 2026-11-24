@@ -37,13 +37,16 @@ struct OnboardingFlowView: View {
     @State private var isSaving = false
     @State private var contentOpacity: Double = 1
 
+    /// Onboarding is always drawn dark (white text over the aurora), so it uses the
+    /// dark variant of the school theme whatever the phone's appearance is.
     private var campus: CampusTheme {
-        CampusTheme.from(schoolName: authVM.user?.country)
+        CampusTheme.from(schoolName: authVM.user?.country, appearance: .dark)
     }
 
     var body: some View {
         ZStack {
-            background.ignoresSafeArea()
+            // One aurora behind every step (same as Home), so steps cross-fade over it.
+            AuroraBackground()
 
             VStack(spacing: 0) {
                 Group {
@@ -69,16 +72,7 @@ struct OnboardingFlowView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: step)
-    }
-
-    private var background: some View {
-        Group {
-            if step == .campusWelcome || step == .tour {
-                Color.clear
-            } else {
-                CampusGlowBackground(campus: campus)
-            }
-        }
+        .environment(\.campusTheme, campus)
     }
 
     // MARK: Username
@@ -96,7 +90,7 @@ struct OnboardingFlowView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Username")
                     .font(Theme.syne(13, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.92))
+                    .foregroundStyle(campus.textMuted)
                 HStack(spacing: 6) {
                     Text("@")
                         .foregroundStyle(Color.white.opacity(0.7))
@@ -125,15 +119,13 @@ struct OnboardingFlowView: View {
                             .foregroundStyle(Color(hex: "#FF6B6B"))
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white.opacity(0.14))
-                )
+                .font(Theme.syne(16, weight: .medium))
+                .padding(.horizontal, 18)
+                .frame(height: 56)
+                .background(Capsule().fill(campus.glassStrong))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(usernameCheck.isTaken ? Color(hex: "#FF6B6B") : Color.white.opacity(0.28), lineWidth: 1)
+                    Capsule()
+                        .stroke(usernameCheck.isTaken ? Color(hex: "#FF6B6B") : campus.border, lineWidth: 1)
                 )
                 if usernameCheck.isTaken, let message = usernameCheck.message {
                     Text(message)
@@ -159,9 +151,9 @@ struct OnboardingFlowView: View {
             VStack(spacing: 16) {
                 ZStack {
                     Circle()
-                        .fill(Color.white.opacity(0.14))
+                        .fill(campus.glassStrong)
                         .frame(width: 140, height: 140)
-                        .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
+                        .overlay(Circle().stroke(campus.border, lineWidth: 1))
                     if let photoImage {
                         Image(uiImage: photoImage)
                             .resizable()
@@ -171,20 +163,19 @@ struct OnboardingFlowView: View {
                     } else {
                         Image(systemName: "person.fill")
                             .font(.system(size: 48, weight: .medium))
-                            .foregroundStyle(Color.white.opacity(0.7))
+                            .foregroundStyle(campus.textMuted)
                     }
                 }
+                .frame(maxWidth: .infinity)
 
                 PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Text(photoImage == nil ? "Choose photo" : "Change photo")
+                    Label(photoImage == nil ? "Choose photo" : "Change photo", systemImage: "photo.on.rectangle")
                         .font(Theme.syne(15, weight: .semibold))
-                        .foregroundStyle(campus.primary)
+                        .foregroundStyle(campus.textPrimary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Color.white)
-                        )
+                        .frame(height: 50)
+                        .background(Capsule().fill(campus.glass))
+                        .overlay(Capsule().stroke(campus.border, lineWidth: 1))
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                 .onChange(of: selectedPhoto) { item in
@@ -231,24 +222,38 @@ struct OnboardingFlowView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            PopupWordmark(scale: .header, alignment: .leading)
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
+            onboardingHeader
+                .padding(.top, 12)
 
-            Spacer(minLength: 24)
+            // Same left-aligned header as Home's "discover / campus thrift finds".
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(Theme.syne(30, weight: .bold))
+                    .foregroundStyle(campus.textPrimary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(subtitle)
+                    .font(Theme.syne(16, weight: .semibold))
+                    .foregroundStyle(campus.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 36)
 
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(title)
-                        .font(Theme.syne(26, weight: .black))
-                        .foregroundStyle(.white)
-                    Text(subtitle)
-                        .font(Theme.syne(14, weight: .medium))
-                        .foregroundStyle(Color.white.opacity(0.8))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
+            VStack(alignment: .leading, spacing: 0) {
                 content()
+            }
+            .padding(.top, 28)
+
+            Spacer(minLength: 20)
+
+            VStack(spacing: 14) {
+                if let localError {
+                    Text(localError)
+                        .font(Theme.syne(12, weight: .medium))
+                        .foregroundStyle(Color(hex: "#FF6B6B"))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 Button {
                     Motion.haptic(.medium)
@@ -265,11 +270,9 @@ struct OnboardingFlowView: View {
                     .font(Theme.syne(16, weight: .semibold))
                     .foregroundStyle(PopupBrand.buttonText)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(PopupBrand.button)
-                    )
+                    .frame(height: 54)
+                    .background(Capsule().fill(PopupBrand.button))
+                    .shadow(color: Color.white.opacity(canContinue ? 0.16 : 0), radius: 14, y: 8)
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                 .opacity(canContinue && !isSaving ? 1 : 0.45)
@@ -279,30 +282,46 @@ struct OnboardingFlowView: View {
                     Button(action: onSkip) {
                         Text("Skip for now")
                             .font(Theme.syne(14, weight: .medium))
-                            .foregroundStyle(Color.white.opacity(0.75))
+                            .foregroundStyle(campus.textMuted)
                             .frame(maxWidth: .infinity)
+                            .frame(height: 28)
                     }
                     .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
                     .disabled(isSaving)
                 }
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 28)
+    }
 
-                if let localError {
-                    Text(localError)
-                        .font(Theme.syne(12))
-                        .foregroundStyle(Color(hex: "#FF6B6B"))
+    /// "popup" on the left, the three setup steps from the welcome screen as a
+    /// glass progress pill on the right.
+    private var onboardingHeader: some View {
+        HStack(alignment: .center) {
+            Text("popup")
+                .font(Theme.syne(22, weight: .heavy))
+                .tracking(-0.4)
+                .foregroundStyle(campus.textPrimary)
+            Spacer()
+            HStack(spacing: 8) {
+                HStack(spacing: 5) {
+                    ForEach(OnboardingStep.username.rawValue...OnboardingStep.style.rawValue, id: \.self) { i in
+                        Capsule()
+                            .fill(i <= step.rawValue ? campus.textPrimary : campus.textPrimary.opacity(0.22))
+                            .frame(width: i == step.rawValue ? 18 : 7, height: 7)
+                    }
                 }
+                Text("\(step.rawValue - 1) of \(OnboardingStep.style.rawValue - 1)")
+                    .font(Theme.syne(12, weight: .semibold))
+                    .foregroundStyle(campus.textMuted)
             }
-            .padding(.horizontal, 24)
-
-            Spacer(minLength: 24)
-
-            if step != .tour {
-                Text("Step \(step.rawValue) of \(OnboardingStep.style.rawValue)")
-                    .font(Theme.syne(12, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.65))
-                    .frame(maxWidth: .infinity)
-                    .padding(.bottom, 24)
-            }
+            .padding(.horizontal, 14)
+            .frame(height: 40)
+            .background(Capsule().fill(campus.glass))
+            .overlay(Capsule().stroke(campus.border, lineWidth: 1))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Step \(step.rawValue - 1) of \(OnboardingStep.style.rawValue - 1)")
         }
     }
 
@@ -418,8 +437,11 @@ struct OnboardingFlowView: View {
     }
 }
 
-// MARK: - Campus welcome (auto loading → logo swipe → welcome)
+// MARK: - Campus welcome (loading beat → Home-style welcome)
 
+/// First screen a new account sees. Same aurora + glass look as Home: a big
+/// left-aligned "welcome" header (like Home's "discover"), the campus badge, and
+/// glass rows previewing the short setup so people know what's next.
 private struct CampusWelcomeStep: View {
     let campus: CampusTheme
     let onContinue: () -> Void
@@ -429,90 +451,171 @@ private struct CampusWelcomeStep: View {
         case welcome
     }
 
+    private struct SetupRow: Identifiable {
+        let id: Int
+        let title: String
+        let detail: String
+    }
+
+    private let rows = [
+        SetupRow(id: 1, title: "Pick a username", detail: "10 sec"),
+        SetupRow(id: 2, title: "Add a photo", detail: "optional"),
+        SetupRow(id: 3, title: "Choose your style", detail: "optional"),
+    ]
+
     @State private var phase: Phase = .loading
     @State private var loadingOpacity: Double = 0
-    @State private var welcomeOpacity: Double = 0
-    @State private var glowOpacity: Double = 0
-    @State private var logoScale: CGFloat = 0.88
-    @State private var logoOpacity: Double = 0
-    @State private var copyOpacity: Double = 0
-    @State private var continueOpacity: Double = 0
+    @State private var headerShown = false
+    @State private var rowsShown = 0
+    @State private var continueShown = false
 
     var body: some View {
         ZStack {
-            CampusGlowBackground(campus: campus, strength: glowOpacity)
-
             if phase == .loading {
                 loadingContent
                     .opacity(loadingOpacity)
-            }
-
-            if phase == .welcome {
+            } else {
                 welcomeContent
-                    .opacity(welcomeOpacity)
             }
         }
         .onAppear(perform: runSequence)
     }
 
     private var loadingContent: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 18) {
             ProgressView()
                 .progressViewStyle(.circular)
-                .tint(PopupBrand.textPrimary)
-                .scaleEffect(1.15)
+                .tint(campus.textPrimary)
+                .scaleEffect(1.1)
+                .frame(width: 62, height: 62)
+                .background(campus.glass)
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(campus.border, lineWidth: 1)
+                )
 
             Text("Setting up your campus…")
                 .font(Theme.syne(15, weight: .medium))
-                .foregroundStyle(PopupBrand.textMuted)
+                .foregroundStyle(campus.textMuted)
         }
     }
 
     private var welcomeContent: some View {
-        VStack(spacing: 0) {
-            Spacer()
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center) {
+                Text("popup")
+                    .font(Theme.syne(22, weight: .heavy))
+                    .tracking(-0.4)
+                    .foregroundStyle(campus.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                campusBadge
+            }
+            .padding(.top, 12)
 
-            PopupWordmark(scale: .hero)
-                .scaleEffect(logoScale)
-                .opacity(logoOpacity)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("welcome")
+                    .font(Theme.syne(36, weight: .bold))
+                    .foregroundStyle(campus.textPrimary)
+                Text("to \(campus.shortName) campus thrift")
+                    .font(Theme.syne(24, weight: .semibold))
+                    .foregroundStyle(campus.textMuted)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 40)
+            .accessibilityElement(children: .combine)
+            .opacity(headerShown ? 1 : 0)
+            .offset(y: headerShown ? 0 : 14)
+
+            Spacer(minLength: 24)
+
+            Text("3 quick steps")
+                .font(Theme.syne(15, weight: .semibold))
+                .foregroundStyle(campus.textPrimary)
+                .padding(.bottom, 12)
+                .opacity(rowsShown > 0 ? 1 : 0)
 
             VStack(spacing: 10) {
-                Text(campus.welcomeTitle)
-                    .font(Theme.syne(26, weight: .black))
-                    .foregroundStyle(PopupBrand.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 28)
-
-                Text("Let’s finish setting up your profile.")
-                    .font(Theme.syne(14, weight: .medium))
-                    .foregroundStyle(PopupBrand.textMuted)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                ForEach(rows) { row in
+                    setupRow(row)
+                        .opacity(rowsShown >= row.id ? 1 : 0)
+                        .offset(y: rowsShown >= row.id ? 0 : 16)
+                }
             }
-            .padding(.top, 22)
-            .opacity(copyOpacity)
-
-            Spacer()
 
             Button {
                 Motion.haptic(.medium)
                 onContinue()
             } label: {
-                Text("Continue")
+                Text("Let’s go")
                     .font(Theme.syne(16, weight: .semibold))
                     .foregroundStyle(PopupBrand.buttonText)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(PopupBrand.button)
-                    )
+                    .frame(height: 54)
+                    .background(Capsule().fill(PopupBrand.button))
+                    .shadow(color: Color.white.opacity(0.16), radius: 14, y: 8)
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-            .padding(.horizontal, 24)
-            .padding(.bottom, 40)
-            .opacity(continueOpacity)
+            .padding(.top, 22)
+            .opacity(continueShown ? 1 : 0)
+            .disabled(!continueShown)
         }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 28)
+    }
+
+    /// Same glass square as Home's campus badge (dot over the school's short name).
+    private var campusBadge: some View {
+        VStack(spacing: 3) {
+            Circle()
+                .fill(campus.secondary)
+                .frame(width: 6, height: 6)
+            Text(campus.shortName)
+                .font(Theme.syne(13, weight: .black))
+                .tracking(0.6)
+                .foregroundStyle(campus.tint)
+        }
+        .frame(width: 52, height: 52)
+        .background(campus.glassStrong)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(5)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(campus.glass)
+        )
+        .accessibilityLabel("\(campus.shortName) popup campus")
+    }
+
+    private func setupRow(_ row: SetupRow) -> some View {
+        HStack(spacing: 12) {
+            Text("\(row.id)")
+                .font(Theme.syne(13, weight: .bold))
+                .foregroundStyle(campus.textPrimary)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(campus.glassInset))
+                .overlay(Circle().stroke(campus.border, lineWidth: 1))
+            Text(row.title)
+                .font(Theme.syne(15, weight: .semibold))
+                .foregroundStyle(campus.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 8)
+            Text(row.detail)
+                .font(Theme.syne(12, weight: .medium))
+                .foregroundStyle(campus.textMuted)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 60)
+        .background(campus.glass)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(campus.border, lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
     }
 
     private func runSequence() {
@@ -520,34 +623,26 @@ private struct CampusWelcomeStep: View {
             loadingOpacity = 1
         }
 
-        // Brief loading beat, then transition into the welcome animation.
+        // Brief loading beat, then the welcome builds in: header, steps, button.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.15) {
-            withAnimation(.easeInOut(duration: 0.4)) {
+            withAnimation(.easeInOut(duration: 0.35)) {
                 loadingOpacity = 0
             }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                 phase = .welcome
-                withAnimation(.easeInOut(duration: 0.35)) {
-                    welcomeOpacity = 1
-                    glowOpacity = 0.55
+                withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
+                    headerShown = true
                 }
-
-                withAnimation(.spring(response: 0.62, dampingFraction: 0.78).delay(0.08)) {
-                    logoScale = 1.04
-                    logoOpacity = 1
-                    glowOpacity = 1
+                for i in 1...rows.count {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.25 + Double(i) * 0.09)) {
+                        rowsShown = i
+                    }
                 }
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.72).delay(0.42)) {
-                    logoScale = 1
+                withAnimation(.easeOut(duration: 0.35).delay(0.75)) {
+                    continueShown = true
                 }
-                withAnimation(.easeOut(duration: 0.4).delay(0.55)) {
-                    copyOpacity = 1
-                }
-                withAnimation(.easeOut(duration: 0.35).delay(0.85)) {
-                    continueOpacity = 1
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     Motion.haptic(.medium)
                 }
             }
@@ -586,14 +681,8 @@ private struct FlowChipGrid: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)
                         .frame(maxWidth: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(chipFill(selected: selected))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(chipStroke(selected: selected), lineWidth: 1)
-                        )
+                        .background(Capsule().fill(chipFill(selected: selected)))
+                        .overlay(Capsule().stroke(chipStroke(selected: selected), lineWidth: 1))
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
             }
@@ -602,21 +691,21 @@ private struct FlowChipGrid: View {
 
     private func chipForeground(selected: Bool) -> Color {
         if campusTheme {
-            return selected ? accent : .white
+            return selected ? PopupBrand.buttonText : .white
         }
         return selected ? .white : PopupBrand.textPrimary
     }
 
     private func chipFill(selected: Bool) -> Color {
         if campusTheme {
-            return selected ? .white : Color.white.opacity(0.14)
+            return selected ? .white : Color.white.opacity(0.07)
         }
         return selected ? accent : PopupBrand.surface
     }
 
     private func chipStroke(selected: Bool) -> Color {
         if campusTheme {
-            return selected ? .white : Color.white.opacity(0.28)
+            return selected ? .white : Color.white.opacity(0.12)
         }
         return selected ? accent : PopupBrand.border
     }

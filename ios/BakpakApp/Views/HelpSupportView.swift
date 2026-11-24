@@ -4,6 +4,8 @@ struct HelpSupportView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.campusTheme) private var campusTheme
     @State private var expandedFAQ: String?
+    @State private var openGuide: PopupGuide?
+    @State private var tipsReset = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -12,6 +14,38 @@ struct HelpSupportView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 26) {
                     CampusPageHeader(title: "help", subtitle: "safety & support")
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        SettingsSectionTitle(title: "how popup works")
+                        VStack(spacing: 10) {
+                            ForEach(PopupGuide.allCases) { guide in
+                                Button {
+                                    Motion.haptic(.light)
+                                    openGuide = guide
+                                } label: {
+                                    guideRow(icon: guide.icon, title: guide.title, subtitle: guide.subtitle, chevron: true)
+                                }
+                                .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+                            }
+
+                            Button {
+                                Motion.haptic(.light)
+                                FirstTimeTipStore.shared.resetAll()
+                                withAnimation(Motion.snappy) { tipsReset = true }
+                            } label: {
+                                guideRow(
+                                    icon: tipsReset ? "checkmark" : "lightbulb",
+                                    title: tipsReset ? "Tips are back on" : "Show tips again",
+                                    subtitle: tipsReset
+                                        ? "You’ll see them next time you pay or get paid."
+                                        : "Brings back the tips for paying and getting paid.",
+                                    chevron: false
+                                )
+                            }
+                            .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+                            .disabled(tipsReset)
+                        }
+                    }
 
                     VStack(alignment: .leading, spacing: 0) {
                         SettingsSectionTitle(title: "campus safety")
@@ -31,7 +65,7 @@ struct HelpSupportView: View {
                             faqRow(
                                 id: "pay",
                                 question: "How do I pay for a meetup?",
-                                answer: "Open the meetup from Inbox or Meetups, then tap Pay (buyer) or Receive (seller). Use Apple Pay or a card. Don’t pay outside the app."
+                                answer: "When you meet, open your chat and tap Pay at the top (buyer). The seller taps Get paid, then Receive. Pay with Apple Pay or a card. Don’t pay outside the app."
                             )
                             faqRow(
                                 id: "cashout",
@@ -41,7 +75,7 @@ struct HelpSupportView: View {
                             faqRow(
                                 id: "meetup",
                                 question: "How do meetups work?",
-                                answer: "On a listing, tap Meetup request and pick a campus spot and time. Chat starts only after the seller accepts. If they decline, you’ll get a notification. Open Meetups from Inbox for what’s next, then check in and pay in-app when you’re both there."
+                                answer: "On a listing, tap I want this and pick your price, a public campus spot and a time. The seller accepts or declines in the chat, and the top of the chat always shows what to do next. popup reminds you a day, an hour and 15 minutes before. When you meet, the seller taps Get paid and the buyer taps Pay."
                             )
                             faqRow(
                                 id: "sold",
@@ -97,6 +131,10 @@ struct HelpSupportView: View {
             }
         }
         .campusPageStyle()
+        .fullScreenCover(item: $openGuide) { guide in
+            HowPopupWorksView(guide: guide)
+                .environment(\.campusTheme, campusTheme)
+        }
     }
 
     /// "1.0 (2)" so testers can say which TestFlight build they're on.
@@ -164,6 +202,43 @@ struct HelpSupportView: View {
                     .padding(.horizontal, 16)
             }
         }
+    }
+
+    private func guideRow(icon: String, title: String, subtitle: String, chevron: Bool) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(campusTheme.glassInset))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(Theme.syne(15, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                Text(subtitle)
+                    .font(Theme.syne(12))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
+            }
+            Spacer(minLength: 0)
+            if chevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(campusTheme.textMuted)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(campusTheme.glass)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(campusTheme.border, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
     }
 
     private func navLabel(icon: String, title: String, subtitle: String) -> some View {

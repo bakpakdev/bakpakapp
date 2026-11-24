@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// First-run walkthrough after profile setup. Welcome, then phone mockups of the
-/// core popup screens — skippable, shown once per new account.
+/// First-run walkthrough after profile setup. An overview, then phone mockups of the
+/// core popup screens — skippable, shown once per new account. Sits on the onboarding
+/// aurora and uses the same glass + Home-style headers as the rest of the app.
 struct FeatureTourView: View {
     let campus: CampusTheme
     let onFinished: () -> Void
@@ -10,96 +11,132 @@ struct FeatureTourView: View {
     @State private var contentOpacity: Double = 1
 
     var body: some View {
-        ZStack {
-            CampusGlowBackground(campus: campus)
-
-            VStack(spacing: 0) {
-                HStack(alignment: .center) {
-                    PopupWordmark(scale: .header, alignment: .leading)
-                    Spacer()
-                    if page != .welcome {
-                        Button("Skip") {
-                            Motion.haptic(.light)
-                            onFinished()
-                        }
-                        .font(Theme.syne(14, weight: .semibold))
-                        .foregroundStyle(PopupBrand.textMuted)
-                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center) {
+                Text("popup")
+                    .font(Theme.syne(22, weight: .heavy))
+                    .tracking(-0.4)
+                    .foregroundStyle(campus.textPrimary)
+                Spacer()
+                if page != .welcome {
+                    Button {
+                        Motion.haptic(.light)
+                        onFinished()
+                    } label: {
+                        Text("Skip")
+                            .font(Theme.syne(13, weight: .semibold))
+                            .foregroundStyle(campus.textPrimary)
+                            .padding(.horizontal, 16)
+                            .frame(height: 40)
+                            .background(Capsule().fill(campus.glass))
+                            .overlay(Capsule().stroke(campus.border, lineWidth: 1))
                     }
+                    .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-
-                Group {
-                    if page == .welcome {
-                        welcomePage
-                    } else {
-                        featurePage
-                    }
-                }
-                .opacity(contentOpacity)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                bottomBar
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 36)
             }
+            .frame(height: 40)
+            .padding(.top, 12)
+
+            Group {
+                if page == .welcome {
+                    welcomePage
+                } else {
+                    featurePage
+                }
+            }
+            .opacity(contentOpacity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            bottomBar
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 28)
+    }
+
+    // MARK: Overview
+
+    private var welcomePage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("how it works")
+                    .font(Theme.syne(36, weight: .bold))
+                    .foregroundStyle(campus.textPrimary)
+                Text("a 30-second look at campus thrift")
+                    .font(Theme.syne(20, weight: .semibold))
+                    .foregroundStyle(campus.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 36)
+            .accessibilityElement(children: .combine)
+
+            Spacer(minLength: 20)
+
+            VStack(spacing: 10) {
+                overviewRow(icon: "sparkles", title: "Find it", detail: "on your campus")
+                overviewRow(icon: "hand.raised", title: "Tap I want this", detail: "price, spot, time")
+                overviewRow(icon: "mappin.and.ellipse", title: "Meet on campus", detail: "public spots")
+                overviewRow(icon: "creditcard", title: "Pay in person", detail: "Apple Pay or card")
+            }
+            .padding(.bottom, 22)
         }
     }
 
-    // MARK: Welcome
-
-    private var welcomePage: some View {
-        VStack(spacing: 0) {
-            Spacer()
-            PopupWordmark(scale: .hero)
-            VStack(spacing: 10) {
-                Text("your campus, in your pocket")
-                    .font(Theme.syne(26, weight: .black))
-                    .foregroundStyle(PopupBrand.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 24)
-                Text("A 30-second look at how campus thrift actually works here.")
-                    .font(Theme.syne(15, weight: .medium))
-                    .foregroundStyle(PopupBrand.textMuted)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 28)
-            }
-            .padding(.top, 22)
-            Spacer()
+    private func overviewRow(icon: String, title: String, detail: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(campus.textPrimary)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(campus.glassInset))
+                .overlay(Circle().stroke(campus.border, lineWidth: 1))
+            Text(title)
+                .font(Theme.syne(15, weight: .semibold))
+                .foregroundStyle(campus.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 8)
+            Text(detail)
+                .font(Theme.syne(12, weight: .medium))
+                .foregroundStyle(campus.textMuted)
+                .lineLimit(1)
         }
+        .padding(.horizontal, 14)
+        .frame(height: 60)
+        .background(campus.glass)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(campus.border, lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Feature pages
 
     private var featurePage: some View {
-        VStack(spacing: 18) {
-            VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(page.title)
-                    .font(Theme.syne(24, weight: .black))
-                    .foregroundStyle(PopupBrand.textPrimary)
-                    .multilineTextAlignment(.center)
+                    .font(Theme.syne(28, weight: .bold))
+                    .foregroundStyle(campus.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                     .allowsTightening(true)
-                    .layoutPriority(1)
                 Text(page.subtitle(campus: campus))
-                    .font(Theme.syne(14, weight: .medium))
-                    .foregroundStyle(PopupBrand.textMuted)
-                    .multilineTextAlignment(.center)
+                    .font(Theme.syne(15, weight: .medium))
+                    .foregroundStyle(campus.textMuted)
+                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 8)
+            .padding(.top, 24)
+            .accessibilityElement(children: .combine)
 
             Spacer(minLength: 4)
 
             TourPhoneFrame(campus: campus) {
                 page.screen(campus: campus)
             }
+            .frame(maxWidth: .infinity)
 
             Spacer(minLength: 8)
         }
@@ -114,6 +151,7 @@ struct FeatureTourView: View {
                         .frame(width: item == page ? 18 : 7, height: 7)
                 }
             }
+            .frame(maxWidth: .infinity)
 
             Button {
                 Motion.haptic(.medium)
@@ -123,11 +161,9 @@ struct FeatureTourView: View {
                     .font(Theme.syne(16, weight: .semibold))
                     .foregroundStyle(PopupBrand.buttonText)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(PopupBrand.button)
-                    )
+                    .frame(height: 54)
+                    .background(Capsule().fill(PopupBrand.button))
+                    .shadow(color: Color.white.opacity(0.16), radius: 14, y: 8)
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
         }
@@ -171,14 +207,14 @@ private enum FeatureTourPage: Int, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .welcome: return "welcome to popup"
-        case .homeCampus: return "Your campus home"
-        case .listingMeetup: return "Request a meetup"
-        case .meetOnCampus: return "Meet on campus"
-        case .payTogether: return "Pay in person"
-        case .aiCamera: return "AI camera"
-        case .reminders: return "Meetup reminders"
-        case .profile: return "Your profile"
+        case .welcome: return "how it works"
+        case .homeCampus: return "your campus home"
+        case .listingMeetup: return "tap I want this"
+        case .meetOnCampus: return "meet on campus"
+        case .payTogether: return "pay in person"
+        case .aiCamera: return "sell with the camera"
+        case .reminders: return "meetup reminders"
+        case .profile: return "your profile"
         }
     }
 
@@ -187,19 +223,19 @@ private enum FeatureTourPage: Int, CaseIterable, Identifiable {
         case .welcome:
             return ""
         case .homeCampus:
-            return "Discover thrift from \(campus.shortName) students — not the whole internet."
+            return "Thrift from \(campus.shortName) students, not the whole internet."
         case .listingMeetup:
-            return "On a listing, tap Meetup request to pick a campus spot and time."
+            return "Pick your price, a campus spot and a time. It goes to the seller as one request."
         case .meetOnCampus:
-            return "Pick a public campus spot, confirm in chat, then show up in person."
+            return "The top of your chat shows where the deal stands and the one thing to do next."
         case .payTogether:
-            return "Seller taps Receive. Buyer taps Pay. Apple Pay only works when you’re both on it."
+            return "When you meet, the seller taps Get paid and the buyer taps Pay. Apple Pay or card."
         case .aiCamera:
-            return "Scan a piece and popup fills in the listing — title, brand, price."
+            return "Snap a piece and popup fills in the listing. You only add what the scan missed."
         case .reminders:
-            return "Popup pings you before a meetup so you don’t miss the handoff."
+            return "popup reminds you a day before, an hour before and 15 minutes before."
         case .profile:
-            return "Your shop, closet, and campus rank live here."
+            return "Your shop, closet and campus rank live here."
         }
     }
 
@@ -226,6 +262,19 @@ private enum FeatureTourPage: Int, CaseIterable, Identifiable {
     }
 }
 
+/// The app's aurora, shrunk into the mock phones.
+private struct TourAurora: View {
+    var body: some View {
+        Color(hex: "#07080A")
+            .overlay {
+                Image("AuroraDark")
+                    .resizable()
+                    .scaledToFill()
+            }
+            .clipped()
+    }
+}
+
 // MARK: - Phone prop
 
 private struct TourPhoneFrame<Content: View>: View {
@@ -237,12 +286,6 @@ private struct TourPhoneFrame<Content: View>: View {
 
     var body: some View {
         ZStack {
-            Ellipse()
-                .fill(Color.white.opacity(0.16))
-                .frame(width: 250, height: 250)
-                .blur(radius: 2)
-                .offset(x: 36, y: 40)
-
             RoundedRectangle(cornerRadius: 42, style: .continuous)
                 .fill(Color(white: 0.08))
                 .frame(width: width + 16, height: height + 16)
@@ -274,6 +317,7 @@ private struct TourPhoneFrame<Content: View>: View {
     }
 }
 
+/// Mini version of the app's glass tab bar with the solid white sell button.
 private struct TourMiniTabBar: View {
     let campus: CampusTheme
     var selected: Int
@@ -284,30 +328,29 @@ private struct TourMiniTabBar: View {
             tab("magnifyingglass", 1)
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [campus.primary, campus.secondary],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 28, height: 28)
+                    .fill(Color.white)
+                    .frame(width: 26, height: 26)
                 Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Color.black)
             }
-            tab("bubble.left", 3)
+            tab("bubble.left.and.bubble.right", 3)
             tab("person", 4)
         }
+        .padding(.horizontal, 6)
+        .frame(height: 36)
+        .background(Capsule().fill(Color.black.opacity(0.35)))
+        .overlay(Capsule().stroke(campus.border, lineWidth: 1))
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color(hex: "#232624"))
+        .padding(.bottom, 16)
     }
 
     private func tab(_ name: String, _ index: Int) -> some View {
         Image(systemName: name)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(index == selected ? Color.white : Color.white.opacity(0.4))
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(index == selected ? Color.black : Color.white.opacity(0.55))
+            .frame(width: 26, height: 26)
+            .background(Circle().fill(index == selected ? Color.white : Color.clear))
             .frame(maxWidth: .infinity)
     }
 }
@@ -322,27 +365,27 @@ private struct TourHomeScreen: View {
             HStack {
                 HStack(spacing: 4) {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(campus.elevatedSurface)
+                        .fill(campus.glassStrong)
                         .frame(width: 26, height: 26)
                     VStack(spacing: 2) {
                         Circle().fill(campus.secondary).frame(width: 4, height: 4)
                         Text(campus.shortName)
                             .font(Theme.syne(7, weight: .black))
-                            .foregroundStyle(campus.primary)
+                            .foregroundStyle(campus.tint)
                     }
                     .frame(width: 26, height: 26)
-                    .background(campus.surface)
+                    .background(campus.glass)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .padding(3)
-                .background(campus.elevatedSurface)
+                .background(campus.glassStrong)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 Spacer()
                 Image(systemName: "bell")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(campus.textPrimary)
                     .frame(width: 28, height: 28)
-                    .background(campus.elevatedSurface)
+                    .background(campus.glassStrong)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .padding(.horizontal, 12)
@@ -360,7 +403,7 @@ private struct TourHomeScreen: View {
             .padding(.top, 10)
 
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(campus.elevatedSurface)
+                .fill(campus.glassStrong)
                 .frame(height: 22)
                 .overlay(
                     HStack {
@@ -377,8 +420,8 @@ private struct TourHomeScreen: View {
                 .padding(.top, 10)
 
             HStack(spacing: 6) {
-                miniCard("vintage tee", "$12")
-                miniCard("denim jacket", "$28")
+                miniCard("vintage tee", "$12", icon: "tshirt.fill")
+                miniCard("denim jacket", "$28", icon: "jacket.fill")
             }
             .padding(.horizontal, 12)
             .padding(.top, 10)
@@ -386,20 +429,25 @@ private struct TourHomeScreen: View {
             Spacer()
             TourMiniTabBar(campus: campus, selected: 0)
         }
-        .background(campus.background)
+        .background(TourAurora())
     }
 
-    private func miniCard(_ title: String, _ price: String) -> some View {
+    private func miniCard(_ title: String, _ price: String, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(campus.listingCaptionBackground)
                 .frame(height: 88)
+                .overlay(
+                    Image(systemName: icon)
+                        .font(.system(size: 30, weight: .regular))
+                        .foregroundStyle(campus.textMuted)
+                )
             Text(title)
                 .font(Theme.syne(8, weight: .semibold))
                 .foregroundStyle(campus.textPrimary)
             Text(price)
                 .font(Theme.syne(9, weight: .bold))
-                .foregroundStyle(campus.primary)
+                .foregroundStyle(campus.tint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -412,26 +460,30 @@ private struct TourListingMeetupScreen: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(campus.textPrimary)
-                Spacer()
-                Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(campus.textMuted)
+                    .foregroundStyle(campus.textPrimary)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(campus.glassStrong))
+                Spacer()
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(campus.textPrimary)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(campus.glassStrong))
             }
             .padding(.horizontal, 12)
             .padding(.top, 36)
 
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(campus.listingCaptionBackground)
                 .overlay(
                     Image(systemName: "tshirt.fill")
                         .font(.system(size: 36, weight: .regular))
                         .foregroundStyle(campus.textMuted)
                 )
-                .frame(height: 132)
+                .frame(height: 124)
                 .padding(.horizontal, 12)
-                .padding(.top, 10)
+                .padding(.top, 8)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("vintage broncos tee")
@@ -446,9 +498,9 @@ private struct TourListingMeetupScreen: View {
 
             HStack(spacing: 6) {
                 Circle()
-                    .fill(campus.elevatedSurface)
+                    .fill(campus.glassStrong)
                     .frame(width: 18, height: 18)
-                Text("campus seller")
+                Text("campus seller · good condition")
                     .font(Theme.syne(8, weight: .semibold))
                     .foregroundStyle(campus.textMuted)
             }
@@ -457,111 +509,128 @@ private struct TourListingMeetupScreen: View {
 
             Spacer(minLength: 8)
 
+            // The one buyer button on a listing.
             HStack(spacing: 6) {
-                Text("Offer")
-                    .font(Theme.syne(8, weight: .bold))
+                Image(systemName: "bubble.left")
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(campus.textPrimary)
-                    .frame(width: 52)
-                    .frame(height: 28)
-                    .background(campus.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(campus.border, lineWidth: 1)
-                    )
-
-                Text("Meetup request")
-                    .font(Theme.syne(8, weight: .bold))
-                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(campus.glassStrong))
+                Text("I want this")
+                    .font(Theme.syne(10, weight: .bold))
+                    .foregroundStyle(Color.black)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 28)
-                    .background(campus.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(Color.white.opacity(0.55), lineWidth: 1.5)
-                    )
-                    .shadow(color: campus.primary.opacity(0.45), radius: 6, y: 2)
+                    .frame(height: 32)
+                    .background(Capsule().fill(Color.white))
+                    .shadow(color: Color.white.opacity(0.25), radius: 8, y: 2)
             }
             .padding(.horizontal, 12)
-            .padding(.bottom, 10)
-
-            TourMiniTabBar(campus: campus, selected: 0)
+            .padding(.bottom, 16)
         }
-        .background(campus.background)
+        .background(TourAurora())
     }
 }
 
+/// Chat with the deal bar on top: where the deal stands and the one next action.
 private struct TourMeetupScreen: View {
     let campus: CampusTheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("meetups")
-                .font(Theme.syne(16, weight: .bold))
-                .foregroundStyle(campus.textPrimary)
-                .padding(.top, 36)
-                .padding(.horizontal, 12)
-
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(campus.elevatedSurface)
-                .overlay {
-                    VStack(spacing: 6) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(campus.primary)
-                        Text("EMU Amphitheater")
-                            .font(Theme.syne(9, weight: .bold))
-                            .foregroundStyle(campus.textPrimary)
-                    }
-                }
-                .frame(height: 92)
-                .padding(.horizontal, 12)
-                .padding(.top, 10)
-
-            VStack(alignment: .leading, spacing: 8) {
-                timelineRow("Proposed", done: true)
-                timelineRow("Confirmed", done: true)
-                timelineRow("Paid", done: false)
-            }
-            .padding(12)
-            .background(campus.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
-
             HStack(spacing: 6) {
-                capsule("Pay", filled: true)
-                capsule("Receive", filled: false)
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(campus.textPrimary)
+                Circle()
+                    .fill(campus.glassStrong)
+                    .frame(width: 20, height: 20)
+                Text("maya")
+                    .font(Theme.syne(10, weight: .bold))
+                    .foregroundStyle(campus.textPrimary)
+                Spacer()
             }
             .padding(.horizontal, 12)
+            .padding(.top, 36)
+
+            // Deal bar
+            HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Meetup confirmed")
+                        .font(Theme.syne(9, weight: .bold))
+                        .foregroundStyle(campus.textPrimary)
+                    Text("Today 3:30pm · EMU Amphitheater")
+                        .font(Theme.syne(7, weight: .medium))
+                        .foregroundStyle(campus.textMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                Spacer(minLength: 2)
+                Text("Directions")
+                    .font(Theme.syne(7, weight: .bold))
+                    .foregroundStyle(Color.black)
+                    .padding(.horizontal, 8)
+                    .frame(height: 22)
+                    .background(Capsule().fill(Color.white))
+            }
+            .padding(9)
+            .background(campus.glass)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(campus.border, lineWidth: 1)
+            )
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
+
+            VStack(spacing: 6) {
+                note("You want this for $25 · EMU Amphitheater, today 3:30pm")
+                note("maya accepted the meetup")
+                bubble("see you there!", mine: false)
+                bubble("i'll be by the steps", mine: true)
+            }
+            .padding(.horizontal, 10)
             .padding(.top, 10)
 
             Spacer()
-            TourMiniTabBar(campus: campus, selected: 3)
+
+            HStack(spacing: 5) {
+                ForEach(["tag", "mappin.and.ellipse"], id: \.self) { icon in
+                    Image(systemName: icon)
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(campus.textPrimary)
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(campus.glassStrong))
+                }
+                Capsule()
+                    .fill(campus.glass)
+                    .overlay(Capsule().stroke(campus.border, lineWidth: 1))
+                    .frame(height: 22)
+            }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 18)
         }
-        .background(campus.background)
+        .background(TourAurora())
     }
 
-    private func timelineRow(_ title: String, done: Bool) -> some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(done ? campus.primary : campus.elevatedSurface)
-                .frame(width: 8, height: 8)
-            Text(title)
-                .font(Theme.syne(9, weight: .semibold))
-                .foregroundStyle(done ? campus.textPrimary : campus.textMuted)
-        }
-    }
-
-    private func capsule(_ title: String, filled: Bool) -> some View {
-        Text(title)
-            .font(Theme.syne(10, weight: .bold))
-            .foregroundStyle(filled ? Color.white : campus.textPrimary)
+    private func note(_ text: String) -> some View {
+        Text(text)
+            .font(Theme.syne(7, weight: .medium))
+            .foregroundStyle(campus.textMuted)
+            .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
-            .frame(height: 28)
-            .background(filled ? campus.primary : campus.elevatedSurface)
-            .clipShape(Capsule())
+    }
+
+    private func bubble(_ text: String, mine: Bool) -> some View {
+        HStack {
+            if mine { Spacer() }
+            Text(text)
+                .font(Theme.syne(8, weight: .medium))
+                .foregroundStyle(mine ? Color.black : campus.textPrimary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(mine ? Color.white : campus.glassStrong))
+            if !mine { Spacer() }
+        }
     }
 }
 
@@ -570,42 +639,67 @@ private struct TourPayScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("pay")
-                .font(Theme.syne(16, weight: .bold))
+            Text("choose how to pay")
+                .font(Theme.syne(13, weight: .bold))
                 .foregroundStyle(campus.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 36)
                 .padding(.horizontal, 14)
-
-            Spacer()
-
-            Text("$25")
-                .font(Theme.syne(36, weight: .bold))
-                .foregroundStyle(campus.textPrimary)
-            Text("vintage broncos tee")
-                .font(Theme.syne(11, weight: .medium))
+            Text("Seller is ready.")
+                .font(Theme.syne(8, weight: .medium))
                 .foregroundStyle(campus.textMuted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
                 .padding(.top, 2)
 
-            Text("Pay with Apple Pay")
-                .font(Theme.syne(11, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 36)
-                .background(Color.black)
-                .clipShape(Capsule())
-                .padding(.horizontal, 22)
-                .padding(.top, 16)
-
-            Text("Seller is on Receive")
-                .font(Theme.syne(9, weight: .medium))
-                .foregroundStyle(campus.textMuted)
-                .padding(.top, 8)
+            VStack(spacing: 3) {
+                Text("$26.48")
+                    .font(Theme.syne(30, weight: .bold))
+                    .foregroundStyle(campus.textPrimary)
+                Text("$25 + $1.48 service fee")
+                    .font(Theme.syne(8, weight: .semibold))
+                    .foregroundStyle(campus.textMuted)
+                Text("vintage broncos tee")
+                    .font(Theme.syne(9, weight: .medium))
+                    .foregroundStyle(campus.textMuted)
+                    .padding(.top, 2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .background(campus.glass)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(campus.border, lineWidth: 1)
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 14)
 
             Spacer()
-            TourMiniTabBar(campus: campus, selected: 3)
+
+            HStack(spacing: 4) {
+                Image(systemName: "apple.logo")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("Pay")
+                    .font(Theme.syne(11, weight: .bold))
+            }
+            .foregroundStyle(Color.black)
+            .frame(maxWidth: .infinity)
+            .frame(height: 34)
+            .background(Capsule().fill(Color.white))
+            .padding(.horizontal, 14)
+
+            Text("Pay with card")
+                .font(Theme.syne(9, weight: .semibold))
+                .foregroundStyle(campus.textPrimary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 30)
+                .background(Capsule().fill(campus.glassStrong))
+                .padding(.horizontal, 14)
+                .padding(.top, 6)
+                .padding(.bottom, 20)
         }
-        .background(campus.background)
+        .background(TourAurora())
     }
 }
 
@@ -616,7 +710,7 @@ private struct TourProfileScreen: View {
         VStack(spacing: 0) {
             VStack(spacing: 6) {
                 Circle()
-                    .fill(campus.elevatedSurface)
+                    .fill(campus.glassStrong)
                     .frame(width: 52, height: 52)
                     .overlay(
                         Image(systemName: "person.fill")
@@ -639,10 +733,15 @@ private struct TourProfileScreen: View {
             }
 
             HStack(spacing: 6) {
-                ForEach(0..<3, id: \.self) { _ in
+                ForEach(["tshirt.fill", "shoeprint.fill", "bag.fill"], id: \.self) { icon in
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(campus.listingCaptionBackground)
                         .frame(height: 70)
+                        .overlay(
+                            Image(systemName: icon)
+                                .font(.system(size: 20, weight: .regular))
+                                .foregroundStyle(campus.textMuted)
+                        )
                 }
             }
             .padding(.horizontal, 12)
@@ -651,7 +750,7 @@ private struct TourProfileScreen: View {
             Spacer()
             TourMiniTabBar(campus: campus, selected: 4)
         }
-        .background(campus.background)
+        .background(TourAurora())
     }
 
     private func stat(_ value: String, _ label: String) -> some View {
@@ -666,55 +765,62 @@ private struct TourProfileScreen: View {
     }
 }
 
+/// Lock-screen style stack of the reminders popup actually sends.
 private struct TourReminderScreen: View {
     let campus: CampusTheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("meetups")
-                .font(Theme.syne(16, weight: .bold))
+        VStack(spacing: 0) {
+            Text("3:15")
+                .font(Theme.syne(34, weight: .bold))
                 .foregroundStyle(campus.textPrimary)
-                .padding(.top, 36)
-                .padding(.horizontal, 12)
+                .padding(.top, 40)
+            Text("Tuesday")
+                .font(Theme.syne(9, weight: .semibold))
+                .foregroundStyle(campus.textMuted)
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Image(systemName: "bell.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(campus.primary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Meetup in 15 min")
-                            .font(Theme.syne(11, weight: .bold))
-                            .foregroundStyle(campus.textPrimary)
-                        Text("EMU Amphitheater · vintage tee")
-                            .font(Theme.syne(8, weight: .medium))
-                            .foregroundStyle(campus.textMuted)
-                    }
-                }
-                .padding(10)
-                .background(campus.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                HStack(spacing: 8) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(campus.textMuted)
-                    Text("We’ll ping you 30 min before, then again when it’s time.")
-                        .font(Theme.syne(8, weight: .medium))
-                        .foregroundStyle(campus.textMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(10)
-                .background(campus.elevatedSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            VStack(spacing: 6) {
+                notification("Meetup in 15 minutes", "Meeting maya at EMU Amphitheater for the vintage tee.", "now")
+                notification("Meetup in 1 hour", "EMU Amphitheater · 3:30pm", "1h ago")
+                notification("Meetup tomorrow", "EMU Amphitheater · 3:30pm", "yesterday")
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
+            .padding(.horizontal, 10)
+            .padding(.top, 22)
 
             Spacer()
-            TourMiniTabBar(campus: campus, selected: 3)
         }
-        .background(campus.background)
+        .background(TourAurora())
+    }
+
+    private func notification(_ title: String, _ body: String, _ time: String) -> some View {
+        HStack(alignment: .top, spacing: 7) {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(Color.black)
+                .frame(width: 18, height: 18)
+                .overlay(
+                    Text("p")
+                        .font(Theme.syne(9, weight: .heavy))
+                        .foregroundStyle(.white)
+                )
+            VStack(alignment: .leading, spacing: 1) {
+                HStack {
+                    Text(title)
+                        .font(Theme.syne(8, weight: .bold))
+                        .foregroundStyle(campus.textPrimary)
+                    Spacer(minLength: 2)
+                    Text(time)
+                        .font(Theme.syne(6, weight: .medium))
+                        .foregroundStyle(campus.textMuted)
+                }
+                Text(body)
+                    .font(Theme.syne(7, weight: .medium))
+                    .foregroundStyle(campus.textMuted)
+                    .lineLimit(2)
+            }
+        }
+        .padding(8)
+        .background(campus.glassStrong)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -839,7 +945,7 @@ private struct TourScanTee: View {
             VStack(spacing: 3) {
                 Text(campus.shortName)
                     .font(Theme.syne(15, weight: .black))
-                    .foregroundStyle(campus.primary)
+                    .foregroundStyle(campus.tint)
                 Capsule()
                     .fill(campus.secondary)
                     .frame(width: 26, height: 4)
