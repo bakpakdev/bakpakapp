@@ -41,6 +41,39 @@ struct ProductService {
         return try await api.request(path: path)
     }
 
+    /// Search plus whether every word matched (false means "closest matches").
+    func searchRanked(query: String, category: String? = nil, school: String? = nil) async throws -> SearchEngine.Ranked {
+        if SupabaseConfig.isConfigured, let c = SupabaseManager.shared.client() {
+            return try await SupabaseProductService.searchRanked(client: c, query: query, category: category, school: school)
+        }
+        let products = try await search(query: query, category: category, school: school)
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return SearchEngine.Ranked(products: products, exact: q.isEmpty || SearchEngine.rank(products, query: q).exact)
+    }
+
+    /// How many people liked each listing, for "trending on campus". Empty when unavailable.
+    func likeCounts(productIds: [String]) async -> [String: Int] {
+        guard SupabaseConfig.isConfigured, let c = SupabaseManager.shared.client() else { return [:] }
+        return (try? await SupabaseProductService.likeCounts(client: c, productIds: productIds)) ?? [:]
+    }
+
+    /// Unsold listing count per category slug. Missing keys mean the count couldn't load.
+    func categoryCounts(_ categories: [String], school: String?) async -> [String: Int] {
+        guard SupabaseConfig.isConfigured, let c = SupabaseManager.shared.client() else { return [:] }
+        return await withTaskGroup(of: (String, Int?).self) { group in
+            for category in categories {
+                group.addTask {
+                    (category, try? await SupabaseProductService.countListings(client: c, category: category, school: school))
+                }
+            }
+            var counts: [String: Int] = [:]
+            for await (category, count) in group {
+                if let count { counts[category] = count }
+            }
+            return counts
+        }
+    }
+
     func product(id: String) async throws -> Product {
         if SupabaseConfig.isConfigured, let c = SupabaseManager.shared.client() {
             return try await SupabaseProductService.fetchProduct(client: c, id: id)
