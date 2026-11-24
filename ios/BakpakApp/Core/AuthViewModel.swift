@@ -833,7 +833,12 @@ final class AuthViewModel: ObservableObject {
             )
 
             // Pick up the metadata the API just saved.
-            let session = (try? await client.auth.refreshSession()) ?? (try await client.auth.session)
+            let session: Session
+            if let refreshed = try? await client.auth.refreshSession() {
+                session = refreshed
+            } else {
+                session = try await client.auth.session
+            }
             guard session.user.emailConfirmedAt != nil else {
                 try? await client.auth.signOut()
                 errorMessage = "Confirm your campus email before creating a password."
