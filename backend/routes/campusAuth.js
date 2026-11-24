@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { getSupabaseAdmin } = require('../lib/supabaseAdmin');
+const { protectSupabase } = require('../middleware/supabaseAuth');
 
 const router = express.Router();
 
@@ -222,6 +223,8 @@ router.post('/campus-register', async (req, res) => {
       first_name: firstName,
       last_name: lastName,
       school,
+      // Cleared by /campus-complete-signup once the student picks their real password.
+      signup_password_pending: true,
     };
 
     let user;
@@ -364,6 +367,72 @@ router.post('/campus-verify', async (req, res) => {
   }
 });
 
+// --- Finish signup --------------------------------------------------------
+// The app used to set the real password with supabase.auth.updateUser, which makes
+// Supabase send its "Your password has been changed" notice to brand-new students.
+// Setting it here through the admin API sends nothing; only a reset emails that notice.
+
+const SIGNUP_GRACE_MS = 48 * 60 * 60 * 1000;
+
+function isSignupPasswordPending(user) {
+  if (user?.user_metadata?.signup_password_pending === true) return true;
+  // Accounts created before the flag existed: allow only while they're brand new.
+  const created = Date.parse(user?.created_at || '');
+  return Number.isFinite(created) && Date.now() - created < SIGNUP_GRACE_MS;
+}
+
+router.post('/campus-complete-signup', protectSupabase, async (req, res) => {
+  try {
+    const password = String(req.body?.password || '');
+    const firstName = String(req.body?.first_name || '').trim();
+    const lastName = String(req.body?.last_name || '').trim();
+    const school = String(req.body?.school || '').trim();
+
+    if (!passwordMeetsRules(password)) {
+      return res.status(400).json({ message: 'Use at least 6 characters with a lowercase letter, an uppercase letter, and a number.' });
+    }
+
+    const admin = getSupabaseAdmin();
+    const { data, error } = await admin.auth.admin.getUserById(req.user.id);
+    const user = data?.user;
+    if (error || !user) {
+      return res.status(400).json({ message: 'Could not find that account.' });
+    }
+    if (!isConfirmed(user)) {
+      return res.status(400).json({ message: 'Confirm your campus email before creating a password.' });
+    }
+
+    // Same rule Supabase applies to updateUser: an account with 2FA needs an aal2 session.
+    const claims = jwt.decode((req.headers.authorization || '').split(' ')[1]) || {};
+    const hasVerifiedFactor = (user.factors || []).some((f) => f.status === 'verified');
+    if (hasVerifiedFactor && claims.aal !== 'aal2') {
+      return res.status(403).json({ message: 'This email already has an account with two-factor on. Sign in instead, or use Forgot password.' });
+    }
+
+    if (!isSignupPasswordPending(user)) {
+      return res.status(409).json({ message: 'This account already has a password. Sign in instead, or use Forgot password.' });
+    }
+
+    const updated = await admin.auth.admin.updateUserById(user.id, {
+      password,
+      user_metadata: {
+        first_name: firstName,
+        last_name: lastName,
+        school,
+        signup_password_pending: null,
+      },
+    });
+    if (updated.error) {
+      console.error('campus-complete-signup updateUser:', updated.error);
+      return res.status(400).json({ message: updated.error.message || 'Could not save that password.' });
+    }
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('campus-complete-signup error:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // --- Password reset -------------------------------------------------------
 // Same landing-page pattern as campus confirm: the email links to our page, which
 // hands a signed token to the app, so iOS Mail prefetch can't burn a Supabase link.
@@ -402,6 +471,22 @@ function resetHtml(link) {
       </a>
     </p>
     <p style="font-size:13px;color:#737373;margin:28px 0 0;">If you didn’t ask to reset your password, ignore this email. Your password stays the same.</p>
+  </div>
+</body>
+</html>`;
+}
+
+function passwordChangedHtml(when) {
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0A0A0A;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#FAFAFA;">
+  <div style="max-width:440px;margin:0 auto;padding:40px 28px;">
+    <p style="font-size:32px;font-weight:900;letter-spacing:-0.5px;margin:0 0 36px;">popup</p>
+    <p style="font-size:22px;font-weight:700;margin:0 0 12px;">Your password was changed</p>
+    <p style="font-size:15px;line-height:1.55;color:#A3A3A3;margin:0 0 28px;">
+      The password on your popup account was just reset (${when}).
+    </p>
+    <p style="font-size:13px;color:#737373;margin:28px 0 0;">If this wasn’t you, reset your password from the popup sign-in screen and contact popup support right away.</p>
   </div>
 </body>
 </html>`;
@@ -470,6 +555,15 @@ router.post('/password-reset/complete', async (req, res) => {
     const now = Date.now();
     for (const [jti, at] of usedResetTokens) if (now - at > 60 * 60 * 1000) usedResetTokens.delete(jti);
     usedResetTokens.set(payload.jti, now);
+
+    // The admin API doesn't trigger Supabase's own notice, so send ours. Best effort.
+    const to = updated.data?.user?.email || String(payload.email).toLowerCase();
+    sendViaResend(to, null, {
+      subject: 'Your popup password was changed',
+      html: passwordChangedHtml(new Date().toUTCString()),
+      text: 'The password on your popup account was just reset. If this wasn’t you, reset it from the popup sign-in screen and contact popup support.',
+    }).catch((err) => console.error('password changed email failed:', err.message));
+
     return res.json({ ok: true, email: String(payload.email).toLowerCase() });
   } catch (error) {
     console.error('password-reset/complete error:', error);

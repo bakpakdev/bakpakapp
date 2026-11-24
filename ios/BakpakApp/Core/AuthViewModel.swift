@@ -809,18 +809,31 @@ final class AuthViewModel: ObservableObject {
                 }
             }
 
-            _ = try await client.auth.update(
-                user: UserAttributes(
-                    password: password,
-                    data: [
-                        "first_name": .string(firstName),
-                        "last_name": .string(lastName),
-                        "school": .string(school),
-                    ]
+            // Set the password through our API (Supabase admin) rather than auth.update:
+            // auth.update makes Supabase email "your password has been changed" to a
+            // student who is only creating their first password.
+            struct CompleteSignupRequest: Encodable {
+                let password: String
+                let first_name: String
+                let last_name: String
+                let school: String
+            }
+            struct CompleteSignupResponse: Decodable { let ok: Bool? }
+            let _: CompleteSignupResponse = try await APIClient.shared.request(
+                path: "/auth/campus-complete-signup",
+                method: "POST",
+                body: JSONEncoder().encode(
+                    CompleteSignupRequest(
+                        password: password,
+                        first_name: firstName,
+                        last_name: lastName,
+                        school: school
+                    )
                 )
             )
 
-            let session = try await client.auth.session
+            // Pick up the metadata the API just saved.
+            let session = (try? await client.auth.refreshSession()) ?? (try await client.auth.session)
             guard session.user.emailConfirmedAt != nil else {
                 try? await client.auth.signOut()
                 errorMessage = "Confirm your campus email before creating a password."
