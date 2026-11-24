@@ -1022,6 +1022,129 @@ enum SupabaseProfileService {
             .value
     }
 
+    // MARK: Username change lock (14 days between changes)
+
+    /// How long someone has to wait between username changes. The database enforces it too.
+    static let usernameLockDays = 14
+
+    struct UsernameChangeStatus: Decodable, Equatable {
+        let username: String?
+        let changedAt: Date?
+        let unlocksAt: Date?
+        let locked: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case username, locked
+            case changedAt = "changed_at"
+            case unlocksAt = "unlocks_at"
+        }
+
+        init(username: String?, changedAt: Date?, unlocksAt: Date?, locked: Bool) {
+            self.username = username
+            self.changedAt = changedAt
+            self.unlocksAt = unlocksAt
+            self.locked = locked
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            username = try c.decodeIfPresent(String.self, forKey: .username)
+            changedAt = Self.parseDate(try c.decodeIfPresent(String.self, forKey: .changedAt))
+            unlocksAt = Self.parseDate(try c.decodeIfPresent(String.self, forKey: .unlocksAt))
+            let flag = try c.decodeIfPresent(Bool.self, forKey: .locked) ?? false
+            // Trust the clock on the unlock date over a stale flag.
+            if let unlocksAt { locked = flag && unlocksAt > Date() } else { locked = false }
+        }
+
+        static let unlocked = UsernameChangeStatus(username: nil, changedAt: nil, unlocksAt: nil, locked: false)
+
+        /// 0…1, how far through the 14-day lock we are.
+        var lockProgress: Double {
+            guard locked, let changedAt, let unlocksAt else { return 1 }
+            let total = unlocksAt.timeIntervalSince(changedAt)
+            guard total > 0 else { return 1 }
+            return min(1, max(0, Date().timeIntervalSince(changedAt) / total))
+        }
+
+        private static func parseDate(_ raw: String?) -> Date? {
+            guard let raw, !raw.isEmpty else { return nil }
+            let f = ISO8601DateFormatter()
+            f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let d = f.date(from: raw) { return d }
+            f.formatOptions = [.withInternetDateTime]
+            return f.date(from: raw)
+        }
+    }
+
+    enum UsernameChangeError: LocalizedError {
+        case locked(until: Date?)
+        case taken
+        case tooShort
+        case hasSpaces
+        case unchanged
+        case other(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .locked(let until):
+                if let until { return "You can change your username again on \(UsernameDates.long(until))." }
+                return "You changed your username recently. Try again later."
+            case .taken: return "That username is taken. Pick a new one."
+            case .tooShort: return "Usernames need at least 3 characters."
+            case .hasSpaces: return "Usernames can't have spaces."
+            case .unchanged: return "That's already your username."
+            case .other(let message): return message
+            }
+        }
+
+        static func from(_ error: Error) -> UsernameChangeError {
+            let text = String(describing: error) + " " + error.localizedDescription
+            let lower = text.lowercased()
+            if lower.contains("username_locked") {
+                var until: Date?
+                if let r = text.range(of: #"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"#, options: .regularExpression) {
+                    until = ISO8601DateFormatter().date(from: String(text[r]))
+                }
+                return .locked(until: until)
+            }
+            if lower.contains("username_taken") || lower.contains("profiles_username_lower_key")
+                || lower.contains("profiles_username_key") { return .taken }
+            if lower.contains("username_too_short") { return .tooShort }
+            if lower.contains("username_has_spaces") { return .hasSpaces }
+            if lower.contains("username_unchanged") { return .unchanged }
+            return .other("Couldn’t change your username. Check your connection and try again.")
+        }
+    }
+
+    /// Whether the signed-in user can change their username right now.
+    /// If the database doesn't have the lock yet (migration not run), treats it as unlocked.
+    static func usernameChangeStatus(client: SupabaseClient) async -> UsernameChangeStatus {
+        do {
+            let status: UsernameChangeStatus = try await client
+                .rpc("username_change_status")
+                .execute()
+                .value
+            return status
+        } catch {
+            return .unlocked
+        }
+    }
+
+    /// Changes the username and starts the 14-day lock. The database checks
+    /// that the name is free and that the lock has passed.
+    static func changeUsername(client: SupabaseClient, to raw: String) async throws -> UsernameChangeStatus {
+        struct Params: Encodable { let p_username: String }
+        do {
+            let status: UsernameChangeStatus = try await client
+                .rpc("change_username", params: Params(p_username: normalizeUsername(raw)))
+                .execute()
+                .value
+            return status
+        } catch {
+            throw UsernameChangeError.from(error)
+        }
+    }
+
     struct ProfileUpdate: Encodable {
         var username: String?
         var first_name: String?

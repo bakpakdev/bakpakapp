@@ -154,26 +154,6 @@ struct EditProfileRow<Content: View>: View {
     }
 }
 
-private struct EditProfileChip: View {
-    let label: String
-    let selected: Bool
-    let action: () -> Void
-    @Environment(\.campusTheme) private var campusTheme
-
-    var body: some View {
-        Button(action: action) {
-            Text(label)
-                .font(Theme.syne(13, weight: .semibold))
-                .foregroundStyle(selected ? Color.white : campusTheme.textPrimary)
-                .padding(.horizontal, 16)
-                .frame(height: 40)
-                .background(selected ? campusTheme.primary : campusTheme.elevatedSurface)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
-    }
-}
-
 private struct EditProfileFlowLayout: Layout {
     var spacing: CGFloat = 8
 
@@ -231,6 +211,55 @@ struct EditProfileFieldStyle: ViewModifier {
     }
 }
 
+/// Small uppercase label above each glass section.
+private struct GlassSectionLabel: View {
+    let title: String
+    var detail: String?
+    @Environment(\.campusTheme) private var campusTheme
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(title.uppercased())
+                .font(Theme.syne(11.5, weight: .bold))
+                .tracking(1.3)
+            if let detail {
+                Text("· \(detail)")
+                    .font(Theme.syne(11.5, weight: .medium))
+            }
+        }
+        .foregroundStyle(campusTheme.textMuted)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 6)
+        .padding(.top, 24)
+        .padding(.bottom, 9)
+    }
+}
+
+/// Pill chip: solid when picked, see-through glass when not.
+private struct GlassChip: View {
+    let label: String
+    let selected: Bool
+    let action: () -> Void
+    @Environment(\.campusTheme) private var campusTheme
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(Theme.syne(13, weight: .semibold))
+                .foregroundStyle(selected ? campusTheme.background : campusTheme.textPrimary)
+                .padding(.horizontal, 14)
+                .frame(height: 36)
+                .background(
+                    Capsule().fill(selected ? campusTheme.textPrimary : campusTheme.textPrimary.opacity(0.07))
+                )
+                .overlay(
+                    Capsule().stroke(campusTheme.textPrimary.opacity(selected ? 0 : 0.16), lineWidth: 1)
+                )
+        }
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+    }
+}
+
 // MARK: - Edit profile
 
 struct EditProfileView: View {
@@ -241,10 +270,12 @@ struct EditProfileView: View {
 
     @State private var name = ""
     @State private var username = ""
-    @StateObject private var usernameCheck = UsernameAvailabilityChecker()
+    @State private var usernameStatus = SupabaseProfileService.UsernameChangeStatus.unlocked
+    @State private var showChangeUsername = false
+    @State private var changedToast: String?
     @FocusState private var focusedField: BasicInfoField?
 
-    private enum BasicInfoField { case name, username }
+    private enum BasicInfoField { case name }
     @State private var bio = ""
     @State private var selectedSizes: Set<String> = []
     @State private var selectedStyles: Set<String> = []
@@ -276,178 +307,182 @@ struct EditProfileView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("edit profile")
-                            .font(Theme.syne(36, weight: .bold))
-                            .foregroundStyle(campusTheme.textPrimary)
-                        Text("how campus sees you")
-                            .font(Theme.syne(28, weight: .semibold))
-                            .foregroundStyle(campusTheme.textMuted)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                    Text("edit profile")
+                        .font(Theme.syne(34, weight: .bold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 4)
+                        .padding(.bottom, 18)
+
+                    if let changedToast {
+                        HStack(spacing: 10) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .heavy))
+                                .foregroundStyle(campusTheme.background)
+                                .frame(width: 26, height: 26)
+                                .background(Circle().fill(campusTheme.textPrimary))
+                            Text(changedToast)
+                                .font(Theme.syne(14, weight: .bold))
+                                .foregroundStyle(campusTheme.textPrimary)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(12)
+                        .usernameGlass(20)
+                        .padding(.bottom, 14)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 4)
-                    .padding(.bottom, 22)
 
                     photoSection
 
-                    EditProfileSectionHeader(title: "Basic Info")
-                    EditProfileCard {
-                        // Tapping anywhere on a row edits that field, not just the text on the right.
-                        EditProfileRow(label: "Name") {
+                    GlassSectionLabel(title: "basic info")
+                    VStack(spacing: 0) {
+                        // Tapping anywhere on the row edits the name, not just the text on the right.
+                        HStack(spacing: 12) {
+                            Text("Name")
+                                .font(Theme.syne(15, weight: .semibold))
+                                .foregroundStyle(campusTheme.textPrimary)
+                            Spacer(minLength: 8)
                             TextField("Your name", text: $name)
                                 .modifier(EditProfileFieldStyle())
-                                .frame(maxWidth: 180)
+                                .frame(maxWidth: 190)
                                 .textContentType(.name)
                                 .autocorrectionDisabled()
                                 .focused($focusedField, equals: .name)
                         }
+                        .padding(.horizontal, 16)
+                        .frame(height: 54)
                         .contentShape(Rectangle())
                         .onTapGesture { focusedField = .name }
-                        EditProfileRow(label: "Username", showDivider: false) {
-                            TextField("username", text: $username)
-                                .modifier(EditProfileFieldStyle())
-                                .frame(maxWidth: 180)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .keyboardType(.asciiCapable)
-                                .textContentType(.username)
-                                .focused($focusedField, equals: .username)
-                                .onChange(of: username) { newValue in
-                                    usernameCheck.check(newValue)
-                                }
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture { focusedField = .username }
-                        if let message = usernameCheck.message {
-                            HStack(spacing: 6) {
-                                Image(systemName: usernameCheck.status == .available ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                                Text(usernameCheck.status == .available ? "@\(SupabaseProfileService.normalizeUsername(username)) is available" : message)
-                            }
-                            .font(Theme.syne(12, weight: .medium))
-                            .foregroundStyle(usernameCheck.status == .available ? Color(hex: "#2FA36B") : Color(hex: "#E5484D"))
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                            .padding(.horizontal, 18)
-                            .padding(.bottom, 12)
-                        }
-                    }
 
-                    EditProfileSectionHeader(title: "Bio")
-                    EditProfileCard {
-                        VStack(alignment: .trailing, spacing: 8) {
-                            ZStack(alignment: .topLeading) {
-                                if bio.isEmpty {
-                                    Text("Tell campus what you thrift…")
-                                        .font(Theme.syne(15))
-                                        .foregroundStyle(campusTheme.textMuted.opacity(0.7))
-                                        .padding(.top, 8)
-                                        .padding(.leading, 4)
-                                        .allowsHitTesting(false)
-                                }
-                                TextEditor(text: $bio)
+                        glassDivider
+
+                        usernameRow
+                    }
+                    .usernameGlass(24)
+
+                    Text(usernameNote)
+                        .font(Theme.syne(12, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 6)
+                        .padding(.top, 8)
+
+                    GlassSectionLabel(title: "bio")
+                    VStack(alignment: .trailing, spacing: 6) {
+                        ZStack(alignment: .topLeading) {
+                            if bio.isEmpty {
+                                Text("Tell campus what you thrift…")
                                     .font(Theme.syne(15))
-                                    .foregroundStyle(campusTheme.textPrimary)
-                                    .tint(campusTheme.primary)
-                                    .frame(minHeight: 96)
-                                    .scrollContentBackground(.hidden)
-                                    .onChange(of: bio) { newValue in
-                                        if newValue.count > bioLimit {
-                                            bio = String(newValue.prefix(bioLimit))
-                                        }
-                                    }
+                                    .foregroundStyle(campusTheme.textMuted.opacity(0.8))
+                                    .padding(.top, 8)
+                                    .padding(.leading, 4)
+                                    .allowsHitTesting(false)
                             }
-                            Text("\(bio.count)/\(bioLimit)")
-                                .font(Theme.syne(12, weight: .medium))
-                                .foregroundStyle(bio.count >= bioLimit ? Color.red : campusTheme.textMuted)
-                        }
-                        .padding(16)
-                    }
-
-                    EditProfileSectionHeader(title: "Thrift Filters", subtitle: "Shown on your profile")
-                    EditProfileCard {
-                        VStack(alignment: .leading, spacing: 20) {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Sizes")
-                                    .font(Theme.syne(14, weight: .semibold))
-                                    .foregroundStyle(campusTheme.textPrimary)
-                                EditProfileFlowLayout(spacing: 8) {
-                                    ForEach(sizeOptions) { size in
-                                        EditProfileChip(label: size.label, selected: selectedSizes.contains(size.id)) {
-                                            toggleSize(size.id)
-                                        }
+                            TextEditor(text: $bio)
+                                .font(Theme.syne(15))
+                                .foregroundStyle(campusTheme.textPrimary)
+                                .tint(campusTheme.textPrimary)
+                                .frame(minHeight: 90)
+                                .scrollContentBackground(.hidden)
+                                .onChange(of: bio) { newValue in
+                                    if newValue.count > bioLimit {
+                                        bio = String(newValue.prefix(bioLimit))
                                     }
                                 }
-                            }
+                        }
+                        Text("\(bio.count)/\(bioLimit)")
+                            .font(Theme.syne(12, weight: .semibold))
+                            .foregroundStyle(bio.count >= bioLimit ? Color(hex: "#FF6B6B") : campusTheme.textMuted)
+                    }
+                    .padding(14)
+                    .usernameGlass(24)
 
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Styles")
-                                    .font(Theme.syne(14, weight: .semibold))
-                                    .foregroundStyle(campusTheme.textPrimary)
-                                EditProfileFlowLayout(spacing: 8) {
-                                    ForEach(styleOptions) { style in
-                                        EditProfileChip(label: style.label, selected: selectedStyles.contains(style.id)) {
-                                            toggleStyle(style.id)
-                                        }
+                    GlassSectionLabel(title: "thrift filters", detail: "shown on your profile")
+                    VStack(alignment: .leading, spacing: 18) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Sizes")
+                                .font(Theme.syne(14, weight: .bold))
+                                .foregroundStyle(campusTheme.textPrimary)
+                            EditProfileFlowLayout(spacing: 7) {
+                                ForEach(sizeOptions) { size in
+                                    GlassChip(label: size.label, selected: selectedSizes.contains(size.id)) {
+                                        toggleSize(size.id)
                                     }
                                 }
                             }
                         }
-                        .padding(16)
-                    }
-
-                    EditProfileSectionHeader(title: "Social Links", subtitle: "Connect accounts to show on your profile")
-                    EditProfileCard {
-                        VStack(spacing: 14) {
-                            HStack(spacing: 14) {
-                                socialConnectButton(
-                                    title: "Instagram",
-                                    connected: instagramConnected,
-                                    subtitle: instagramConnected && !instagram.isEmpty ? "@\(instagram)" : "Tap to connect",
-                                    gradient: [Color(hex: "#F58529"), Color(hex: "#DD2A7B"), Color(hex: "#8134AF")],
-                                    glyph: "camera.fill"
-                                ) {
-                                    Task { await startInstagramConnect() }
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Styles")
+                                .font(Theme.syne(14, weight: .bold))
+                                .foregroundStyle(campusTheme.textPrimary)
+                            EditProfileFlowLayout(spacing: 7) {
+                                ForEach(styleOptions) { style in
+                                    GlassChip(label: style.label, selected: selectedStyles.contains(style.id)) {
+                                        toggleStyle(style.id)
+                                    }
                                 }
-
-                                socialConnectButton(
-                                    title: "Depop",
-                                    connected: !depop.isEmpty,
-                                    subtitle: depop.isEmpty ? "Add handle" : "@\(depop)",
-                                    gradient: [Color(hex: "#FF2300"), Color(hex: "#FF4D2E")],
-                                    glyph: "bag.fill"
-                                ) {
-                                    pendingDepopHandle = depop
-                                    showDepopSheet = true
-                                }
-                            }
-
-                            if instagramConnected {
-                                Button {
-                                    InstagramConnectService.disconnect()
-                                    instagramConnected = false
-                                    instagram = ""
-                                    Motion.haptic(.light)
-                                } label: {
-                                    Text("Disconnect Instagram")
-                                        .font(Theme.syne(13, weight: .semibold))
-                                        .foregroundStyle(Color(hex: "#E11D48"))
-                                }
-                                .buttonStyle(.plain)
-                            }
-
-                            if let socialError {
-                                Text(socialError)
-                                    .font(Theme.syne(12))
-                                    .foregroundStyle(Color(hex: "#E11D48"))
                             }
                         }
-                        .padding(16)
                     }
-                    .padding(.bottom, 40)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .usernameGlass(24)
+
+                    GlassSectionLabel(title: "linked accounts", detail: "shown on your profile")
+                    VStack(spacing: 0) {
+                        linkedAccountRow(
+                            title: "Instagram",
+                            glyph: "camera",
+                            handle: instagramConnected && !instagram.isEmpty ? instagram : nil,
+                            actionTitle: isConnectingInstagram ? "…" : "connect"
+                        ) {
+                            Task { await startInstagramConnect() }
+                        }
+                        glassDivider
+                        linkedAccountRow(
+                            title: "Depop",
+                            glyph: "bag",
+                            handle: depop.isEmpty ? nil : depop,
+                            actionTitle: "add"
+                        ) {
+                            pendingDepopHandle = depop
+                            showDepopSheet = true
+                        }
+                    }
+                    .usernameGlass(24)
+
+                    if instagramConnected {
+                        Button {
+                            InstagramConnectService.disconnect()
+                            instagramConnected = false
+                            instagram = ""
+                            Motion.haptic(.light)
+                        } label: {
+                            Text("disconnect Instagram")
+                                .font(Theme.syne(13, weight: .semibold))
+                                .foregroundStyle(Color(hex: "#FF6B6B"))
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 6)
+                        .padding(.top, 10)
+                    }
+
+                    if let socialError {
+                        Text(socialError)
+                            .font(Theme.syne(12))
+                            .foregroundStyle(Color(hex: "#FF6B6B"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 6)
+                            .padding(.top, 8)
+                    }
+
+                    Color.clear.frame(height: 48)
                 }
                 .padding(.horizontal, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -456,23 +491,41 @@ struct EditProfileView: View {
                     Task { await save() }
                 } label: {
                     if isSaving {
-                        ProgressView().tint(campusTheme.primary)
+                        ProgressView().tint(campusTheme.textPrimary)
                     } else {
                         Text("save")
-                            .font(Theme.syne(15, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .font(Theme.syne(15, weight: .bold))
+                            .foregroundStyle(campusTheme.background)
                             .padding(.horizontal, 18)
                             .frame(height: 36)
-                            .background(campusTheme.primary)
-                            .clipShape(Capsule())
+                            .background(Capsule().fill(campusTheme.textPrimary))
                     }
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.95))
-                .disabled(isSaving || usernameCheck.isTaken || usernameCheck.isChecking)
-                .opacity(usernameCheck.isTaken ? 0.5 : 1)
+                .disabled(isSaving)
             }
         }
         .campusPageStyle()
+        .navigationDestination(isPresented: $showChangeUsername) {
+            ChangeUsernameView(
+                currentUsername: username,
+                status: usernameStatus
+            ) { newName, status in
+                username = newName
+                usernameStatus = status
+                if let u = authVM.user {
+                    authVM.user = User(
+                        id: u.id, email: u.email, username: newName,
+                        firstName: u.firstName, lastName: u.lastName, avatar: u.avatar,
+                        bio: u.bio, shopName: u.shopName, dateOfBirth: u.dateOfBirth,
+                        country: u.country, isVerified: u.isVerified
+                    )
+                }
+                withAnimation(Motion.snappy) { changedToast = "you're now @\(newName)" }
+            }
+            .environment(\.campusTheme, campusTheme)
+        }
+        .task { await loadUsernameStatus() }
         .onChange(of: photoItem) { item in
             Task { await loadAndUploadPhoto(item) }
         }
@@ -619,42 +672,108 @@ struct EditProfileView: View {
         .background(campusTheme.wash.ignoresSafeArea())
     }
 
-    private func socialConnectButton(
+    private var glassDivider: some View {
+        Rectangle()
+            .fill(campusTheme.textPrimary.opacity(0.09))
+            .frame(height: 1)
+            .padding(.leading, 16)
+    }
+
+    /// The username isn't a text box any more: it opens its own screen, and shows a
+    /// lock with the unlock date for 14 days after a change.
+    private var usernameRow: some View {
+        Button {
+            focusedField = nil
+            Motion.haptic(.light)
+            showChangeUsername = true
+        } label: {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(spacing: 8) {
+                    Text("Username")
+                        .font(Theme.syne(15, weight: .semibold))
+                        .foregroundStyle(campusTheme.textPrimary)
+                    Spacer(minLength: 8)
+                    Text("@\(username)")
+                        .font(Theme.syne(15, weight: .semibold))
+                        .foregroundStyle(usernameStatus.locked ? campusTheme.textMuted : campusTheme.textPrimary)
+                        .lineLimit(1)
+                    Image(systemName: usernameStatus.locked ? "lock.fill" : "chevron.right")
+                        .font(.system(size: usernameStatus.locked ? 12 : 13, weight: .bold))
+                        .foregroundStyle(campusTheme.textMuted)
+                }
+                if usernameStatus.locked {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(campusTheme.textPrimary.opacity(0.12))
+                            Capsule().fill(campusTheme.textPrimary)
+                                .frame(width: max(6, geo.size.width * usernameStatus.lockProgress))
+                        }
+                    }
+                    .frame(height: 5)
+                    if let until = usernameStatus.unlocksAt {
+                        Text("locked · you can change it again \(UsernameDates.long(until))")
+                            .font(Theme.syne(11.5, weight: .semibold))
+                            .foregroundStyle(campusTheme.textMuted)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(usernameStatus.locked ? "Locked. Shows when you can change it again." : "Opens a screen to change your username.")
+    }
+
+    private var usernameNote: String {
+        "Your @ is how people find you, tag you and leave you reviews. You can change it once every \(SupabaseProfileService.usernameLockDays) days."
+    }
+
+    private func loadUsernameStatus() async {
+        guard authVM.usesSupabase,
+              let client = await SupabaseManager.shared.clientWithValidSession() else { return }
+        let status = await SupabaseProfileService.usernameChangeStatus(client: client)
+        usernameStatus = status
+    }
+
+    private func linkedAccountRow(
         title: String,
-        connected: Bool,
-        subtitle: String,
-        gradient: [Color],
         glyph: String,
+        handle: String?,
+        actionTitle: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            VStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient(colors: gradient, startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 52, height: 52)
-                    Image(systemName: glyph)
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                Text(title)
-                    .font(Theme.syne(13, weight: .bold))
+            HStack(spacing: 12) {
+                Image(systemName: glyph)
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(campusTheme.textPrimary)
-                Text(subtitle)
-                    .font(Theme.syne(11, weight: .medium))
-                    .foregroundStyle(connected ? campusTheme.primary : campusTheme.textMuted)
-                    .lineLimit(1)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(campusTheme.textPrimary.opacity(0.1)))
+                    .overlay(Circle().stroke(campusTheme.textPrimary.opacity(0.12), lineWidth: 1))
+                Text(title)
+                    .font(Theme.syne(15, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                Spacer(minLength: 8)
+                if let handle {
+                    Text("@\(handle)")
+                        .font(Theme.syne(14, weight: .semibold))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .lineLimit(1)
+                } else {
+                    Text(actionTitle)
+                        .font(Theme.syne(13, weight: .bold))
+                        .foregroundStyle(campusTheme.background)
+                        .padding(.horizontal, 14)
+                        .frame(height: 30)
+                        .background(Capsule().fill(campusTheme.textPrimary))
+                }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(campusTheme.elevatedSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(connected ? campusTheme.primary.opacity(0.35) : Color.clear, lineWidth: 1)
-            )
+            .padding(.horizontal, 16)
+            .frame(height: 62)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
     }
 
     private func startInstagramConnect() async {
@@ -678,53 +797,50 @@ struct EditProfileView: View {
     }
 
     private var photoSection: some View {
-        EditProfileCard {
-            VStack(spacing: 14) {
-                ZStack(alignment: .bottomTrailing) {
-                    Group {
-                        if let pickedPhoto {
-                            Image(uiImage: pickedPhoto)
-                                .resizable()
-                                .scaledToFill()
-                        } else {
-                            AvatarView(
-                                urlString: avatarURL,
-                                size: 104,
-                                cornerRadius: 30,
-                                initials: name.isEmpty ? "U" : name
-                            )
-                        }
+        VStack(spacing: 12) {
+            ZStack(alignment: .bottomTrailing) {
+                Group {
+                    if let pickedPhoto {
+                        Image(uiImage: pickedPhoto)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        AvatarView(
+                            urlString: avatarURL,
+                            size: 96,
+                            cornerRadius: 48,
+                            initials: name.isEmpty ? "U" : name
+                        )
                     }
-                    .frame(width: 104, height: 104)
-                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-
-                    PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
-                        Image(systemName: isUploadingPhoto ? "hourglass" : "camera.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 34, height: 34)
-                            .background(campusTheme.primary)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(campusTheme.surface, lineWidth: 2))
-                    }
-                    .disabled(isUploadingPhoto)
-                    .offset(x: 6, y: 6)
                 }
+                .frame(width: 96, height: 96)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white.opacity(campusTheme.isDark ? 0.25 : 0.7), lineWidth: 3))
 
                 PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
-                    Text(isUploadingPhoto ? "uploading…" : "change photo")
-                        .font(Theme.syne(14, weight: .semibold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                        .padding(.horizontal, 18)
-                        .frame(height: 40)
-                        .background(campusTheme.elevatedSurface)
-                        .clipShape(Capsule())
+                    Image(systemName: isUploadingPhoto ? "hourglass" : "camera.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(campusTheme.background)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(campusTheme.textPrimary))
+                        .overlay(Circle().stroke(campusTheme.background.opacity(0.6), lineWidth: 2))
                 }
                 .disabled(isUploadingPhoto)
+                .offset(x: 2, y: 2)
             }
-            .padding(.vertical, 22)
-            .frame(maxWidth: .infinity)
+
+            PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+                Text(isUploadingPhoto ? "uploading…" : "change photo")
+                    .font(Theme.syne(13, weight: .semibold))
+                    .foregroundStyle(campusTheme.textPrimary)
+                    .padding(.horizontal, 16)
+                    .frame(height: 34)
+                    .usernameGlass(17)
+            }
+            .disabled(isUploadingPhoto)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 4)
     }
 
     private func toggleSize(_ id: String) {
@@ -741,7 +857,6 @@ struct EditProfileView: View {
 
     private func loadFromUser() {
         guard let u = authVM.user else { return }
-        usernameCheck.currentUsername = u.username
         username = u.username
         if let f = u.firstName?.trimmingCharacters(in: .whitespacesAndNewlines),
            let l = u.lastName?.trimmingCharacters(in: .whitespacesAndNewlines), !l.isEmpty {
@@ -848,20 +963,6 @@ struct EditProfileView: View {
         let trimmedBio = bio.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if authVM.usesSupabase {
-            if !userName.isEmpty {
-                switch await usernameCheck.checkNow(userName) {
-                case .taken:
-                    saveErrorMessage = "@\(userName) is taken. Pick a new one."
-                    showSaveError = true
-                    return
-                case .tooShort:
-                    saveErrorMessage = "Usernames need at least 3 characters."
-                    showSaveError = true
-                    return
-                default:
-                    break
-                }
-            }
             guard let client = await SupabaseManager.shared.clientWithValidSession() else {
                 saveErrorMessage = "You need to be signed in to save your profile."
                 showSaveError = true
@@ -871,7 +972,8 @@ struct EditProfileView: View {
                 let updated = try await SupabaseProfileService.updateProfile(
                     client: client,
                     patch: .init(
-                        username: userName.isEmpty ? nil : userName,
+                        // The username only changes on its own screen (ChangeUsernameView).
+                        username: nil,
                         first_name: firstName.isEmpty ? nil : firstName,
                         last_name: lastName.isEmpty ? nil : lastName,
                         bio: trimmedBio.isEmpty ? nil : trimmedBio,
