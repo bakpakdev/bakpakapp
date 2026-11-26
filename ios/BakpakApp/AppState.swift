@@ -75,13 +75,6 @@ final class AppState: ObservableObject {
         }
     }
 
-    func openProfileSaved() {
-        selectedTab = .profile
-        if path.last != .savedItems {
-            path.append(.savedItems)
-        }
-    }
-
     /// After posting a listing: open Profile → Shop and optionally the new listing.
     func openProfileShop(productId: String? = nil) {
         path.removeAll()
@@ -272,7 +265,6 @@ enum Route: Hashable, Identifiable {
     case checkout
     case orders
     case likedItems
-    case savedItems
     case messagedItems
     case notificationCenter
     case myListings
@@ -307,7 +299,6 @@ enum Route: Hashable, Identifiable {
         case .checkout: return "checkout"
         case .orders: return "orders"
         case .likedItems: return "liked-items"
-        case .savedItems: return "saved-items"
         case .messagedItems: return "messaged-items"
         case .notificationCenter: return "notification-center"
         case .myListings: return "my-listings"

@@ -231,18 +231,15 @@ struct AccountSettingsView: View {
         return available > 0 ? "Set up payouts & cash out" : "Set up cash out"
     }
 
-    /// Edit profile, Saved and Instagram used to sit on the Profile tab; they live here now
+    /// Edit profile, Liked and Instagram used to sit on the Profile tab; they live here now
     /// so Profile can lead with the closet.
     private var accountRows: [SettingsRowModel] {
         var rows: [SettingsRowModel] = [
             .init(icon: "pencil", title: "Edit profile", subtitle: "Name, bio, and campus details") {
                 appState.path.append(.editProfile)
             },
-            .init(icon: "heart", title: "Liked items", subtitle: "Pieces you’ve hearted") {
+            .init(icon: "heart", title: "Liked items", subtitle: "Pieces you’ve liked") {
                 appState.openProfileLikes()
-            },
-            .init(icon: "bookmark", title: "Saved items", subtitle: "Come back to these later") {
-                appState.openProfileSaved()
             },
         ]
         let ig = InstagramConnectService.handle
