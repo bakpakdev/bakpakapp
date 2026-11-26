@@ -116,6 +116,9 @@ struct LaunchReveal<Content: View>: View {
                         }
                 }
             }
+            // Fill the screen even before Home is mounted. An empty ZStack is zero-sized, so
+            // the splash overlay below had no room and the logo animation never showed.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             // An overlay, not a ZStack sibling: the full-screen splash never changes Home's layout.
             // Never removed, only hidden: taking it out of the tree re-laid out Home for one
             // frame (pushed below the status bar), which read as a hitch at the top.
