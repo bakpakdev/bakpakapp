@@ -3,19 +3,13 @@ import SwiftUI
 // MARK: - Tabs (name avoids clash with `AppTab`)
 
 private enum ProfileContentTab: String, CaseIterable {
-    case shop, reviews
+    case closet, sold, reviews
 
     var title: String {
         switch self {
-        case .shop: return "Shop"
+        case .closet: return "Closet"
+        case .sold: return "Sold"
         case .reviews: return "Reviews"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .shop: return "tshirt"
-        case .reviews: return "star"
         }
     }
 }
@@ -35,7 +29,7 @@ struct ProfileView: View {
 
     @State private var stats = UserStats()
     @State private var products: [Product] = []
-    @State private var activeTab: ProfileContentTab = .shop
+    @State private var activeTab: ProfileContentTab = .closet
     @State private var loadingListings = true
     @State private var rankSnapshot: SellerRankSnapshot?
     @State private var loadingRank = false
@@ -67,11 +61,6 @@ struct ProfileView: View {
         return campusTheme.fullName
     }
 
-    private var instagramHandle: String? {
-        let handle = InstagramConnectService.handle
-        return handle.isEmpty ? nil : handle
-    }
-
     private var activeShopItems: [Product] {
         products.filter { $0.isSold != true }
     }
@@ -80,19 +69,13 @@ struct ProfileView: View {
         products.filter { $0.isSold == true }
     }
 
-    private var currentItems: [Product] {
-        switch activeTab {
-        case .shop: return activeShopItems
-        case .reviews: return []
-        }
+    private var usernameHandle: String? {
+        guard let u = user?.username?.trimmingCharacters(in: .whitespacesAndNewlines), !u.isEmpty else { return nil }
+        return "@\(u)"
     }
 
-    private var currentLoading: Bool {
-        switch activeTab {
-        case .shop: return loadingListings
-        case .reviews: return false
-        }
-    }
+    /// Black text on the white pill in dark mode, white on black in light mode.
+    private var onPillText: Color { campusTheme.isDark ? .black : .white }
 
     var body: some View {
         GeometryReader { geo in
@@ -106,86 +89,24 @@ struct ProfileView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
-                        headerSection
-                            .padding(.top, 76)
+                        topBar
+                            .padding(.top, 62)
                             .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 22)
+                            .padding(.bottom, 6)
 
-                        identityCard
+                        heroSection
                             .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 12)
+                            .padding(.bottom, 20)
 
-                        statsRow
+                        quickChips
                             .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 12)
+                            .padding(.bottom, 18)
 
-                        shareClosetButton
+                        closetTabs
                             .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 26)
+                            .padding(.bottom, 14)
 
-                        sectionTitle("balance")
-                            .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 12)
-
-                        Button {
-                            Motion.haptic(.light)
-                            appState.path.append(.sellerCashOutSetup)
-                        } label: {
-                            balanceBar
-                        }
-                        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-                        .accessibilityHint("How you get paid")
-                        .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 26)
-
-                        sectionTitle("ranking")
-                            .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 12)
-
-                        rankingCard
-                            .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 26)
-
-                        sectionTitle("account")
-                            .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 12)
-
-                        accountActions
-                            .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 26)
-
-                        closetSectionHeader
-                            .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 12)
-
-                        tabBar
-                            .padding(.horizontal, horizontalPad)
-                            .padding(.bottom, 16)
-
-                        if activeTab == .reviews {
-                            SellerReviewsSection(
-                                reviews: reviews,
-                                isLoading: loadingReviews,
-                                isOwnProfile: true,
-                                purchases: [],
-                                onLeaveReview: {}
-                            )
-                            .padding(.horizontal, horizontalPad)
-                        } else if currentLoading {
-                            SoftListingSkeletonGrid(count: 4)
-                                .padding(.horizontal, horizontalPad)
-                        } else if activeTab == .shop {
-                            shopFeed(itemSize: itemSize, horizontalPad: horizontalPad, gridGap: gridGap)
-                        } else if currentItems.isEmpty {
-                            emptyFeedView
-                        } else {
-                            productGrid(
-                                items: currentItems,
-                                itemSize: itemSize,
-                                horizontalPad: horizontalPad,
-                                gridGap: gridGap
-                            )
-                        }
+                        feed(itemSize: itemSize, horizontalPad: horizontalPad, gridGap: gridGap)
 
                         Spacer(minLength: 110)
                     }
@@ -240,16 +161,24 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: Header
+    // MARK: Top bar
 
-    private var headerSection: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("profile")
-                    .font(Theme.syne(36, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                Text("your campus closet")
-                    .font(Theme.syne(28, weight: .semibold))
+    private var topBar: some View {
+        HStack(spacing: 10) {
+            Button {
+                Motion.haptic(.light)
+                showShareCloset = true
+            } label: {
+                glassCircle("square.and.arrow.up")
+            }
+            .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
+            .accessibilityLabel("Share your closet")
+
+            Spacer(minLength: 8)
+
+            if let handle = usernameHandle {
+                Text(handle)
+                    .font(Theme.syne(15, weight: .semibold))
                     .foregroundStyle(campusTheme.textMuted)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -260,140 +189,95 @@ struct ProfileView: View {
             Button {
                 appState.path.append(.accountSettings)
             } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .frame(width: 62, height: 62)
-                    .background(campusTheme.elevatedSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                glassCircle("gearshape")
             }
             .buttonStyle(BouncyButtonStyle(pressedScale: 0.92))
-            .accessibilityLabel("Account settings")
+            .accessibilityLabel("Settings")
         }
     }
 
-    private func sectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(Theme.syne(18, weight: .semibold))
+    private func glassCircle(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 16, weight: .medium))
             .foregroundStyle(campusTheme.textPrimary)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: 44, height: 44)
+            .background(Circle().fill(campusTheme.glass))
+            .overlay(Circle().stroke(campusTheme.border, lineWidth: 1))
     }
 
-    private func cardBackground(cornerRadius: CGFloat = 26) -> some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(campusTheme.surface)
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(campusTheme.border, lineWidth: 1)
+    // MARK: Hero
+
+    private var heroSection: some View {
+        VStack(spacing: 0) {
+            AvatarView(
+                urlString: user?.avatar,
+                size: 88,
+                cornerRadius: 44,
+                initials: displayName
             )
-    }
-
-    // MARK: Identity
-
-    private var identityCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 14) {
-                AvatarView(
-                    urlString: user?.avatar,
-                    size: 76,
-                    cornerRadius: 22,
-                    initials: displayName
+            .padding(4)
+            .background(
+                Circle().fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(campusTheme.isDark ? 0.55 : 0.95),
+                            Color.white.opacity(campusTheme.isDark ? 0.08 : 0.35)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
                 )
+            )
+            .shadow(color: Color.black.opacity(0.25), radius: 14, y: 8)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(displayName)
-                        .font(Theme.syne(20, weight: .bold))
+            Text(displayName)
+                .font(Theme.syne(26, weight: .bold))
+                .foregroundStyle(campusTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .padding(.top, 12)
+
+            HStack(spacing: 8) {
+                RatingBadge(reviews: reviews)
+                Text(universityLabel)
+                    .font(Theme.syne(12, weight: .medium))
+                    .foregroundStyle(campusTheme.textMuted)
+                    .lineLimit(1)
+                if user?.isVerified == true {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(campusTheme.textPrimary)
-                        .lineLimit(1)
-
-                    RatingBadge(reviews: reviews)
-
-                    HStack(spacing: 8) {
-                        HStack(spacing: 5) {
-                            Circle()
-                                .fill(campusTheme.secondary)
-                                .frame(width: 6, height: 6)
-                            Text(campusTheme.shortName)
-                                .font(Theme.syne(10, weight: .black))
-                                .tracking(0.5)
-                        }
-                        .foregroundStyle(campusTheme.tint)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(campusTheme.elevatedSurface)
-                        .clipShape(Capsule())
-
-                        if user?.isVerified == true {
-                            Text("Verified")
-                                .font(Theme.syne(11, weight: .bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 4)
-                                .background(campusTheme.primary)
-                                .clipShape(Capsule())
-                        }
-                    }
-
-                    Text(universityLabel)
-                        .font(Theme.syne(13, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .lineLimit(1)
+                        .accessibilityLabel("Verified")
                 }
-
-                Spacer(minLength: 0)
             }
+            .padding(.top, 4)
 
             // Same bio other students see on the public profile.
             if let bio = user?.bio?.trimmingCharacters(in: .whitespacesAndNewlines), !bio.isEmpty {
                 Text(bio)
-                    .font(Theme.syne(14))
+                    .font(Theme.syne(13))
                     .foregroundStyle(campusTheme.textMuted)
-                    .lineSpacing(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .padding(.top, 8)
+                    .padding(.horizontal, 12)
             }
-        }
-        .padding(12)
-        .background(cardBackground())
-    }
 
-    private var shareClosetButton: some View {
-        Button {
-            Motion.haptic(.light)
-            showShareCloset = true
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 14, weight: .semibold))
-                Text("Share your closet")
-                    .font(Theme.syne(14, weight: .bold))
+            HStack(spacing: 0) {
+                profileStat(value: "\(activeShopItems.count)", label: activeShopItems.count == 1 ? "listing" : "listings")
+                profileStat(value: "\(soldCount)", label: "sold")
+                profileStat(value: "\(stats.followers)", label: "followers")
+                profileStat(value: "\(stats.following)", label: "following")
             }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: 58)
-            .background(campusTheme.primary)
-            .clipShape(Capsule())
+            .padding(.top, 16)
         }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-    }
-
-    private var statsRow: some View {
-        HStack(spacing: 0) {
-            profileStat(value: "\(activeShopItems.count)", label: activeShopItems.count == 1 ? "Listing" : "Listings")
-            Rectangle().fill(campusTheme.border).frame(width: 1, height: 36)
-            profileStat(value: "\(soldCount)", label: "Sold")
-            Rectangle().fill(campusTheme.border).frame(width: 1, height: 36)
-            profileStat(value: "\(stats.followers)", label: "Followers")
-            Rectangle().fill(campusTheme.border).frame(width: 1, height: 36)
-            profileStat(value: "\(stats.following)", label: "Following")
-        }
-        .padding(.vertical, 16)
-        .background(cardBackground())
+        .frame(maxWidth: .infinity)
     }
 
     private func profileStat(value: String, label: String) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 3) {
             Text(value)
-                .font(Theme.syne(22, weight: .bold))
+                .font(Theme.syne(19, weight: .bold))
                 .foregroundStyle(campusTheme.textPrimary)
             Text(label)
                 .font(Theme.syne(11, weight: .medium))
@@ -404,66 +288,108 @@ struct ProfileView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var rankingCard: some View {
+    // MARK: Quick chips (balance, rank, liked)
+
+    private var quickChips: some View {
+        HStack(spacing: 8) {
+            quickChip(
+                icon: "wallet.pass",
+                value: "$\(formattedMoney(payoutStatus?.totalDollars ?? 0))",
+                caption: (payoutStatus?.clearingCents ?? 0) > 0 ? "clearing" : "balance",
+                isLoading: loadingBalance && payoutStatus == nil,
+                accessibilityHint: "How you get paid"
+            ) {
+                appState.path.append(.sellerCashOutSetup)
+            }
+
+            quickChip(
+                icon: "trophy",
+                value: soldCount == 0 ? "Join" : (rankSnapshot?.rankHeadlinePrimary ?? "—"),
+                caption: "campus rank",
+                isLoading: loadingRank && rankSnapshot == nil && soldCount > 0,
+                accessibilityHint: soldCount == 0 ? "Start selling" : "Leaderboard"
+            ) {
+                if soldCount == 0 {
+                    appState.selectedTab = .sell
+                } else {
+                    appState.path.append(.leaderboard)
+                }
+            }
+
+            quickChip(
+                icon: "heart",
+                value: "Liked",
+                caption: "items",
+                accessibilityHint: "Pieces you've hearted"
+            ) {
+                appState.openProfileLikes()
+            }
+        }
+    }
+
+    private func quickChip(
+        icon: String,
+        value: String,
+        caption: String,
+        isLoading: Bool = false,
+        accessibilityHint: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button {
             Motion.haptic(.light)
-            if soldCount == 0 {
-                appState.selectedTab = .sell
-            } else {
-                appState.path.append(.leaderboard)
-            }
+            action()
         } label: {
-            HStack(alignment: .center, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Campus Rank")
-                        .font(Theme.syne(11, weight: .semibold))
-                        .foregroundStyle(campusTheme.textMuted)
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(campusTheme.glassInset))
 
-                    if loadingRank && rankSnapshot == nil {
-                        ProgressView().tint(campusTheme.primary)
-                    } else if soldCount == 0 {
-                        Text("Join the ranking")
-                            .font(Theme.syne(18, weight: .bold))
-                            .foregroundStyle(campusTheme.textPrimary)
-                        // Rank counts sales, so a seller with live listings still has one step left.
-                        Text(stats.products > 0 ? "Make your first sale" : "List your first item")
-                            .font(Theme.syne(12, weight: .medium))
-                            .foregroundStyle(campusTheme.textMuted)
-                    } else if let snap = rankSnapshot {
-                        HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Text(snap.rankHeadlinePrimary)
-                                .font(Theme.syne(28, weight: .bold))
-                                .foregroundStyle(campusTheme.textPrimary)
-                            Text(snap.rankHeadlineSecondary)
-                                .font(Theme.syne(12, weight: .semibold))
-                                .foregroundStyle(campusTheme.textMuted)
-                        }
-                        Text(snap.gridSubtitle)
-                            .font(Theme.syne(12, weight: .medium))
-                            .foregroundStyle(campusTheme.textMuted)
-                        if let delta = snap.weeklyDelta, delta != 0 {
-                            Text(delta > 0 ? "+\(delta) this week" : "\(delta) this week")
-                                .font(Theme.syne(11, weight: .bold))
-                                .foregroundStyle(campusTheme.tint)
-                        }
+                VStack(alignment: .leading, spacing: 1) {
+                    if isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(campusTheme.textPrimary)
+                            .frame(height: 19)
+                    } else {
+                        Text(value)
+                            .font(Theme.syne(15, weight: .bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
                     }
+                    Text(caption)
+                        .font(Theme.syne(10, weight: .medium))
+                        .foregroundStyle(campusTheme.textMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
 
-                Spacer(minLength: 8)
-
-                HStack(spacing: 4) {
-                    Text(soldCount == 0 ? "Start selling" : "Leaderboard")
-                        .font(Theme.syne(13, weight: .bold))
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .foregroundStyle(campusTheme.textPrimary)
+                Spacer(minLength: 0)
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(cardBackground())
+            .foregroundStyle(campusTheme.textPrimary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(campusTheme.glass)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(campusTheme.border, lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
+        .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(accessibilityHint)
+    }
+
+    private func formattedMoney(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.2f", value)
     }
 
     private func loadRank() async {
@@ -473,109 +399,6 @@ struct ProfileView: View {
             schoolID: campusTheme.schoolID,
             shortName: campusTheme.shortName
         )
-    }
-
-    private var accountActions: some View {
-        VStack(spacing: 0) {
-            accountRow(
-                icon: "person.crop.circle",
-                title: "Edit profile",
-                subtitle: "Name, bio, and campus details"
-            ) {
-                appState.path.append(.editProfile)
-            }
-            accountDivider
-            accountRow(
-                icon: "heart",
-                title: "Liked items",
-                subtitle: "Pieces you’ve hearted"
-            ) {
-                appState.openProfileLikes()
-            }
-            accountDivider
-            accountRow(
-                icon: "bookmark",
-                title: "Saved items",
-                subtitle: "Come back to these later"
-            ) {
-                appState.openProfileSaved()
-            }
-            if let ig = instagramHandle, !ig.isEmpty,
-               let igURL = URL(string: "https://instagram.com/\(ig)") {
-                accountDivider
-                Link(destination: igURL) {
-                    accountRowContent(
-                        icon: "camera",
-                        title: "Instagram",
-                        subtitle: "@\(ig)"
-                    )
-                }
-                .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-            }
-        }
-        .background(cardBackground())
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-    }
-
-    private var balanceBar: some View {
-        HStack(spacing: 0) {
-            balanceStat(
-                value: "$\(formattedMoney(payoutStatus?.totalDollars ?? 0))",
-                label: "balance",
-                caption: (payoutStatus?.clearingCents ?? 0) > 0
-                    ? "$\(formattedMoney(Double(payoutStatus?.clearingCents ?? 0) / 100)) clearing"
-                    : ((payoutStatus?.availableCents ?? 0) > 0 ? "ready to cash out" : "from meetup sales"),
-                isLoading: loadingBalance
-            )
-            Rectangle()
-                .fill(campusTheme.border)
-                .frame(width: 1, height: 48)
-            balanceStat(
-                value: "$\(formattedMoney(potentialProfit))",
-                label: "listed value",
-                caption: activeShopItems.isEmpty
-                    ? (soldCount > 0 ? "no active listings" : "no listings yet")
-                    : (activeShopItems.count == 1 ? "1 listing" : "\(activeShopItems.count) listings")
-            )
-        }
-        .padding(.vertical, 16)
-        .background(cardBackground())
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-    }
-
-    private func balanceStat(value: String, label: String, caption: String, isLoading: Bool = false) -> some View {
-        VStack(spacing: 4) {
-            Text(label)
-                .font(Theme.syne(12, weight: .semibold))
-                .foregroundStyle(campusTheme.textMuted)
-            if isLoading {
-                ProgressView()
-                    .tint(campusTheme.primary)
-                    .frame(height: 26)
-            } else {
-                Text(value)
-                    .font(Theme.syne(22, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            Text(caption)
-                .font(Theme.syne(11, weight: .regular))
-                .foregroundStyle(campusTheme.textMuted.opacity(0.85))
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var potentialProfit: Double {
-        activeShopItems.reduce(0) { $0 + $1.price }
-    }
-
-    private func formattedMoney(_ value: Double) -> String {
-        if value.rounded() == value {
-            return String(Int(value))
-        }
-        return String(format: "%.2f", value)
     }
 
     private func loadBalance() async {
@@ -588,99 +411,59 @@ struct ProfileView: View {
         }
     }
 
-    private var accountDivider: some View {
-        Divider()
-            .overlay(campusTheme.border)
-            .padding(.leading, 68)
-    }
+    // MARK: Closet / Sold / Reviews
 
-    private func accountRow(
-        icon: String,
-        title: String,
-        subtitle: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            accountRowContent(icon: icon, title: title, subtitle: subtitle)
-        }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-    }
-
-    private func accountRowContent(icon: String, title: String, subtitle: String) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(campusTheme.textPrimary)
-                .frame(width: 40, height: 40)
-                .background(campusTheme.elevatedSurface)
-                .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(Theme.syne(15, weight: .bold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                Text(subtitle)
-                    .font(Theme.syne(12, weight: .regular))
-                    .foregroundStyle(campusTheme.textMuted)
-            }
-
-            Spacer(minLength: 0)
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(campusTheme.textMuted.opacity(0.7))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .contentShape(Rectangle())
-    }
-
-    private var closetSectionHeader: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("your closet")
-                .font(Theme.syne(18, weight: .semibold))
-                .foregroundStyle(campusTheme.textPrimary)
-            Text("Your listings on campus")
-                .font(Theme.syne(13, weight: .regular))
-                .foregroundStyle(campusTheme.textMuted)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: Tab bar
-
-    private var tabBar: some View {
-        HStack(spacing: 8) {
+    private var closetTabs: some View {
+        HStack(spacing: 4) {
             ForEach(ProfileContentTab.allCases, id: \.self) { tab in
+                let isActive = activeTab == tab
                 Button {
                     handleTabChange(tab)
                     Motion.haptic(.light)
                 } label: {
-                    let isActive = activeTab == tab
-                    HStack(spacing: 10) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
-                            .frame(width: 42, height: 42)
-                            .background(
-                                Circle().fill(isActive ? Color.white.opacity(0.18) : campusTheme.surface)
-                            )
-                            .overlay(
-                                Circle().stroke(isActive ? Color.white.opacity(0.35) : Color.clear, lineWidth: 1)
-                            )
-                        Text(tab.title)
-                            .font(Theme.syne(14, weight: .semibold))
-                            .foregroundStyle(isActive ? Color.white : campusTheme.textPrimary)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.leading, 5)
-                    .padding(.trailing, 14)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(isActive ? campusTheme.primary : campusTheme.elevatedSurface)
-                    .clipShape(Capsule())
+                    Text(tab.title)
+                        .font(Theme.syne(13, weight: .bold))
+                        .foregroundStyle(isActive ? onPillText : campusTheme.textMuted)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .background(Capsule().fill(isActive ? campusTheme.textPrimary : Color.clear))
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(BouncyButtonStyle(pressedScale: 0.96))
+                .accessibilityAddTraits(isActive ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(Capsule().fill(campusTheme.glass))
+        .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func feed(itemSize: CGFloat, horizontalPad: CGFloat, gridGap: CGFloat) -> some View {
+        switch activeTab {
+        case .reviews:
+            SellerReviewsSection(
+                reviews: reviews,
+                isLoading: loadingReviews,
+                isOwnProfile: true,
+                purchases: [],
+                onLeaveReview: {}
+            )
+            .padding(.horizontal, horizontalPad)
+        case .closet, .sold:
+            let items = activeTab == .closet ? activeShopItems : soldShopItems
+            if loadingListings {
+                SoftListingSkeletonGrid(count: 4)
+                    .padding(.horizontal, horizontalPad)
+            } else if items.isEmpty {
+                emptyFeedView
+            } else {
+                productGrid(
+                    items: items,
+                    itemSize: itemSize,
+                    horizontalPad: horizontalPad,
+                    gridGap: gridGap
+                )
             }
         }
     }
@@ -704,47 +487,6 @@ struct ProfileView: View {
     }
 
     // MARK: - Shop / feed grids
-
-    @ViewBuilder
-    private func shopFeed(itemSize: CGFloat, horizontalPad: CGFloat, gridGap: CGFloat) -> some View {
-        if activeShopItems.isEmpty && soldShopItems.isEmpty {
-            emptyFeedView
-        } else {
-            VStack(alignment: .leading, spacing: 22) {
-                if activeShopItems.isEmpty {
-                    Text("No active listings")
-                        .font(Theme.syne(14, weight: .medium))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 18)
-                } else {
-                    productGrid(
-                        items: activeShopItems,
-                        itemSize: itemSize,
-                        horizontalPad: horizontalPad,
-                        gridGap: gridGap
-                    )
-                }
-
-                if !soldShopItems.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("sold")
-                            .font(Theme.syne(18, weight: .semibold))
-                            .foregroundStyle(campusTheme.textPrimary)
-                            .padding(.horizontal, horizontalPad)
-
-                        productGrid(
-                            items: soldShopItems,
-                            itemSize: itemSize,
-                            horizontalPad: horizontalPad,
-                            gridGap: gridGap
-                        )
-                    }
-                    .padding(.top, activeShopItems.isEmpty ? 0 : 8)
-                }
-            }
-        }
-    }
 
     private func productGrid(
         items: [Product],
@@ -777,21 +519,24 @@ struct ProfileView: View {
 
     private var emptyIcon: String {
         switch activeTab {
-        case .shop: return "tshirt"
+        case .closet: return "tshirt"
+        case .sold: return "checkmark.seal"
         case .reviews: return "star"
         }
     }
 
     private var emptyTitle: String {
         switch activeTab {
-        case .shop: return "No listings yet"
+        case .closet: return soldShopItems.isEmpty ? "No listings yet" : "No active listings"
+        case .sold: return "Nothing sold yet"
         case .reviews: return "No reviews yet"
         }
     }
 
     private var emptyMessage: String {
         switch activeTab {
-        case .shop: return "List a thrift find from the Sell tab and it’ll show up here."
+        case .closet: return "List a thrift find from the Sell tab and it’ll show up here."
+        case .sold: return "Pieces you sell at a meetup move here."
         case .reviews: return "Reviews from campus buyers will land here."
         }
     }
@@ -804,7 +549,7 @@ struct ProfileView: View {
         guard let focus else { return }
         switch focus {
         case .shop:
-            handleTabChange(.shop)
+            handleTabChange(.closet)
         case .reviews:
             handleTabChange(.reviews)
         }

@@ -6,6 +6,7 @@ struct AccountSettingsView: View {
     @EnvironmentObject private var meetupStore: MeetupStore
     @Environment(\.campusTheme) private var campusTheme
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     @State private var soldBalance: Double = 0
     @State private var comingSoonMessage: String?
@@ -79,14 +80,7 @@ struct AccountSettingsView: View {
     private var settingsSections: some View {
         VStack(alignment: .leading, spacing: 26) {
             balanceCard
-            settingsGroup(
-                title: "Account",
-                rows: [
-                    .init(icon: "person.crop.circle", title: "Account details", subtitle: user?.email) {
-                        appState.path.append(.accountDetails)
-                    },
-                ]
-            )
+            settingsGroup(title: "Account", rows: accountRows)
             settingsGroup(
                 title: "Payments",
                 rows: [
@@ -235,6 +229,32 @@ struct AccountSettingsView: View {
             return payoutStatus?.canCashOut == true ? "Cash out" : "Payout details"
         }
         return available > 0 ? "Set up payouts & cash out" : "Set up cash out"
+    }
+
+    /// Edit profile, Saved and Instagram used to sit on the Profile tab; they live here now
+    /// so Profile can lead with the closet.
+    private var accountRows: [SettingsRowModel] {
+        var rows: [SettingsRowModel] = [
+            .init(icon: "pencil", title: "Edit profile", subtitle: "Name, bio, and campus details") {
+                appState.path.append(.editProfile)
+            },
+            .init(icon: "heart", title: "Liked items", subtitle: "Pieces you’ve hearted") {
+                appState.openProfileLikes()
+            },
+            .init(icon: "bookmark", title: "Saved items", subtitle: "Come back to these later") {
+                appState.openProfileSaved()
+            },
+        ]
+        let ig = InstagramConnectService.handle
+        if !ig.isEmpty, let igURL = URL(string: "https://instagram.com/\(ig)") {
+            rows.append(.init(icon: "camera", title: "Instagram", subtitle: "@\(ig)") {
+                openURL(igURL)
+            })
+        }
+        rows.append(.init(icon: "person.crop.circle", title: "Account details", subtitle: user?.email) {
+            appState.path.append(.accountDetails)
+        })
+        return rows
     }
 
     private struct SettingsRowModel {
