@@ -70,7 +70,7 @@ struct ProfileView: View {
     }
 
     private var usernameHandle: String? {
-        guard let u = user?.username?.trimmingCharacters(in: .whitespacesAndNewlines), !u.isEmpty else { return nil }
+        guard let u = user?.username.trimmingCharacters(in: .whitespacesAndNewlines), !u.isEmpty else { return nil }
         return "@\(u)"
     }
 
