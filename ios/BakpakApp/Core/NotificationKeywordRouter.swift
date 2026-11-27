@@ -9,7 +9,6 @@ enum NotificationKeywordRouter {
         case messagesTab
         case productDetail(String?)
         case likedItems
-        case savedItems
         case messagedItems
         case orders
         case myListings
@@ -30,8 +29,8 @@ enum NotificationKeywordRouter {
         (["leaderboard", "ranking", "rank"], { _ in .leaderboard }),
         // Seller rank tiers aren't built yet, so badge alerts open the leaderboard instead of a placeholder.
         (["badge", "achievement", "achievements"], { _ in .leaderboard }),
-        (["liked", "likes", "like"], { _ in .likedItems }),
-        (["saved", "bookmark", "bookmarks"], { _ in .savedItems }),
+        // Saved was folded into likes, so old "saved" alerts open liked items too.
+        (["liked", "likes", "like", "saved", "bookmark", "bookmarks"], { _ in .likedItems }),
         (["order", "orders", "purchase", "purchased", "bought", "sold"], { _ in .orders }),
         (["listing", "listings", "product", "item"], { item in
             if let pid = item.productId, !pid.isEmpty { return .productDetail(pid) }

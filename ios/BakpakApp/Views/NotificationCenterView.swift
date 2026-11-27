@@ -581,9 +581,6 @@ struct NotificationCenterView: View {
         case .likedItems:
             appState.openProfileLikes()
 
-        case .savedItems:
-            appState.openProfileSaved()
-
         case .messagedItems:
             appState.path.append(.messagedItems)
 
