@@ -490,31 +490,29 @@ struct HomeView: View {
 
     private var searchBar: some View {
         HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(campusTheme.textPrimary)
-                .padding(.leading, 6)
-
-            TextField("Search thrift, brands, styles…", text: $searchText)
-                .font(Theme.syne(15, weight: .regular))
-                .foregroundStyle(campusTheme.textPrimary)
-                .tint(campusTheme.primary)
-                .submitLabel(.search)
-                .onSubmit {
-                    searchTask?.cancel()
-                    Task { await reloadProducts() }
-                }
-
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 15))
+            // One search everywhere: this pill opens the Search tab with its bar active.
+            Button {
+                Motion.haptic(.light)
+                appState.pendingSearchFocus = true
+                appState.selectedTab = .search
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(campusTheme.textPrimary)
+                        .padding(.leading, 6)
+                    Text("Search brands, styles, sizes")
+                        .font(Theme.syne(15, weight: .regular))
                         .foregroundStyle(campusTheme.textMuted)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.plain)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Search")
+            .accessibilityHint("Opens the Search tab")
 
             Menu {
                 ForEach(HomeSort.allCases) { option in

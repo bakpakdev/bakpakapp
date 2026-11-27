@@ -17,6 +17,8 @@ final class AppState: ObservableObject {
     @Published var pendingProfileProductId: String?
     /// Bumped to force Home to clear and show a loading state, then reload.
     @Published var homeEntryToken: Int = 0
+    /// Set by Home's search pill: the Search tab opens with its bar active, then clears this.
+    @Published var pendingSearchFocus = false
     /// Bumped whenever the tab-bar + is tapped — Sell flow resets and opens the camera.
     @Published var sellCameraToken: Int = 0
     @Published var appearance: PopupAppearance {

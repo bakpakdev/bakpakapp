@@ -186,6 +186,7 @@ struct SearchView: View {
         .topEdgeScrim(aurora: true)
         .onAppear {
             loadRecentSearches()
+            consumePendingSearchFocus()
             Task {
                 await loadNotificationBadge()
                 if !browseLoaded { await loadBrowse() }
@@ -206,6 +207,9 @@ struct SearchView: View {
         .onChange(of: searchFieldFocused) { focused in
             appState.hidesTabBar = focused
             if focused { scheduleSuggestions(immediately: true) }
+        }
+        .onChange(of: appState.pendingSearchFocus) { pending in
+            if pending { consumePendingSearchFocus() }
         }
         .onChange(of: appState.selectedTab) { tab in
             if tab != .search {
@@ -969,6 +973,16 @@ struct SearchView: View {
             )
         }
         appState.path.append(.productDetail(product.id))
+    }
+
+    /// Home's search pill sends people here: open with the bar active (the glide plays).
+    private func consumePendingSearchFocus() {
+        guard appState.pendingSearchFocus else { return }
+        appState.pendingSearchFocus = false
+        // Let the tab switch land first, so the glide and keyboard don't fight it.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            searchFieldFocused = true
+        }
     }
 
     private func submitTypedQuery() {
