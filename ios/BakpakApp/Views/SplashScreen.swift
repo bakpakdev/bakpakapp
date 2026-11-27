@@ -39,8 +39,8 @@ enum SheetLift {
 
     /// Arch height of the sheet's bottom edge, on a 393pt-wide screen.
     static let archHeight: CGFloat = 173.3
-    /// Home starts this fraction of the screen height lower and rises into place.
-    static let homeParallax: CGFloat = 0.18
+    /// Home starts this much smaller (anchored at the top) and settles to full size.
+    static let homeSettleScale: CGFloat = 0.06
     static let homeDim: Double = 0.45
 
     static let letterCurve = CubicBezier(0.2, 0.9, 0.3, 1)
@@ -89,45 +89,79 @@ struct LaunchReveal<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var start = Date()
+    @State private var clock = SplashClock()
     @State private var done = false
     @State private var didStart = false
 
     var body: some View {
         TimelineView(.animation(minimumInterval: nil, paused: done)) { context in
-            let t = done ? .infinity : context.date.timeIntervalSince(start)
+            let t = done ? .infinity : clock.time(at: context.date)
             let p = (done || reduceMotion) ? 1 : SheetLift.liftProgress(t)
+            // Home settles a little before the sheet's slow tail, so it never creeps at the top.
+            let hp = 1 - pow(1 - p, 1.8)
             let mountAt = reduceMotion ? SheetLift.rmMountHome : SheetLift.mountHome
-            let screenHeight = UIScreen.main.bounds.height
 
             ZStack {
                 if done || t >= mountAt {
+                    // Rises into place with a top-anchored scale, not an offset: offsetting Home
+                    // down detached it from the top edge, so SwiftUI laid it out below the status
+                    // bar (62pt lower) until the offset hit 0, then it snapped up.
                     content()
-                        .offset(y: (1 - CGFloat(p)) * screenHeight * SheetLift.homeParallax)
+                        .scaleEffect(1 - SheetLift.homeSettleScale * (1 - CGFloat(hp)), anchor: .top)
                         .overlay {
                             Color.black
-                                .opacity(SheetLift.homeDim * (1 - p))
+                                .opacity(SheetLift.homeDim * (1 - hp))
                                 .ignoresSafeArea()
                                 .allowsHitTesting(false)
                         }
                 }
-
-                if !done {
-                    SplashScreen(t: t)
-                        .ignoresSafeArea()
-                        .zIndex(1)
-                }
+            }
+            // Fill the screen even before Home is mounted. An empty ZStack is zero-sized, so
+            // the splash overlay below had no room and the logo animation never showed.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // An overlay, not a ZStack sibling: the full-screen splash never changes Home's layout.
+            // Never removed, only hidden: taking it out of the tree re-laid out Home for one
+            // frame (pushed below the status bar), which read as a hitch at the top.
+            .overlay {
+                SplashScreen(t: done ? SheetLift.end : t, lift: p)
+                    .ignoresSafeArea()
+                    .opacity(done ? 0 : 1)
+                    .allowsHitTesting(!done)
+                    .accessibilityHidden(done)
+                    // Uses the new value: the action closure can still hold the older `t`.
+                    .onChange(of: t >= (reduceMotion ? SheetLift.rmEnd : SheetLift.end)) { reached in
+                        if reached { finish() }
+                    }
             }
         }
         .onAppear {
             guard !didStart else { return }
             didStart = true
-            start = Date()
+            // Safety net: never leave the splash up if frames stop arriving.
             let total = reduceMotion ? SheetLift.rmEnd : SheetLift.end
-            DispatchQueue.main.asyncAfter(deadline: .now() + total + 0.03) {
-                done = true
-            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + total + 3) { done = true }
         }
+    }
+
+    private func finish() {
+        guard !done else { return }
+        DispatchQueue.main.async { done = true }
+    }
+}
+
+/// Animation time that pauses through main-thread stalls instead of skipping ahead.
+/// A cold launch or Home's first draw can block for a few hundred ms; with wall-clock
+/// time the letters or the lift would jump. Each frame adds at most 1/30 s.
+final class SplashClock {
+    private var last: Date?
+    private var elapsed: Double = 0
+
+    func time(at date: Date) -> Double {
+        if let last {
+            elapsed += min(max(0, date.timeIntervalSince(last)), 1.0 / 30)
+        }
+        last = date
+        return elapsed
     }
 }
 
@@ -135,6 +169,8 @@ struct LaunchReveal<Content: View>: View {
 
 struct SplashScreen: View {
     let t: Double
+    /// 0 → 1 progress of the sheet lift, from `LaunchReveal`.
+    var lift: Double = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let markFont = Theme.syne(SheetLift.fontSize, weight: .heavy)
@@ -153,11 +189,12 @@ struct SplashScreen: View {
 
     private func animated(size: CGSize) -> some View {
         let w = size.width, h = size.height
-        let p = SheetLift.liftProgress(t)
+        let p = lift
         let arch = SheetLift.archHeight * w / 393
         let restEdge = h + arch + 13
         // Bottom edge of the sheet at the screen sides; the middle is `arch` higher.
-        let edgeY = lerp(restEdge, -40, p)
+        // Overshoots past the top so the corners are gone before the ease-out tail.
+        let edgeY = lerp(restEdge, -160, p)
         // Logo rides up with the sheet.
         let dy = min(0, edgeY - restEdge) * 0.9
 
