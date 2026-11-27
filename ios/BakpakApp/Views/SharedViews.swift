@@ -200,57 +200,65 @@ struct ShopProductCell: View {
     }
 }
 
-/// Heart + save controls overlaid on listing thumbnails / detail heroes.
-struct ListingReactionButtons: View {
+/// The one like control on a listing photo: a smoked-glass pill with the like count
+/// that flips to white with a red heart once you've liked it.
+struct ListingLikePill: View {
     let isLiked: Bool
-    let isSaved: Bool
-    var compact: Bool = true
+    let count: Int
     let onLike: () -> Void
-    let onSave: () -> Void
     @State private var busy = false
+    @State private var pop = false
 
-    private var buttonSize: CGFloat { compact ? 32 : 40 }
-    private var iconSize: CGFloat { compact ? 14 : 16 }
+    static let likeRed = Color(hex: "#E11D48")
 
     var body: some View {
-        HStack(spacing: compact ? 6 : 8) {
-            reactionButton(
-                systemName: isLiked ? "heart.fill" : "heart",
-                tint: isLiked ? Color(hex: "#E11D48") : .white,
-                accessibility: isLiked ? "Unlike" : "Like",
-                action: onLike
-            )
-            reactionButton(
-                systemName: isSaved ? "bookmark.fill" : "bookmark",
-                tint: isSaved ? Color(hex: "#F59E0B") : .white,
-                accessibility: isSaved ? "Unsave" : "Save",
-                action: onSave
-            )
-        }
-    }
-
-    private func reactionButton(
-        systemName: String,
-        tint: Color,
-        accessibility: String,
-        action: @escaping () -> Void
-    ) -> some View {
         Button {
             guard !busy else { return }
             busy = true
-            Motion.haptic(.light)
-            action()
+            Motion.haptic(isLiked ? .light : .medium)
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.5)) { pop = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { pop = false }
+            }
+            onLike()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { busy = false }
         } label: {
-            Image(systemName: systemName)
-                .font(.system(size: iconSize, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: buttonSize, height: buttonSize)
-                .background(Color.black.opacity(0.42))
-                .clipShape(Circle())
+            HStack(spacing: 6) {
+                Image(systemName: isLiked ? "heart.fill" : "heart")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(isLiked ? Self.likeRed : Color.white)
+                    .scaleEffect(pop ? 1.3 : 1)
+                if count > 0 {
+                    Text("\(count)")
+                        .font(Theme.syne(14, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(isLiked ? Color.black : Color.white)
+                        .contentTransition(.numericText())
+                }
+            }
+            .padding(.leading, 12)
+            .padding(.trailing, count > 0 ? 14 : 12)
+            .frame(minWidth: 40, minHeight: 40)
+            .background {
+                if isLiked {
+                    Capsule().fill(Color.white)
+                } else {
+                    ZStack {
+                        Capsule().fill(.ultraThinMaterial)
+                        Capsule().fill(Color.black.opacity(0.28))
+                    }
+                    .environment(\.colorScheme, .dark)
+                }
+            }
+            .overlay(Capsule().stroke(Color.white.opacity(isLiked ? 0 : 0.28), lineWidth: 1))
+            .shadow(color: Color.black.opacity(0.3), radius: 10, y: 5)
+            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isLiked)
+            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: count)
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(accessibility)
+        .accessibilityLabel(isLiked ? "Unlike" : "Like")
+        .accessibilityValue(count == 1 ? "1 like" : "\(count) likes")
     }
 }
 

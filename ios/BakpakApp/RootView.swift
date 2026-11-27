@@ -152,7 +152,6 @@ struct RootView: View {
         case .checkout: CheckoutView()
         case .orders: OrdersView()
         case .likedItems: LikedItemsView()
-        case .savedItems: SavedItemsView()
         case .messagedItems: MessagedItemsView()
         case .notificationCenter: NotificationCenterView()
         case .myListings: MyListingsView()

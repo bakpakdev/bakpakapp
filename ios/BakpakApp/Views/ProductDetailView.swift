@@ -39,7 +39,6 @@ struct ProductDetailView: View {
     @State private var pendingLowerPriceRoute: Route?
     @State private var isSendingWant = false
     @State private var isLiked = false
-    @State private var isSaved = false
     @State private var reactionBusy = false
     @State private var sellerRating: ReviewSummary?
     @State private var paymentOutcome: PaymentOutcomeKind?
@@ -737,8 +736,8 @@ struct ProductDetailView: View {
     }
 
     private var imageHero: some View {
-        ZStack(alignment: .topTrailing) {
-            ZStack(alignment: .bottom) {
+        ZStack(alignment: .bottomTrailing) {
+            ZStack(alignment: isOwner ? .bottom : .bottomLeading) {
                 Group {
                     if imageURLs.isEmpty {
                         Color.white.opacity(0.08)
@@ -773,7 +772,8 @@ struct ProductDetailView: View {
                                 .frame(width: idx == imageIndex ? 16 : 6, height: 6)
                         }
                     }
-                    .padding(.bottom, 14)
+                    .padding(.bottom, isOwner ? 14 : 29)
+                    .padding(.leading, isOwner ? 0 : 16)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -783,14 +783,12 @@ struct ProductDetailView: View {
             )
 
             if !isOwner {
-                ListingReactionButtons(
+                ListingLikePill(
                     isLiked: isLiked,
-                    isSaved: isSaved,
-                    compact: false,
-                    onLike: { Task { await toggleLike() } },
-                    onSave: { Task { await toggleSave() } }
+                    count: stats.likes,
+                    onLike: { Task { await toggleLike() } }
                 )
-                .padding(14)
+                .padding(12)
             }
         }
     }
@@ -1415,35 +1413,24 @@ struct ProductDetailView: View {
         guard authVM.user != nil else { return }
         // Wait until product is set so isOwner is accurate.
         if isOwner {
-            await MainActor.run {
-                isLiked = false
-                isSaved = false
-            }
+            await MainActor.run { isLiked = false }
             return
         }
         guard let client = await SupabaseManager.shared.clientWithValidSession(),
               SupabaseConfig.isConfigured else {
             // REST fallback: scan lists
-            async let likedTask = socialService.likedItems()
-            async let savedTask = socialService.savedItems()
             do {
-                let (liked, saved) = try await (likedTask, savedTask)
+                let liked = try await socialService.likedItems()
                 let pid = productId.lowercased()
                 await MainActor.run {
                     isLiked = liked.contains { $0.id.lowercased() == pid }
-                    isSaved = saved.contains { $0.id.lowercased() == pid }
                 }
             } catch {}
             return
         }
         do {
-            async let liked = SupabaseSocialService.isLiked(client: client, productId: productId)
-            async let saved = SupabaseSocialService.isSaved(client: client, productId: productId)
-            let (l, s) = try await (liked, saved)
-            await MainActor.run {
-                isLiked = l
-                isSaved = s
-            }
+            let liked = try await SupabaseSocialService.isLiked(client: client, productId: productId)
+            await MainActor.run { isLiked = liked }
         } catch {}
     }
 
@@ -1452,26 +1439,19 @@ struct ProductDetailView: View {
         reactionBusy = true
         defer { reactionBusy = false }
         let wasLiked = isLiked
-        await MainActor.run { isLiked = !wasLiked }
+        // Flip the pill and its count right away; the server count replaces it after.
+        await MainActor.run {
+            isLiked = !wasLiked
+            stats.likes = max(0, stats.likes + (wasLiked ? -1 : 1))
+        }
         do {
             try await socialService.setLiked(productId: productId, liked: !wasLiked)
             stats = await productService.listingStats(id: productId)
         } catch {
-            await MainActor.run { isLiked = wasLiked }
-            actionError = error.localizedDescription
-        }
-    }
-
-    private func toggleSave() async {
-        guard !reactionBusy else { return }
-        reactionBusy = true
-        defer { reactionBusy = false }
-        let wasSaved = isSaved
-        await MainActor.run { isSaved = !wasSaved }
-        do {
-            try await socialService.setSaved(productId: productId, saved: !wasSaved)
-        } catch {
-            await MainActor.run { isSaved = wasSaved }
+            await MainActor.run {
+                isLiked = wasLiked
+                stats.likes = max(0, stats.likes + (wasLiked ? 1 : -1))
+            }
             actionError = error.localizedDescription
         }
     }
