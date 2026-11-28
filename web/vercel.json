@@ -1,4 +1,8 @@
 {
+  "rewrites": [
+    { "source": "/l/:id", "destination": "https://popup-api-hwbg.onrender.com/l/:id" },
+    { "source": "/u/:username", "destination": "https://popup-api-hwbg.onrender.com/u/:username" }
+  ],
   "headers": [
     {
       "source": "/.well-known/apple-app-site-association",

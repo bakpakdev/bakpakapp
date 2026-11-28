@@ -1,4 +1,15 @@
 {
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["38BTDK54M3.com.popupapp.campus"],
+        "components": [
+          { "/": "/l/*", "comment": "Shared listings (story links)" },
+          { "/": "/u/*", "comment": "Shared closets" }
+        ]
+      }
+    ]
+  },
   "webcredentials": {
     "apps": [
       "38BTDK54M3.com.popupapp.campus"

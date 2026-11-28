@@ -41,6 +41,8 @@ final class AppState: ObservableObject {
     @Published var pendingInboxProductId: String?
     /// Closet share deep link waiting until the student is signed in.
     @Published var pendingShareProfileId: String?
+    /// Listing share deep link (story link) waiting until the student is signed in.
+    @Published var pendingShareListingId: String?
 
     var inboxUnreadTotal: Int { inboxUnreadBuying + inboxUnreadSelling }
 
@@ -103,9 +105,33 @@ final class AppState: ObservableObject {
     }
 
     func consumePendingShareProfile() {
+        if let listingId = pendingShareListingId, !listingId.isEmpty {
+            pendingShareListingId = nil
+            presentSharedListing(listingId)
+            return
+        }
         guard let id = pendingShareProfileId, !id.isEmpty else { return }
         pendingShareProfileId = nil
         presentSharedProfile(id)
+    }
+
+    /// A listing link from someone's Instagram or Snapchat story.
+    func openSharedListing(productId: String) {
+        let id = productId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !id.isEmpty else { return }
+        if !authVM.isAuthenticated || authVM.needsOnboarding {
+            pendingShareListingId = id
+            return
+        }
+        presentSharedListing(id)
+    }
+
+    private func presentSharedListing(_ id: String) {
+        hidesTabBar = false
+        selectedTab = .home
+        if path.last != .productDetail(id) {
+            path.append(.productDetail(id))
+        }
     }
 
     private func resolveAndOpenSharedCloset(userId: String?, username: String?) async {

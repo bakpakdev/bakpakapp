@@ -56,6 +56,7 @@ struct PopupApp: App {
                         // Stripe payout signup return; the in-app browser normally catches this.
                         if url.host == "stripe-connect" { return }
                         if ClosetShareLinks.handle(url, appState: appState) { return }
+                        if ListingShareLinks.handle(url, appState: appState) { return }
                         await appState.authVM.handleAuthRedirect(url)
                     }
                 }

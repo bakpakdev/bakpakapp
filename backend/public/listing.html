@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <!--META-->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Figtree:wght@400;500;600&display=swap">
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --ink: #fafafa;
+      --mute: #8a8a8a;
+      --line: #232323;
+      --tile: #161616;
+      --accent: #fafafa;
+      --accent-ink: #0a0a0a;
+      --display: "Syne", "Arial Black", system-ui, sans-serif;
+      --body: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { min-height: 100%; background: var(--bg); color: var(--ink); font-family: var(--body); -webkit-font-smoothing: antialiased; }
+    body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: max(20px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)); }
+    .top { width: 100%; max-width: 420px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+    .brand { font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: -0.03em; color: var(--ink); text-decoration: none; }
+    .tag { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; }
+    main { width: 100%; max-width: 420px; }
+    .photos { display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x mandatory; border-radius: 20px; margin-bottom: 16px; scrollbar-width: none; }
+    .photos::-webkit-scrollbar { display: none; }
+    .photos div { flex: 0 0 100%; aspect-ratio: 4 / 5; border-radius: 20px; background: var(--tile) center/cover no-repeat; scroll-snap-align: start; }
+    h1 { font-family: var(--display); font-weight: 800; font-size: 28px; line-height: 1.05; letter-spacing: -0.03em; text-wrap: balance; overflow-wrap: anywhere; }
+    .price { font-family: var(--display); font-weight: 700; font-size: 22px; margin-top: 6px; color: var(--accent); }
+    .price s { color: var(--mute); font-size: 16px; margin-left: 8px; font-weight: 600; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 20px; }
+    .chip { border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 500; }
+    .seller { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 18px; margin-bottom: 18px; color: var(--ink); text-decoration: none; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--tile) center/cover no-repeat; display: grid; place-items: center; font-family: var(--display); font-weight: 800; flex: none; }
+    .seller b { display: block; font-family: var(--display); font-weight: 700; font-size: 15px; }
+    .seller span { color: var(--mute); font-size: 13px; }
+    .seller i { margin-left: auto; font-style: normal; color: var(--mute); }
+    .cta { display: flex; align-items: center; justify-content: center; width: 100%; height: 54px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-family: var(--display); font-weight: 700; font-size: 16px; letter-spacing: -0.01em; text-decoration: none; }
+    .cta:active { transform: scale(0.98); }
+    .hint { margin-top: 14px; text-align: center; font-size: 13px; color: var(--mute); }
+    .hint a { color: var(--ink); }
+    .sold { display: none; margin-bottom: 14px; font-size: 13px; color: var(--mute); }
+    body.is-sold .sold { display: block; }
+    /* Muted school tones, matching the app's share cards. */
+    body.uo { --bg: #0E1612; --line: #26372F; --tile: #18241E; --accent: #E6DC9A; --accent-ink: #18291F; }
+    body.osu { --bg: #140C08; --line: #3A2419; --tile: #21140E; --accent: #E9A27F; --accent-ink: #24130C; }
+    body.uo { background: radial-gradient(ellipse 90% 45% at 50% -10%, rgba(59,94,78,0.55), transparent 60%), var(--bg); }
+    body.osu { background: radial-gradient(ellipse 90% 45% at 50% -10%, rgba(169,83,47,0.45), transparent 60%), var(--bg); }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <a class="brand" href="https://www.usepopupapp.com">popup</a>
+    <div class="tag" id="tag">for sale</div>
+  </div>
+  <main>
+    <div class="photos" id="photos"></div>
+    <h1 id="title">This listing is on popup</h1>
+    <div class="price" id="price"></div>
+    <div class="chips" id="chips"></div>
+    <p class="sold">This one already sold, but the closet has more.</p>
+    <a class="seller" id="seller" href="#" hidden>
+      <div class="avatar" id="avatar"></div>
+      <div><b id="shop"></b><span id="handle"></span></div>
+      <i>›</i>
+    </a>
+    <a class="cta" id="getApp" href="https://apps.apple.com/us/app/popup-campus-thrift/id6819176326">Get popup on the App Store</a>
+    <p class="hint">Have popup? <a id="openApp" href="popup://">Open this listing in the app</a></p>
+  </main>
+  <script>
+    (function () {
+      var data = /*LISTING_DATA*/null || {};
+      if (!data.id) {
+        var parts = (window.location.pathname || "").split("/").filter(Boolean);
+        data.id = decodeURIComponent(parts[parts.length - 1] || "");
+      }
+      var $ = function (id) { return document.getElementById(id); };
+      if (data.school === "uo" || data.school === "osu") document.body.classList.add(data.school);
+      if (data.sold) { document.body.classList.add("is-sold"); $("tag").textContent = "sold"; }
+
+      if (data.title) $("title").textContent = data.title;
+      if (data.price) {
+        $("price").textContent = data.price;
+        if (data.originalPrice) {
+          var was = document.createElement("s");
+          was.textContent = data.originalPrice;
+          $("price").appendChild(was);
+        }
+      }
+
+      var chips = $("chips");
+      [data.size && "Size " + data.size, data.condition, data.brand].filter(Boolean).forEach(function (text) {
+        var el = document.createElement("span");
+        el.className = "chip";
+        el.textContent = text;
+        chips.appendChild(el);
+      });
+
+      var photos = $("photos");
+      (data.photos || []).forEach(function (url) {
+        var tile = document.createElement("div");
+        tile.style.backgroundImage = "url(" + JSON.stringify(url) + ")";
+        photos.appendChild(tile);
+      });
+
+      var appUrl = "popup://listing/" + encodeURIComponent(data.id || "");
+      $("openApp").setAttribute("href", appUrl);
+      var store = data.appStoreUrl || $("getApp").getAttribute("href");
+      $("getApp").setAttribute("href", store);
+
+      if (data.seller && data.seller.username) {
+        var s = data.seller;
+        var closetUrl = (data.origin || "") + "/u/" + encodeURIComponent(s.username) + (s.id ? "?id=" + encodeURIComponent(s.id) : "");
+        $("seller").hidden = false;
+        $("seller").setAttribute("href", closetUrl);
+        $("shop").textContent = s.shopName || ("@" + s.username);
+        $("handle").textContent = "@" + s.username + " · see their closet";
+        var av = $("avatar");
+        if (s.avatarUrl) av.style.backgroundImage = "url(" + JSON.stringify(s.avatarUrl) + ")";
+        else av.textContent = ((s.shopName || s.username)[0] || "p").toUpperCase();
+      }
+
+      // Try the app once per visit. If the page is still showing a moment later,
+      // popup isn't installed, so go to the App Store.
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+      var key = "popup.tried." + data.id;
+      var tried = false;
+      try { tried = sessionStorage.getItem(key) === "1"; sessionStorage.setItem(key, "1"); } catch (e) {}
+      if (!isIOS || tried || !data.id) return;
+      var left = false;
+      document.addEventListener("visibilitychange", function () { if (document.hidden) left = true; });
+      window.addEventListener("pagehide", function () { left = true; });
+      setTimeout(function () { window.location.href = appUrl; }, 350);
+      setTimeout(function () { if (!left && !document.hidden) window.location.href = store; }, 2200);
+    })();
+  </script>
+</body>
+</html>
