@@ -46,7 +46,6 @@ struct PopupApp: App {
                 }
                 .onOpenURL { url in
                     Task { @MainActor in
-                        if url.host == "instagram-auth" { return }
                         if url.host == "stripe-redirect" {
                             #if canImport(StripePaymentSheet)
                             StripeAPI.handleURLCallback(with: url)

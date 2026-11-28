@@ -1153,7 +1153,6 @@ enum SupabaseProfileService {
         var shop_name: String?
         var avatar_url: String?
         var country: String?
-        var instagram_handle: String?
     }
 
     static func updateProfile(client: SupabaseClient, patch: ProfileUpdate) async throws -> User {

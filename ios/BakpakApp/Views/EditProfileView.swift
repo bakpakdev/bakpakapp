@@ -52,8 +52,6 @@ enum EditProfilePrefs {
     static var tradesOpen: String { AccountScopedDefaults.key("popup.editProfile.tradesOpen") }
     static var showBadge: String { AccountScopedDefaults.key("popup.editProfile.showBadge") }
     static var allowDMs: String { AccountScopedDefaults.key("popup.editProfile.allowDMs") }
-    static var instagram: String { AccountScopedDefaults.key("popup.editProfile.instagram") }
-    static var depop: String { AccountScopedDefaults.key("popup.editProfile.depop") }
     static var gradYear: String { AccountScopedDefaults.key("popup.editProfile.gradYear") }
 }
 
@@ -281,15 +279,6 @@ struct EditProfileView: View {
     @State private var selectedStyles: Set<String> = []
     @State private var isTradesOpen = true
     @State private var showBadge = true
-    @State private var instagram = ""
-    @State private var instagramConnected = false
-    @State private var depop = ""
-    @State private var showInstagramAuthSheet = false
-    @State private var pendingInstagramHandle = ""
-    @State private var isConnectingInstagram = false
-    @State private var showDepopSheet = false
-    @State private var pendingDepopHandle = ""
-    @State private var socialError: String?
     @State private var showSaveError = false
     @State private var saveErrorMessage = ""
     @State private var isSaving = false
@@ -429,55 +418,6 @@ struct EditProfileView: View {
                     .padding(16)
                     .usernameGlass(24)
 
-                    GlassSectionLabel(title: "linked accounts", detail: "shown on your profile")
-                    VStack(spacing: 0) {
-                        linkedAccountRow(
-                            title: "Instagram",
-                            glyph: "camera",
-                            handle: instagramConnected && !instagram.isEmpty ? instagram : nil,
-                            actionTitle: isConnectingInstagram ? "…" : "connect"
-                        ) {
-                            Task { await startInstagramConnect() }
-                        }
-                        glassDivider
-                        linkedAccountRow(
-                            title: "Depop",
-                            glyph: "bag",
-                            handle: depop.isEmpty ? nil : depop,
-                            actionTitle: "add"
-                        ) {
-                            pendingDepopHandle = depop
-                            showDepopSheet = true
-                        }
-                    }
-                    .usernameGlass(24)
-
-                    if instagramConnected {
-                        Button {
-                            InstagramConnectService.disconnect()
-                            instagramConnected = false
-                            instagram = ""
-                            Motion.haptic(.light)
-                        } label: {
-                            Text("disconnect Instagram")
-                                .font(Theme.syne(13, weight: .semibold))
-                                .foregroundStyle(Color(hex: "#FF6B6B"))
-                        }
-                        .buttonStyle(.plain)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 6)
-                        .padding(.top, 10)
-                    }
-
-                    if let socialError {
-                        Text(socialError)
-                            .font(Theme.syne(12))
-                            .foregroundStyle(Color(hex: "#FF6B6B"))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 6)
-                            .padding(.top, 8)
-                    }
-
                     Color.clear.frame(height: 48)
                 }
                 .padding(.horizontal, 20)
@@ -534,142 +474,10 @@ struct EditProfileView: View {
         } message: {
             Text(saveErrorMessage)
         }
-        .sheet(isPresented: $showInstagramAuthSheet) {
-            instagramAuthorizeSheet
-                .environment(\.campusTheme, campusTheme)
-                .presentationDetents([.fraction(0.55)])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showDepopSheet) {
-            depopLinkSheet
-                .environment(\.campusTheme, campusTheme)
-                .presentationDetents([.fraction(0.4)])
-                .presentationDragIndicator(.visible)
-        }
         .onAppear {
             loadFromUser()
             loadLocalPreferences()
         }
-    }
-
-    private var instagramAuthorizeSheet: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(hex: "#F58529"), Color(hex: "#DD2A7B"), Color(hex: "#8134AF")],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 48, height: 48)
-                    Image(systemName: "camera.fill")
-                        .foregroundStyle(.white)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("connect instagram")
-                        .font(Theme.syne(22, weight: .bold))
-                        .foregroundStyle(campusTheme.textPrimary)
-                    Text("Authorize popup to link your Instagram.")
-                        .font(Theme.syne(13))
-                        .foregroundStyle(campusTheme.textMuted)
-                }
-            }
-
-            Text("After signing into Instagram, confirm your handle and allow the connection.")
-                .font(Theme.syne(14))
-                .foregroundStyle(campusTheme.textMuted)
-
-            HStack(spacing: 4) {
-                Text("@")
-                    .foregroundStyle(campusTheme.textMuted)
-                TextField("yourhandle", text: $pendingInstagramHandle)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .tint(campusTheme.primary)
-            }
-            .padding(.horizontal, 20)
-            .frame(height: 54)
-            .background(campusTheme.surface)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
-
-            Button {
-                let handle = pendingInstagramHandle
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .replacingOccurrences(of: "@", with: "")
-                guard !handle.isEmpty else { return }
-                InstagramConnectService.saveConnection(handle: handle)
-                instagram = handle
-                instagramConnected = true
-                showInstagramAuthSheet = false
-                Motion.haptic(.medium)
-            } label: {
-                Text("Allow & Connect")
-                    .font(Theme.syne(15, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(campusTheme.primary)
-                    .clipShape(Capsule())
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-            .disabled(pendingInstagramHandle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .opacity(pendingInstagramHandle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
-
-            Button("Not now") {
-                showInstagramAuthSheet = false
-            }
-            .font(Theme.syne(14, weight: .semibold))
-            .foregroundStyle(campusTheme.textMuted)
-            .frame(maxWidth: .infinity)
-
-            Spacer(minLength: 0)
-        }
-        .padding(20)
-        .background(campusTheme.wash.ignoresSafeArea())
-    }
-
-    private var depopLinkSheet: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("depop handle")
-                .font(Theme.syne(22, weight: .bold))
-                .foregroundStyle(campusTheme.textPrimary)
-            HStack(spacing: 4) {
-                Text("@").foregroundStyle(campusTheme.textMuted)
-                TextField("handle", text: $pendingDepopHandle)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .tint(campusTheme.primary)
-            }
-            .padding(.horizontal, 20)
-            .frame(height: 54)
-            .background(campusTheme.surface)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(campusTheme.border, lineWidth: 1))
-
-            Button {
-                depop = pendingDepopHandle
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .replacingOccurrences(of: "@", with: "")
-                showDepopSheet = false
-            } label: {
-                Text("Save")
-                    .font(Theme.syne(15, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(campusTheme.primary)
-                    .clipShape(Capsule())
-            }
-            .buttonStyle(BouncyButtonStyle(pressedScale: 0.97))
-
-            Spacer(minLength: 0)
-        }
-        .padding(20)
-        .background(campusTheme.wash.ignoresSafeArea())
     }
 
     private var glassDivider: some View {
@@ -734,66 +542,6 @@ struct EditProfileView: View {
               let client = await SupabaseManager.shared.clientWithValidSession() else { return }
         let status = await SupabaseProfileService.usernameChangeStatus(client: client)
         usernameStatus = status
-    }
-
-    private func linkedAccountRow(
-        title: String,
-        glyph: String,
-        handle: String?,
-        actionTitle: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: glyph)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(campusTheme.textPrimary.opacity(0.1)))
-                    .overlay(Circle().stroke(campusTheme.textPrimary.opacity(0.12), lineWidth: 1))
-                Text(title)
-                    .font(Theme.syne(15, weight: .semibold))
-                    .foregroundStyle(campusTheme.textPrimary)
-                Spacer(minLength: 8)
-                if let handle {
-                    Text("@\(handle)")
-                        .font(Theme.syne(14, weight: .semibold))
-                        .foregroundStyle(campusTheme.textMuted)
-                        .lineLimit(1)
-                } else {
-                    Text(actionTitle)
-                        .font(Theme.syne(13, weight: .bold))
-                        .foregroundStyle(campusTheme.background)
-                        .padding(.horizontal, 14)
-                        .frame(height: 30)
-                        .background(Capsule().fill(campusTheme.textPrimary))
-                }
-            }
-            .padding(.horizontal, 16)
-            .frame(height: 62)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(BouncyButtonStyle(pressedScale: 0.98))
-    }
-
-    private func startInstagramConnect() async {
-        socialError = nil
-        isConnectingInstagram = true
-        defer { isConnectingInstagram = false }
-        do {
-            try await InstagramConnectService.openInstagramLogin()
-            pendingInstagramHandle = instagram
-            showInstagramAuthSheet = true
-        } catch {
-            if let err = error as? InstagramConnectError, err == .cancelled {
-                socialError = nil
-            } else {
-                socialError = error.localizedDescription
-            }
-            // Still offer authorize sheet so they can connect with a handle.
-            pendingInstagramHandle = instagram
-            showInstagramAuthSheet = true
-        }
     }
 
     private var photoSection: some View {
@@ -883,11 +631,6 @@ struct EditProfileView: View {
         if d.object(forKey: EditProfilePrefs.showBadge) != nil {
             showBadge = d.bool(forKey: EditProfilePrefs.showBadge)
         }
-        instagram = InstagramConnectService.handle.isEmpty
-            ? (d.string(forKey: EditProfilePrefs.instagram) ?? "")
-            : InstagramConnectService.handle
-        instagramConnected = InstagramConnectService.isConnected || !instagram.isEmpty
-        depop = d.string(forKey: EditProfilePrefs.depop) ?? ""
     }
 
     private func saveLocalPreferences() {
@@ -896,11 +639,6 @@ struct EditProfileView: View {
         d.set(Array(selectedStyles), forKey: EditProfilePrefs.styles)
         d.set(isTradesOpen, forKey: EditProfilePrefs.tradesOpen)
         d.set(showBadge, forKey: EditProfilePrefs.showBadge)
-        d.set(instagram, forKey: EditProfilePrefs.instagram)
-        d.set(depop, forKey: EditProfilePrefs.depop)
-        if instagramConnected, !instagram.isEmpty {
-            InstagramConnectService.saveConnection(handle: instagram)
-        }
     }
 
     private func parsedName() -> (first: String, last: String) {
@@ -979,8 +717,7 @@ struct EditProfileView: View {
                         bio: trimmedBio.isEmpty ? nil : trimmedBio,
                         shop_name: nil,
                         avatar_url: nil,
-                        country: nil,
-                        instagram_handle: (instagramConnected && !instagram.isEmpty) ? instagram : nil
+                        country: nil
                     )
                 )
                 authVM.user = updated

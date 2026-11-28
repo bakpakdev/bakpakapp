@@ -6,7 +6,6 @@ struct AccountSettingsView: View {
     @EnvironmentObject private var meetupStore: MeetupStore
     @Environment(\.campusTheme) private var campusTheme
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
 
     @State private var soldBalance: Double = 0
     @State private var comingSoonMessage: String?
@@ -231,7 +230,7 @@ struct AccountSettingsView: View {
         return available > 0 ? "Set up payouts & cash out" : "Set up cash out"
     }
 
-    /// Edit profile, Liked and Instagram used to sit on the Profile tab; they live here now
+    /// Edit profile and Liked used to sit on the Profile tab; they live here now
     /// so Profile can lead with the closet.
     private var accountRows: [SettingsRowModel] {
         var rows: [SettingsRowModel] = [
@@ -242,12 +241,6 @@ struct AccountSettingsView: View {
                 appState.openProfileLikes()
             },
         ]
-        let ig = InstagramConnectService.handle
-        if !ig.isEmpty, let igURL = URL(string: "https://instagram.com/\(ig)") {
-            rows.append(.init(icon: "camera", title: "Instagram", subtitle: "@\(ig)") {
-                openURL(igURL)
-            })
-        }
         rows.append(.init(icon: "person.crop.circle", title: "Account details", subtitle: user?.email) {
             appState.path.append(.accountDetails)
         })
