@@ -89,8 +89,10 @@ struct ProfileView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
+                        // Start the row below the status bar plus the aurora scrim's fade
+                        // (14pt) so the glass buttons aren't faded out at the top.
                         topBar
-                            .padding(.top, 62)
+                            .padding(.top, Self.statusBarInset + 22)
                             .padding(.horizontal, horizontalPad)
                             .padding(.bottom, 6)
 
@@ -162,6 +164,15 @@ struct ProfileView: View {
     }
 
     // MARK: Top bar
+
+    /// Real status bar / Dynamic Island height. The page ignores the top safe area, so read
+    /// it from the window rather than the layout.
+    private static var statusBarInset: CGFloat {
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first
+        return max(window?.safeAreaInsets.top ?? 0, 20)
+    }
 
     private var topBar: some View {
         HStack(spacing: 10) {
