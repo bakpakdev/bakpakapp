@@ -518,7 +518,7 @@ def main() -> None:
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = BakpakApp/PopupApp.Debug.entitlements;
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 10;
+\t\t\t\tCURRENT_PROJECT_VERSION = 13;
 \t\t\t\tDEVELOPMENT_TEAM = {development_team};
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -531,7 +531,7 @@ def main() -> None:
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 1.0;
+\t\t\t\tMARKETING_VERSION = 1.1;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.popupapp.campus;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = iphoneos;
@@ -549,7 +549,7 @@ def main() -> None:
 \t\t\tbuildSettings = {{
 \t\t\t\tCODE_SIGN_ENTITLEMENTS = "BakpakApp/$(POPUP_RELEASE_ENTITLEMENTS:default=PopupApp.entitlements)";
 \t\t\t\tCODE_SIGN_STYLE = Automatic;
-\t\t\t\tCURRENT_PROJECT_VERSION = 10;
+\t\t\t\tCURRENT_PROJECT_VERSION = 13;
 \t\t\t\tDEVELOPMENT_TEAM = {development_team};
 \t\t\t\tENABLE_PREVIEWS = YES;
 \t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -561,7 +561,7 @@ def main() -> None:
 \t\t\t\t\t"$(inherited)",
 \t\t\t\t\t"@executable_path/Frameworks",
 \t\t\t\t);
-\t\t\t\tMARKETING_VERSION = 1.0;
+\t\t\t\tMARKETING_VERSION = 1.1;
 \t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.popupapp.campus;
 \t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";
 \t\t\t\tSDKROOT = iphoneos;
