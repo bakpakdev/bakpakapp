@@ -36,5 +36,5 @@ APPLE_PAY_MERCHANT_ID = merchant.com.popup.app
 // Snap Kit "Public OAuth 2.0 Client ID" for the popup app (kit.snapchat.com → your app).
 // Lets "Share to Snapchat story" open Snapchat with the listing card and its link attached.
 // Empty = the Snapchat button falls back to the iOS share sheet (card image, no link).
-SNAPCHAT_CLIENT_ID =
+SNAPCHAT_CLIENT_ID = 350bf22b-c4f1-4b94-b75f-4c32aef3089c
 #include? "Secrets.xcconfig"
