@@ -383,7 +383,8 @@ struct ShareClosetSheet: View {
     private func shareToStories() {
         Motion.haptic(.light)
         let image = renderedCard()
-        let appID = InstagramConnectService.appID
+        let appID = (Bundle.main.object(forInfoDictionaryKey: "InstagramAppID") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let source = appID.isEmpty ? (Bundle.main.bundleIdentifier ?? "com.popupapp.campus") : appID
         guard let stories = URL(string: "instagram-stories://share?source_application=\(source)"),
               UIApplication.shared.canOpenURL(stories),
