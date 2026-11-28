@@ -113,6 +113,17 @@ try {
     }
   });
 
+  const { renderListingSharePage } = require('./lib/listingSharePage');
+  app.get('/l/:id', async (req, res) => {
+    try {
+      res.set('Cache-Control', 'public, max-age=300');
+      res.type('html').send(await renderListingSharePage(req));
+    } catch (err) {
+      console.error('listing share page failed:', err);
+      res.redirect(302, 'https://apps.apple.com/us/app/popup-campus-thrift/id6819176326');
+    }
+  });
+
   app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });

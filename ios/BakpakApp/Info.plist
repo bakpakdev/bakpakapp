@@ -44,8 +44,11 @@
 		<string>instagram</string>
 		<string>instagram-stories</string>
 		<string>whatsapp</string>
+		<string>snapchat</string>
 		<string>otpauth</string>
 	</array>
+	<key>SnapchatClientID</key>
+	<string>$(SNAPCHAT_CLIENT_ID)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>

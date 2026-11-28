@@ -15,13 +15,14 @@ enum ClosetShareLinks {
         return URL(string: "popup://u/\(encoded)")!
     }
 
-    /// HTTPS page that tries to open the app. Falls back to `popup://` on localhost Debug builds.
+    /// `usepopupapp.com/u/<handle>`: a universal link that opens the closet in popup, or a page
+    /// (the API's closet page, through the website) that sends the viewer to the App Store.
     static func publicURL(username: String, userId: String) -> URL {
         let handle = username
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "@", with: "")
-        if let origin = publicOrigin() {
-            var parts = URLComponents(string: "\(origin)/u/\(handle)")
+        if !handle.isEmpty {
+            var parts = URLComponents(string: "\(ListingShareLinks.publicOrigin)/u/\(handle)")
             var items: [URLQueryItem] = []
             if !userId.isEmpty {
                 items.append(URLQueryItem(name: "id", value: userId.lowercased()))
@@ -78,21 +79,5 @@ enum ClosetShareLinks {
     private static func pathToken(_ url: URL) -> String {
         let trimmed = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         return trimmed.removingPercentEncoding ?? trimmed
-    }
-
-    /// Hosted API that serves `/u/:username` with link-preview tags. Debug builds talk to a
-    /// local API, but a shared link has to open on someone else's phone, so it always uses this.
-    private static let hostedOrigin = "https://popup-api-hwbg.onrender.com"
-
-    private static func publicOrigin() -> String? {
-        let raw = PaymentsConfig.apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: raw), let host = url.host, !host.isEmpty else { return hostedOrigin }
-        let local = host == "localhost" || host == "127.0.0.1" || host.hasPrefix("192.168.") || host.hasSuffix(".local")
-        if local { return hostedOrigin }
-        var origin = "\(url.scheme ?? "https")://\(host)"
-        if let port = url.port, port != 80, port != 443 {
-            origin += ":\(port)"
-        }
-        return origin
     }
 }

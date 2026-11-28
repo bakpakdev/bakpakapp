@@ -34,6 +34,7 @@ struct ProductDetailView: View {
     @State private var isPaymentBusy = false
     /// "I want this": price, spot and time on one sheet, sent into the chat.
     @State private var showWantSheet = false
+    @State private var showStoryShare = false
     @State private var showLowerPriceOptions = false
     /// Where to go once the "lower the price" sheet has finished closing.
     @State private var pendingLowerPriceRoute: Route?
@@ -95,6 +96,13 @@ struct ProductDetailView: View {
             .overlay { confirmCards }
             .modifier(ProductDetailAlerts(actionError: $actionError, comingSoonMessage: $comingSoonMessage, paymentPresenter: paymentPresenter, suppressPaymentAlert: paymentOutcome != nil, onSetUpPayouts: { appState.path.append(.sellerCashOutSetup) }))
             .sheet(isPresented: $showSellerPaymentSheet) { sellerPaymentWaitingSheet }
+            .sheet(isPresented: $showStoryShare) {
+                if let product, let seller = product.user {
+                    ShareListingSheet(product: product, seller: seller)
+                        .environment(\.campusTheme, campusTheme)
+                        .presentationDragIndicator(.visible)
+                }
+            }
             .sheet(isPresented: Binding(
                 get: { receiveOffers != nil },
                 set: { if !$0 { receiveOffers = nil } }
@@ -300,6 +308,11 @@ struct ProductDetailView: View {
         ToolbarItem(placement: .navigationBarTrailing) {
             if let product, let seller = product.user {
                 Menu {
+                    Button {
+                        showStoryShare = true
+                    } label: {
+                        Label("Share to story", systemImage: "camera.aperture")
+                    }
                     ShareLink(item: shareText(product, seller: seller)) {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
@@ -320,11 +333,10 @@ struct ProductDetailView: View {
         }
     }
 
-    /// "Levi's jacket · $38 on popup" plus the seller's closet link (listings have no web page yet).
+    /// "Levi's jacket · $38 on popup" plus the listing link (opens popup, or the App Store).
     private func shareText(_ product: Product, seller: User) -> String {
-        let link = ClosetShareLinks.publicURL(username: seller.username, userId: seller.id).absoluteString
-        let web = link.hasPrefix("http") ? link : "https://www.usepopupapp.com"
-        return "\(product.title) · $\(formattedPrice(product.price)) on popup\n\(web)"
+        let link = ListingShareLinks.publicURL(productId: product.id).absoluteString
+        return "\(product.title) · $\(formattedPrice(product.price)) on popup\n\(link)"
     }
 
     private func reportListing(_ product: Product, seller: User) {
@@ -365,6 +377,14 @@ struct ProductDetailView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         SettingsSectionTitle(title: "sell it faster")
                         VStack(spacing: 0) {
+                            SettingsNavRow(
+                                icon: "camera.aperture",
+                                title: "Share to your story",
+                                subtitle: "Post it on Instagram or Snapchat"
+                            ) {
+                                Motion.haptic(.light)
+                                showStoryShare = true
+                            }
                             SettingsNavRow(
                                 icon: "arrow.down.circle",
                                 title: product.hasDiscount ? "Change the price" : "Lower the price",

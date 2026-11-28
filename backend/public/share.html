@@ -59,7 +59,7 @@
     <div class="stats" id="stats"></div>
     <div class="grid" id="grid"></div>
     <a class="cta" id="openApp" href="popup://profile">Open closet in popup</a>
-    <p class="hint">Don’t have popup yet? <a href="https://www.usepopupapp.com">Get the app</a></p>
+    <p class="hint">Don’t have popup yet? <a id="getApp" href="https://apps.apple.com/us/app/popup-campus-thrift/id6819176326">Get the app</a></p>
   </main>
   <script>
     (function () {
@@ -105,7 +105,19 @@
         ? "popup://profile/" + encodeURIComponent(data.id)
         : "popup://u/" + encodeURIComponent(data.username || "");
       $("openApp").setAttribute("href", appUrl);
+
+      // Try the app once per visit. If the page is still showing a moment later,
+      // popup isn't installed, so go to the App Store.
+      var store = $("getApp").getAttribute("href");
+      var key = "popup.tried." + (data.id || data.username || "");
+      var tried = false;
+      try { tried = sessionStorage.getItem(key) === "1"; sessionStorage.setItem(key, "1"); } catch (e) {}
+      if (tried || !/iPhone|iPad|iPod/i.test(navigator.userAgent || "")) return;
+      var left = false;
+      document.addEventListener("visibilitychange", function () { if (document.hidden) left = true; });
+      window.addEventListener("pagehide", function () { left = true; });
       setTimeout(function () { window.location.href = appUrl; }, 450);
+      setTimeout(function () { if (!left && !document.hidden) window.location.href = store; }, 2300);
     })();
   </script>
 </body>

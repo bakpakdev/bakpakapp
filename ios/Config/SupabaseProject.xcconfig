@@ -33,4 +33,8 @@ TAP_TO_PAY_ENABLED = NO
 SQUARE_APPLICATION_ID =
 // Apple Pay merchant ID registered in the developer portal.
 APPLE_PAY_MERCHANT_ID = merchant.com.popup.app
+// Snap Kit "Public OAuth 2.0 Client ID" for the popup app (kit.snapchat.com → your app).
+// Lets "Share to Snapchat story" open Snapchat with the listing card and its link attached.
+// Empty = the Snapchat button falls back to the iOS share sheet (card image, no link).
+SNAPCHAT_CLIENT_ID =
 #include? "Secrets.xcconfig"

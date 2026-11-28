@@ -17,6 +17,7 @@
 		5442C2A3784925E7A6E273CB /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF249FAAD97B99AE818FE9F /* AuthViewModel.swift */; };
 		CF52EFF18FE97550FAC8E4CF /* BlockStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E32FB207EF344102E224376C /* BlockStore.swift */; };
 		334D30011DEAA0903D84B927 /* ClosetShareLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F14F42D7B0527D495B6BEE1 /* ClosetShareLinks.swift */; };
+		5D063589F58FC8A7133FE0E2 /* ListingShareLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94BB4760C51FF713D3B4C65C /* ListingShareLinks.swift */; };
 		9BF601A36BB304D5E684B7D6 /* ClothingIdentifyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0032275B26EC8F78ECA97037 /* ClothingIdentifyService.swift */; };
 		E5342D1406BEE0FC8795CB54 /* FollowReviewService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 924E5080DBE8AA88C54229E9 /* FollowReviewService.swift */; };
 		9DE8874A880C03ADD8B04542 /* InboxReadStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F486F7C2EADFAB9EF5098D3 /* InboxReadStore.swift */; };
@@ -113,6 +114,7 @@
 		39D94FA2A520BFCED94D45B8 /* SetDiscountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 374079471D066184256C923E /* SetDiscountView.swift */; };
 		20681F53F5F1DCC79A1E6FAF /* SettingsChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A9B0D26ADDDDAA0DF6E7B7 /* SettingsChrome.swift */; };
 		D411D10B01C1868250CFE33C /* ShareClosetSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57BDB4773F98BD48D368E09 /* ShareClosetSheet.swift */; };
+		3A82743224613EF2C61EE887 /* ShareListingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F822967561DC5E3BA2C186F /* ShareListingSheet.swift */; };
 		2B6DF528413E1B3ECEC33E83 /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E59CFF12224C901E90998E /* SharedViews.swift */; };
 		034DA744FD4AEC0AB727248A /* SplashScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 464A80971AD82EE9F23EB8CB /* SplashScreen.swift */; };
 		47ACEB8D5E367AD67FB46075 /* TwoFactorAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24CA9F040EA4E7006E25016A /* TwoFactorAuthView.swift */; };
@@ -151,6 +153,7 @@
 		EFF249FAAD97B99AE818FE9F /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'AuthViewModel.swift'; sourceTree = "<group>"; };
 		E32FB207EF344102E224376C /* BlockStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'BlockStore.swift'; sourceTree = "<group>"; };
 		1F14F42D7B0527D495B6BEE1 /* ClosetShareLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ClosetShareLinks.swift'; sourceTree = "<group>"; };
+		94BB4760C51FF713D3B4C65C /* ListingShareLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ListingShareLinks.swift'; sourceTree = "<group>"; };
 		0032275B26EC8F78ECA97037 /* ClothingIdentifyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ClothingIdentifyService.swift'; sourceTree = "<group>"; };
 		924E5080DBE8AA88C54229E9 /* FollowReviewService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'FollowReviewService.swift'; sourceTree = "<group>"; };
 		3F486F7C2EADFAB9EF5098D3 /* InboxReadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'InboxReadStore.swift'; sourceTree = "<group>"; };
@@ -247,6 +250,7 @@
 		374079471D066184256C923E /* SetDiscountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SetDiscountView.swift'; sourceTree = "<group>"; };
 		64A9B0D26ADDDDAA0DF6E7B7 /* SettingsChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SettingsChrome.swift'; sourceTree = "<group>"; };
 		A57BDB4773F98BD48D368E09 /* ShareClosetSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ShareClosetSheet.swift'; sourceTree = "<group>"; };
+		5F822967561DC5E3BA2C186F /* ShareListingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'ShareListingSheet.swift'; sourceTree = "<group>"; };
 		D4E59CFF12224C901E90998E /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SharedViews.swift'; sourceTree = "<group>"; };
 		464A80971AD82EE9F23EB8CB /* SplashScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'SplashScreen.swift'; sourceTree = "<group>"; };
 		24CA9F040EA4E7006E25016A /* TwoFactorAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 'TwoFactorAuthView.swift'; sourceTree = "<group>"; };
@@ -334,6 +338,7 @@
 				EFF249FAAD97B99AE818FE9F /* AuthViewModel.swift */,
 				E32FB207EF344102E224376C /* BlockStore.swift */,
 				1F14F42D7B0527D495B6BEE1 /* ClosetShareLinks.swift */,
+				94BB4760C51FF713D3B4C65C /* ListingShareLinks.swift */,
 				0032275B26EC8F78ECA97037 /* ClothingIdentifyService.swift */,
 				924E5080DBE8AA88C54229E9 /* FollowReviewService.swift */,
 				3F486F7C2EADFAB9EF5098D3 /* InboxReadStore.swift */,
@@ -423,6 +428,7 @@
 				374079471D066184256C923E /* SetDiscountView.swift */,
 				64A9B0D26ADDDDAA0DF6E7B7 /* SettingsChrome.swift */,
 				A57BDB4773F98BD48D368E09 /* ShareClosetSheet.swift */,
+				5F822967561DC5E3BA2C186F /* ShareListingSheet.swift */,
 				D4E59CFF12224C901E90998E /* SharedViews.swift */,
 				464A80971AD82EE9F23EB8CB /* SplashScreen.swift */,
 				24CA9F040EA4E7006E25016A /* TwoFactorAuthView.swift */,
@@ -563,6 +569,7 @@
 				5442C2A3784925E7A6E273CB /* AuthViewModel.swift in Sources */,
 				CF52EFF18FE97550FAC8E4CF /* BlockStore.swift in Sources */,
 				334D30011DEAA0903D84B927 /* ClosetShareLinks.swift in Sources */,
+				5D063589F58FC8A7133FE0E2 /* ListingShareLinks.swift in Sources */,
 				9BF601A36BB304D5E684B7D6 /* ClothingIdentifyService.swift in Sources */,
 				E5342D1406BEE0FC8795CB54 /* FollowReviewService.swift in Sources */,
 				9DE8874A880C03ADD8B04542 /* InboxReadStore.swift in Sources */,
@@ -659,6 +666,7 @@
 				39D94FA2A520BFCED94D45B8 /* SetDiscountView.swift in Sources */,
 				20681F53F5F1DCC79A1E6FAF /* SettingsChrome.swift in Sources */,
 				D411D10B01C1868250CFE33C /* ShareClosetSheet.swift in Sources */,
+				3A82743224613EF2C61EE887 /* ShareListingSheet.swift in Sources */,
 				2B6DF528413E1B3ECEC33E83 /* SharedViews.swift in Sources */,
 				034DA744FD4AEC0AB727248A /* SplashScreen.swift in Sources */,
 				47ACEB8D5E367AD67FB46075 /* TwoFactorAuthView.swift in Sources */,
