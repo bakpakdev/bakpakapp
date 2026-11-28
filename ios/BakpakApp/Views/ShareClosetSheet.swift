@@ -88,6 +88,8 @@ struct ShareClosetSheet: View {
     @State private var showMoreShare = false
     @State private var showStatusShare = false
     @State private var cardImage: UIImage?
+    /// 9:16 story image for the Snapchat fallback share sheet.
+    @State private var storyShareImage: UIImage?
     @State private var missingAppTitle = ""
     @State private var missingAppStoreURL: URL?
 
@@ -161,7 +163,7 @@ struct ShareClosetSheet: View {
         .sheet(isPresented: $showMoreShare) {
             SystemShareSheet(items: moreShareItems())
         }
-        .sheet(isPresented: $showStatusShare) {
+        .sheet(isPresented: $showStatusShare, onDismiss: { storyShareImage = nil }) {
             SystemShareSheet(items: statusShareItems())
         }
         .alert(missingAppTitle, isPresented: Binding(
@@ -258,7 +260,8 @@ struct ShareClosetSheet: View {
             HStack(spacing: 0) {
                 shareButton(title: "Messages", systemImage: "message.fill") { shareToMessages() }
                 shareButton(title: "WhatsApp", systemImage: "phone.bubble.fill") { shareToWhatsApp() }
-                shareButton(title: "Stories", systemImage: "camera.aperture") { shareToStories() }
+                shareButton(title: "IG Story", systemImage: "camera") { shareToInstagramStory() }
+                shareButton(title: "Snapchat", systemImage: "camera.viewfinder") { shareToSnapchatStory() }
                 shareButton(title: "More", systemImage: "square.and.arrow.up") {
                     Motion.haptic(.light)
                     cardImage = renderedCard()
@@ -404,13 +407,62 @@ struct ShareClosetSheet: View {
         UIApplication.shared.open(stories)
     }
 
+    /// Instagram Story: the closet card as a sticker, with the closet link copied for the Link sticker.
+    @MainActor
+    private func shareToInstagramStory() {
+        Motion.haptic(.light)
+        let outcome = StoryShare.instagram(
+            sticker: renderedCard(),
+            topColor: palette.top.storyHexString ?? "#1C1C1C",
+            bottomColor: palette.bottom.storyHexString ?? "#050505",
+            link: shareURL
+        )
+        if outcome != .opened {
+            missingAppTitle = "Instagram isn’t installed"
+            missingAppStoreURL = StoryShare.instagramAppStoreURL
+            return
+        }
+    }
+
+    /// Snapchat Story: the closet card on a 9:16 backdrop with the closet link attached.
+    @MainActor
+    private func shareToSnapchatStory() {
+        Motion.haptic(.light)
+        let story = storyImage()
+        switch StoryShare.snapchat(background: story, link: shareURL) {
+        case .opened:
+            break
+        case .notInstalled:
+            missingAppTitle = "Snapchat isn’t installed"
+            missingAppStoreURL = StoryShare.snapchatAppStoreURL
+        case .notConfigured:
+            // No Snap Kit client ID yet: the share sheet still gets the card to Snapchat.
+            UIPasteboard.general.string = shareURL.absoluteString
+            cardImage = nil
+            storyShareImage = story
+            showStatusShare = true
+        }
+    }
+
+    @MainActor
+    private func storyImage() -> UIImage {
+        let view = StoryBackdrop(
+            card: closetCard(palette: palette)
+                .frame(width: ClosetShareCard.size.width, height: ClosetShareCard.size.height),
+            palette: palette
+        )
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 3
+        return renderer.uiImage ?? renderedCard()
+    }
+
     private func moreShareItems() -> [Any] {
         let image = renderedCard()
         return [ClosetShareActivityItem(text: shareText, url: shareURL, image: image, title: "\(shopName) on popup")]
     }
 
     private func statusShareItems() -> [Any] {
-        [renderedCard(), shareURL]
+        [storyShareImage ?? renderedCard(), shareURL]
     }
 
     @MainActor

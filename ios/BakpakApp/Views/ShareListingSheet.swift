@@ -250,8 +250,8 @@ struct ShareListingSheet: View {
         Motion.haptic(.medium)
         let outcome = StoryShare.instagram(
             sticker: render(card(palette: palette), size: ListingStoryCard.size),
-            topColor: palette.top.hexString ?? "#1C1C1C",
-            bottomColor: palette.bottom.hexString ?? "#050505",
+            topColor: palette.top.storyHexString ?? "#1C1C1C",
+            bottomColor: palette.bottom.storyHexString ?? "#050505",
             link: link
         )
         if outcome != .opened {
@@ -286,7 +286,7 @@ struct ShareListingSheet: View {
     /// Full-screen 9:16 story (card on the palette gradient) for Snapchat and the share sheet.
     @MainActor
     private func storyImage() -> UIImage {
-        render(ListingStoryBackdrop(card: card(palette: palette), palette: palette), size: ListingStoryBackdrop.size)
+        render(StoryBackdrop(card: card(palette: palette), palette: palette), size: CGSize(width: 360, height: 640))
     }
 
     @MainActor
@@ -414,11 +414,12 @@ struct ListingStoryCard: View {
     }
 }
 
-/// 9:16 story frame: the card centered on the palette gradient.
-struct ListingStoryBackdrop: View {
-    static let size = CGSize(width: 360, height: 640)
+/// 9:16 story frame: a share card centered on the palette gradient (Snapchat background,
+/// share-sheet image). Used by listing and closet shares.
+struct StoryBackdrop<Card: View>: View {
+    static var size: CGSize { CGSize(width: 360, height: 640) }
 
-    let card: ListingStoryCard
+    let card: Card
     let palette: ClosetSharePalette
 
     var body: some View {
@@ -427,13 +428,13 @@ struct ListingStoryBackdrop: View {
             card
                 .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
         }
-        .frame(width: Self.size.width, height: Self.size.height)
+        .frame(width: 360, height: 640)
     }
 }
 
-private extension Color {
-    /// "#RRGGBB" for Instagram's background colors.
-    var hexString: String? {
+extension Color {
+    /// "#RRGGBB" for Instagram's story background colors.
+    var storyHexString: String? {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         guard UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
         let clamp = { (v: CGFloat) in Int((min(max(v, 0), 1) * 255).rounded()) }
